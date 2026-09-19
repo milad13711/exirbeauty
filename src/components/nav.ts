@@ -19,11 +19,11 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { n: 18, href: "/procurement", label: "تأمین و خرید عمده", icon: Truck },
   ]},
   { title: "رشد و وفاداری", items: [
-    { n: 7, href: "/loyalty", label: "باشگاه مشتریان", icon: Crown },
-    { n: 8, href: "/referral", label: "معرفی دوستان", icon: Share2 },
-    { n: 11, href: "/campaigns", label: "کمپین و بازاریابی", icon: Megaphone },
-    { n: 12, href: "/automation", label: "اتوماسیون بازگشت", icon: Repeat },
-    { n: 13, href: "/reviews", label: "نظرسنجی و اعتبار", icon: Star },
+    { n: 7, href: "/loyalty", label: "باشگاه مشتریان", icon: Crown, ready: true },
+    { n: 8, href: "/referral", label: "معرفی دوستان", icon: Share2, ready: true },
+    { n: 11, href: "/campaigns", label: "کمپین و بازاریابی", icon: Megaphone, ready: true },
+    { n: 12, href: "/automation", label: "اتوماسیون بازگشت", icon: Repeat, ready: true },
+    { n: 13, href: "/reviews", label: "نظرسنجی و اعتبار", icon: Star, ready: true },
     { n: 24, href: "/content", label: "تولید محتوا", icon: PenSquare },
   ]},
   { title: "فروش و درآمد جدید", items: [
