@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import clsx from "clsx";
-import { Award, Heart, Star, TrendingUp, Trophy } from "lucide-react";
+import Link from "next/link";
+import { Award, ExternalLink, Heart, Link2, Star, TrendingUp, Trophy } from "lucide-react";
 import { Avatar, Badge, Card, CardHead, PageTitle, Stat } from "@/components/ui";
 import { staff } from "@/lib/mock";
 import { fa, short } from "@/lib/fa";
@@ -48,6 +49,17 @@ export default function Staff() {
             <Stat label="نرخ بازگشت" value={`${fa(s.returning)}٪`} tone="rose" />
             <Stat label="رضایت مشتری" value={`${fa(s.rating)} از ۵`} tone="amber" />
           </div>
+          <Card>
+            <CardHead title="لینک رزرو آنلاین" hint="مشتری با این لینک‌ها مستقیم نوبت می‌گیرد" action={<Link2 size={16} className="text-ink3" />} />
+            <ul className="divide-y divide-line">
+              {[{ l: `رزرو از ${s.name}`, h: `/book?staff=${s.id}` }, { l: "رزرو از سالن (هر متخصص)", h: "/book" }].map((x) => (
+                <li key={x.h} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-sm">
+                  <span className="min-w-0 flex-1 basis-40"><b className="block">{x.l}</b><bdi dir="ltr" className="text-xs text-ink3">exirbeauty.ir{x.h}</bdi></span>
+                  <Link href={x.h} className="inline-flex items-center gap-1 text-[13px] font-semibold text-rose hover:text-rosedeep"><ExternalLink size={13} />باز کردن فرم</Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
           <Card>
             <CardHead title="ساعات کاری و ظرفیت" hint="اشغال‌شدن ظرفیت این ماه" />
             <div className="px-5 pb-5">

@@ -2,8 +2,12 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { Bell, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Coffee, Hourglass, Plus, Repeat, Sparkles } from "lucide-react";
-import { Avatar, Badge, Button, Card, PageTitle, type Tone } from "@/components/ui";
-import { appts, blocked, NOW_MIN, smartSuggestions, staff, TODAY, waitlist, type Appt } from "@/lib/mock";
+import Link from "next/link";
+import { Avatar, Badge, Button, Card, LinkButton, PageTitle, type Tone } from "@/components/ui";
+import { actions, useDB } from "@/lib/db";
+import { dayInfo } from "@/lib/dates";
+import { blocked, NOW_MIN, smartSuggestions, staff, waitlist, type Appt } from "@/lib/mock";
+import { staffWorks } from "@/lib/booking";
 import { fa, short } from "@/lib/fa";
 
 const DAY_LEN = 600; // ۹ تا ۱۹
@@ -24,13 +28,13 @@ type Item =
   | { kind: "free"; start: number; dur: number }
   | { kind: "now"; start: number };
 
-function timeline(staffId: string): Item[] {
+function timeline(staffId: string, dayAppts: Appt[], showNow: boolean): Item[] {
   const busy = [
-    ...appts.filter((a) => a.staffId === staffId).map((a) => ({ s: a.start, e: a.start + a.dur })),
+    ...dayAppts.filter((a) => a.staffId === staffId).map((a) => ({ s: a.start, e: a.start + a.dur })),
     ...(blocked[staffId] ?? []).map((b) => ({ s: b.s, e: b.e })),
   ].sort((x, y) => x.s - y.s);
   const items: Item[] = [
-    ...appts.filter((a) => a.staffId === staffId).map((a): Item => ({ kind: "appt", start: a.start, a })),
+    ...dayAppts.filter((a) => a.staffId === staffId).map((a): Item => ({ kind: "appt", start: a.start, a })),
     ...(blocked[staffId] ?? []).map((b): Item => ({ kind: "break", start: b.s, dur: b.e - b.s, label: b.label })),
   ];
   let cur = 0;
@@ -39,7 +43,7 @@ function timeline(staffId: string): Item[] {
     cur = Math.max(cur, b.e);
   }
   if (DAY_LEN - cur >= MIN_GAP) items.push({ kind: "free", start: cur, dur: DAY_LEN - cur });
-  items.push({ kind: "now", start: NOW_MIN - 0.5 });
+  if (showNow) items.push({ kind: "now", start: NOW_MIN - 0.5 });
   return items.sort((x, y) => x.start - y.start);
 }
 
@@ -59,7 +63,7 @@ function ApptRow({ a, open, onToggle }: { a: Appt; open: boolean; onToggle: () =
         <div className="border-t border-line px-4 py-3">
           {a.client === "سارا محمدی" && <p className="mb-3 rounded-lg bg-dangersoft p-2.5 text-xs leading-6 text-danger">⚠️ حساسیت به PPD؛ از رنگ‌های بدون PPD استفاده شود.</p>}
           <p className="mb-3 text-xs text-ink2">{range(a.start, a.dur)}</p>
-          <div className="flex flex-wrap gap-2"><Button variant="soft">تأیید</Button><Button variant="ghost">جابه‌جایی</Button><Button variant="ghost" className="!text-danger">لغو</Button></div>
+          <div className="flex flex-wrap gap-2">{a.status === "pending" && <Button variant="soft" onClick={() => actions.setApptStatus(a.id, "confirmed")}>تأیید</Button>}<Button variant="ghost" className="!text-danger" onClick={() => actions.cancelAppt(a.id)}>لغو نوبت</Button></div>
           <p className="mt-3 flex items-center gap-1.5 text-xs text-ink3"><Bell size={12} />یادآوری خودکار ۲۴ ساعت و ۲ ساعت قبل</p>
         </div>
       )}
@@ -68,22 +72,26 @@ function ApptRow({ a, open, onToggle }: { a: Appt; open: boolean; onToggle: () =
 }
 
 export default function CalendarPage() {
+  const db = useDB();
+  const [day, setDay] = useState(0);
+  const info = dayInfo(day);
+  const dayAppts = db.appts.filter((a) => a.day === day);
   const [who, setWho] = useState("all");
   const [view, setView] = useState<(typeof views)[number]["k"]>("day");
   const [open, setOpen] = useState<string | null>("a3");
   const cols = staff.filter((s) => who === "all" || s.id === who);
-  const total = appts.filter((a) => who === "all" || a.staffId === who).length;
+  const total = dayAppts.filter((a) => who === "all" || a.staffId === who).length;
 
   return (
     <>
-      <PageTitle title="تقویم و نوبت‌دهی" actions={<><Button variant="ghost"><Repeat size={14} />تکرارشونده</Button><Button><Plus size={14} />نوبت جدید</Button></>} />
+      <PageTitle title="تقویم و نوبت‌دهی" actions={<><LinkButton href="/calendar/new" variant="ghost"><Repeat size={14} />تکرارشونده</LinkButton><LinkButton href="/calendar/new"><Plus size={14} />نوبت جدید</LinkButton></>} />
 
       <div className="mx-auto max-w-3xl">
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
           <div className="flex items-center gap-1">
-            <button aria-label="روز قبل" className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2"><ChevronRight size={16} /></button>
-            <span className="px-2 text-sm font-extrabold">{TODAY}</span>
-            <button aria-label="روز بعد" className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2"><ChevronLeft size={16} /></button>
+            <button aria-label="روز قبل" disabled={day === 0} onClick={() => setDay(day - 1)} className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight size={16} /></button>
+            <span className="px-2 text-sm font-extrabold">{info.full}</span>{day > 0 && <button onClick={() => setDay(0)} className="mr-1 cursor-pointer rounded-lg bg-rosesoft px-2.5 py-1 text-xs font-bold text-rosedeep">امروز</button>}
+            <button aria-label="روز بعد" onClick={() => setDay(day + 1)} className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2"><ChevronLeft size={16} /></button>
           </div>
           <select aria-label="متخصص" value={who} onChange={(e) => setWho(e.target.value)} className="mr-auto cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm font-semibold">
             <option value="all">همه‌ی متخصص‌ها</option>
@@ -101,17 +109,17 @@ export default function CalendarPage() {
 
         {view === "day" && (
           <div className="space-y-6">
-            <p className="text-sm text-ink2"><b className="text-ink">{fa(total)}</b> نوبت امروز · ساعت <b className="text-ink">{clock(NOW_MIN)}</b> اکنون</p>
+            <p className="text-sm text-ink2"><b className="text-ink">{fa(total)}</b> نوبت{day === 0 && <> امروز · ساعت <b className="text-ink">{clock(NOW_MIN)}</b> اکنون</>}</p>
             {cols.map((s) => (
               <section key={s.id}>
                 <header className="mb-2 flex items-center gap-2.5"><Avatar name={s.name} color={s.color} size={30} /><div className="leading-tight"><h2 className="text-sm font-extrabold">{s.name}</h2><p className="text-[11px] text-ink3">{s.role}</p></div></header>
                 <ul className="space-y-2">
-                  {timeline(s.id).map((it, i) => {
+                  {!staffWorks(s.id, info.idx) ? <li className="rounded-xl border border-dashed border-line px-4 py-3 text-xs text-ink3">{info.idx === 6 ? "سالن تعطیل است" : "مرخصی"}</li> : timeline(s.id, dayAppts, day === 0).map((it, i) => {
                     if (it.kind === "appt") return <ApptRow key={it.a.id} a={it.a} open={open === it.a.id} onToggle={() => setOpen(open === it.a.id ? null : it.a.id)} />;
                     if (it.kind === "now") return <li key={`n${i}`} className="flex items-center gap-2 text-[11px] font-bold text-danger" aria-label="اکنون"><span className="h-px flex-1 bg-danger/40" />اکنون {clock(NOW_MIN)}<span className="h-px flex-1 bg-danger/40" /></li>;
                     if (it.kind === "break") return <li key={`b${i}`} className="flex items-center gap-2 px-4 py-1.5 text-xs text-ink3"><Coffee size={13} />{it.label} · {range(it.start, it.dur)}</li>;
                     return (
-                      <li key={`f${i}`}><button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-dashed border-line px-4 py-2.5 text-xs text-ink2 hover:bg-rosesoft/50"><span>خالی · {range(it.start, it.dur)}</span><span className="inline-flex items-center gap-1 font-bold text-rose"><Plus size={13} />نوبت</span></button></li>
+                      <li key={`f${i}`}><Link href={`/calendar/new?staff=${s.id}&day=${day}&start=${it.start}`} className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-dashed border-line px-4 py-2.5 text-xs text-ink2 hover:bg-rosesoft/50"><span>خالی · {range(it.start, it.dur)}</span><span className="inline-flex items-center gap-1 font-bold text-rose"><Plus size={13} />نوبت</span></Link></li>
                     );
                   })}
                 </ul>

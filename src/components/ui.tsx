@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { initials } from "@/lib/fa";
 
@@ -113,5 +114,17 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} className={clsx("relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors", on ? "bg-rose" : "bg-line")}>
       <span className={clsx("absolute top-0.5 size-5 rounded-full bg-white transition-all", on ? "right-0.5" : "right-[22px]")} />
     </button>
+  );
+}
+
+export function LinkButton({ href, variant = "primary", className, children }: { href: string; variant?: "primary" | "ghost" | "soft"; className?: string; children: ReactNode }) {
+  return (
+    <Link href={href} className={clsx(
+      "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors",
+      variant === "primary" && "bg-rose text-white hover:bg-rosedeep",
+      variant === "soft" && "bg-rosesoft text-rosedeep hover:bg-[#f2d5de]",
+      variant === "ghost" && "border border-line bg-surface text-ink2 hover:bg-surface2",
+      className,
+    )}>{children}</Link>
   );
 }

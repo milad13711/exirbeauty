@@ -3,6 +3,7 @@
 // در فاز بک‌اند جای این ماژول را API می‌گیرد؛ امضای اکشن‌ها همان می‌ماند.
 import { useSyncExternalStore } from "react";
 import { storeProducts, type SCat } from "./mock3";
+import { appts as seedAppts, type Appt } from "./mock";
 
 export type DBProduct = {
   id: string; name: string; brand: string; cat: SCat; price: number; old?: number; commission: number; rating: number;
@@ -14,7 +15,8 @@ export type DBProduct = {
 export type InvLine = { productId: string; qty: number; unitCost: number };
 export type PurchaseInvoice = { id: string; supplier: string; date: string; lines: InvLine[]; status: "در راه" | "دریافت‌شده"; };
 export type Movement = { id: string; date: string; productId: string; delta: number; note: string };
-export type DB = { products: DBProduct[]; invoices: PurchaseInvoice[]; moves: Movement[]; seq: number };
+export type DBAppt = Appt & { day: number };
+export type DB = { products: DBProduct[]; invoices: PurchaseInvoice[]; moves: Movement[]; seq: number; appts: DBAppt[] };
 
 export const suppliers = ["پخش رز", "آرین‌مد", "شرکت سیلک‌لب", "درماکو"];
 export const TODAY_SHORT = "۲۸ شهریور";
@@ -33,9 +35,10 @@ export const seedDB: DB = {
     { id: "m3", date: "۲۰ شهریور", productId: "p1", delta: -3, note: "خروج · سفارش ۲۰۲۹" },
   ],
   seq: 1002,
+  appts: seedAppts.map((a) => ({ ...a, day: 0 })),
 };
 
-const KEY = "exir_db_v1";
+const KEY = "exir_db_v2";
 let state: DB = seedDB;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -45,7 +48,7 @@ function load() {
   loaded = true;
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) state = JSON.parse(raw) as DB;
+    if (raw) state = { ...seedDB, ...(JSON.parse(raw) as Partial<DB>) };
   } catch {}
 }
 export const getDB = () => { load(); return state; };
@@ -101,5 +104,8 @@ export const actions = {
       moves: [...Object.entries(lines).map(([productId, q], i) => ({ id: `s-${orderNo}-${i}`, date: TODAY_SHORT, productId, delta: -q, note: `خروج · سفارش ${orderNo}` })), ...d.moves],
     });
   },
+  addAppts(list: DBAppt[]) { const d = getDB(); commit({ ...d, appts: [...d.appts, ...list] }); },
+  setApptStatus(id: string, status: Appt["status"]) { const d = getDB(); commit({ ...d, appts: d.appts.map((a) => (a.id === id ? { ...a, status } : a)) }); },
+  cancelAppt(id: string) { const d = getDB(); commit({ ...d, appts: d.appts.filter((a) => a.id !== id) }); },
   reset() { commit(seedDB); },
 };

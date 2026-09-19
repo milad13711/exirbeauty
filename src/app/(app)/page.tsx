@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CalendarCheck, Clock, Coins, Crown, Percent, ShoppingBag, UserPlus, Repeat, Wallet, PackageOpen, Trophy } from "lucide-react";
-import { Avatar, Badge, Card, CardHead, PageTitle, Stat, Button, type Tone } from "@/components/ui";
+import { Avatar, Badge, Card, CardHead, PageTitle, Stat, Button, LinkButton, type Tone } from "@/components/ui";
 import { fa, short, toman } from "@/lib/fa";
 import { opportunities, staff, svcProfit, week, TODAY } from "@/lib/mock";
 
@@ -31,7 +31,7 @@ export default function Dashboard() {
       <PageTitle
         title="صبح بخیر، مدیر عزیز ☀️"
         sub={`${TODAY} · اینجا وضعیت سالن و فرصت‌های امروز را می‌بینید`}
-        actions={<><Button variant="ghost">گزارش دیروز</Button><Button>+ نوبت جدید</Button></>}
+        actions={<><Button variant="ghost">گزارش دیروز</Button><LinkButton href="/calendar/new">+ نوبت جدید</LinkButton></>}
       />
 
       {/* امروز */}
