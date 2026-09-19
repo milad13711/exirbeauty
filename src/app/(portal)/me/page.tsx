@@ -10,6 +10,7 @@ import { hoursUntil } from "@/lib/portal";
 import { salons } from "@/lib/mock3";
 import { fa, num, short, toman } from "@/lib/fa";
 import { nextGoal } from "@/lib/sales";
+import { SurveyCard } from "@/components/portal/SurveyCard";
 
 const catMap: Record<string, string> = { "مو": "مو", "پوست": "پوست", "ناخن": "ناخن", "آرایش": "ست هدیه" };
 
@@ -23,10 +24,13 @@ export default function MeHome() {
   const lastCat = me.log[0]?.cat ?? db.services.find((s) => s.name === me.favService)?.cat;
   const recs = db.products.filter((p) => p.active && p.stock > 0 && (!lastCat || p.cat === catMap[lastCat])).slice(0, 3);
   const ref = salons[0].code;
+  const surveys = db.surveys.filter((s) => s.customerId === me.id && s.status === "منتظر پاسخ");
 
   return (
     <>
       <div><p className="text-xl font-extrabold">سلام {me.name.split(" ")[0]} 👋</p><p className="text-sm text-ink2">به پنل مشتری {db.salon.name} خوش آمدید</p></div>
+
+      {surveys.map((s) => <SurveyCard key={s.id} s={s} />)}
 
       {next ? (
         <Card className="overflow-hidden">

@@ -100,3 +100,80 @@ export function seedExtra(b: Base) {
     ] as Campaign[], automations, memPlans, memberships: [] as Membership[], giftCards, portal: null as string | null,
   };
 }
+
+// ---------- نظرسنجی و اعتبار ----------
+export type Survey = { id: string; customerId: string | null; name: string; service: string; staff: string; staffId?: string; saleId?: string; rating: number | null; comment: string; day: number; status: "منتظر پاسخ" | "پاسخ داده شد"; route?: "public" | "private"; reply?: string; resolved?: boolean };
+export type ReviewCfg = { auto: boolean; threshold: number; googleUrl: string; points: boolean };
+// ---------- تولید محتوا ----------
+export type Post = { id: string; kind: "before-after" | "service" | "offer" | "birthday" | "tips"; caption: string; tags: string[]; day: number; status: "پیش‌نویس" | "زمان‌بندی‌شده" | "منتشر شد"; before?: string; after?: string; service?: string };
+// ---------- آکادمی ----------
+export type Lesson = { id: string; title: string; minutes: number; body: string };
+export type Course = { id: string; title: string; audience: "مدیر سالن" | "متخصص"; price: number; hours: number; inPlan: string; published: boolean; description: string; lessons: Lesson[] };
+export type Enrollment = { id: string; courseId: string; done: string[]; day: number; paid: number };
+// ---------- اعلان و پشتیبانی ----------
+export type Notification = { id: string; audience: "salon" | "admin"; title: string; body: string; href: string; day: number; read: boolean };
+export type TicketMsg = { from: "salon" | "admin"; name: string; text: string; day: number };
+export type Ticket = { id: string; subject: string; category: string; priority: "عادی" | "فوری"; status: "باز" | "در حال بررسی" | "بسته"; tenantId: string; messages: TicketMsg[]; day: number };
+// ---------- تننت‌ها (سمت ادمین) ----------
+export type TStatus = "فعال" | "آزمایشی" | "منقضی‌شده" | "تعلیق";
+export type Tenant = { id: string; name: string; owner: string; city: string; phone: string; plan: string; status: TStatus; expiry: string; users: number; customers: number; wallet: number; since: string; notes: string[]; payments: { day: number; amount: number; label: string }[] };
+// ---------- مارکت‌پلیس ----------
+export type MarketPro = { id: string; name: string; salon: string; city: string; cats: Category[]; rating: number; reviews: number; from: number; bio: string; works: number; tint: [string, string]; services: { name: string; price: number }[] };
+
+export function seedOps() {
+  const lorem = (t: string) => `${t}. این درس با مثال‌های عملی سالن و نکات کاربردی همراه است؛ پس از مطالعه، نکته‌ها را در یک مشتری واقعی امتحان کنید و نتیجه را یادداشت کنید.`;
+  const L = (t: string[], m = 12): Lesson[] => t.map((x, i) => ({ id: `l${i + 1}`, title: x, minutes: m + i * 2, body: lorem(x) }));
+  const courses: Course[] = [
+    { id: "c1", title: "قیمت‌گذاری خدمات سالن", audience: "مدیر سالن", price: 0, hours: 2, inPlan: "همه‌ی پلن‌ها", published: true, description: "چطور قیمت هر خدمت را با مواد، زمان و کمیسیون محاسبه کنیم و سود واقعی بسازیم.", lessons: L(["هزینه‌ی واقعی هر خدمت", "محاسبه‌ی حاشیه‌ی سود", "تخفیف بدون ضرر", "بازنگری قیمت‌ها"]) },
+    { id: "c2", title: "سیستم بازگشت مشتری و اتوماسیون", audience: "مدیر سالن", price: 690_000, hours: 4, inPlan: "حرفه‌ای و بالاتر", published: true, description: "با چرخه‌ی مراجعه، یادآوری خودکار و کمپین بازگشت، مشتری‌های از دست‌رفته را برگردانید.", lessons: L(["چرخه‌ی مراجعه‌ی مشتری", "قانون‌های اتوماسیون", "کمپین Win-back", "اندازه‌گیری نتیجه"]) },
+    { id: "c3", title: "ترندهای بالیاژ ۱۴۰۵", audience: "متخصص", price: 1_200_000, hours: 5, inPlan: "—", published: true, description: "تکنیک‌های روز بالیاژ، رنگ‌بندی پاییزی و نگهداری نتیجه.", lessons: L(["رنگ‌بندی پاییز", "تکنیک دست‌آزاد", "تونینگ و نگهداری", "مشاوره‌ی رنگ به مشتری"]) },
+    { id: "c4", title: "فروش محصول بعد از خدمت", audience: "متخصص", price: 0, hours: 1.5, inPlan: "همه‌ی پلن‌ها", published: true, description: "چطور بدون فشار، محصول مراقبتی مناسب را پیشنهاد دهیم.", lessons: L(["زمان‌بندی پیشنهاد", "جمله‌های طلایی", "پاسخ به «گران است»"], 10) },
+    { id: "c5", title: "مدیریت پرسنل و پورسانت", audience: "مدیر سالن", price: 890_000, hours: 3, inPlan: "سازمانی", published: false, description: "ساختار پورسانت، KPI و انگیزش تیم.", lessons: L(["ساختار پورسانت", "شاخص‌های عملکرد", "گفتگوی بازخورد"]) },
+  ];
+  const tenants: Tenant[] = ([
+    ["t1", "سالن رُز", "مهسا رحیمی", "تهران", "۰۹۱۲۱۱۱۲۲۳۳", "pro", "فعال", "۲۸ مهر ۱۴۰۵", 6, 1240, 1_180_000, "فروردین ۱۴۰۵"],
+    ["t2", "آرایشگاه ماهتاب", "زهرا کاظمی", "اصفهان", "۰۹۱۳۲۲۲۳۳۴۴", "basic", "فعال", "۳ آبان ۱۴۰۵", 3, 410, 640_000, "اردیبهشت ۱۴۰۵"],
+    ["t3", "سالن نیلو", "نیلوفر امینی", "شیراز", "۰۹۱۷۳۳۳۴۴۵۵", "elite", "فعال", "۲۰ آذر ۱۴۰۵", 18, 5200, 1_490_000, "اسفند ۱۴۰۴"],
+    ["t4", "بیوتی پارسا", "پرستو نادری", "مشهد", "۰۹۱۵۴۴۴۵۵۶۶", "pro", "آزمایشی", "۵ مهر ۱۴۰۵", 2, 96, 90_000, "شهریور ۱۴۰۵"],
+    ["t5", "سالن آبان", "مریم صادقی", "تبریز", "۰۹۱۴۵۵۵۶۶۷۷", "basic", "منقضی‌شده", "۲۲ شهریور ۱۴۰۵", 3, 280, 0, "دی ۱۴۰۴"],
+    ["t6", "رزا بیوتی", "سمیرا حیدری", "کرج", "۰۹۱۲۶۶۶۷۷۸۸", "pro", "فعال", "۹ مهر ۱۴۰۵", 7, 1510, 320_000, "بهمن ۱۴۰۴"],
+    ["t7", "سالن گیسو", "ندا رحمانی", "تهران", "۰۹۳۵۷۷۷۸۸۹۹", "basic", "تعلیق", "۱ شهریور ۱۴۰۵", 2, 150, 0, "مهر ۱۴۰۴"],
+  ] as const).map(([id, name, owner, city, phone, plan, status, expiry, users, customers, wallet, since]) => ({
+    id, name, owner, city, phone, plan, status, expiry, users, customers, wallet, since, notes: [],
+    payments: [-2, -32, -62, -92].map((day, i) => ({ day, amount: plan === "elite" ? 2_900_000 : plan === "pro" ? 1_490_000 : 790_000, label: i === 3 ? "اشتراک — آنلاین" : i === 0 && status === "فعال" ? "اشتراک — کیف پول + آنلاین" : "اشتراک — آنلاین" })).slice(0, status === "آزمایشی" ? 0 : 4),
+  }));
+  const tickets: Ticket[] = [
+    { id: "T-1001", subject: "ارسال پیامک یادآوری انجام نمی‌شود", category: "فنی", priority: "فوری", status: "باز", tenantId: "t2", day: -1, messages: [{ from: "salon", name: "زهرا کاظمی", text: "از دیروز پیامک یادآوری نوبت‌ها ارسال نمی‌شود. لطفاً بررسی کنید.", day: -1 }] },
+    { id: "T-1002", subject: "تغییر پلن از حرفه‌ای به سازمانی", category: "مالی", priority: "عادی", status: "در حال بررسی", tenantId: "t6", day: -3, messages: [{ from: "salon", name: "سمیرا حیدری", text: "می‌خواهم پلن را ارتقا بدهم؛ اختلاف مبلغ چقدر می‌شود؟", day: -3 }, { from: "admin", name: "نگین مالی", text: "سلام؛ اختلاف مبلغ برای باقی‌ماندهٔ دوره محاسبه و همین امروز برایتان ارسال می‌شود.", day: -2 }] },
+    { id: "T-1003", subject: "آموزش کار با خروجی Excel", category: "آموزش", priority: "عادی", status: "بسته", tenantId: "t3", day: -9, messages: [{ from: "salon", name: "نیلوفر امینی", text: "خروجی گزارش‌ها را از کجا بگیرم؟", day: -9 }, { from: "admin", name: "پشتیبان ۱", text: "از صفحه‌ی گزارش‌ها دکمه‌ی «خروجی Excel کامل». موفق باشید.", day: -9 }] },
+  ];
+  const surveys: Survey[] = [
+    { id: "sv1", customerId: null, name: "دنیا ابراهیمی", service: "رنگ ریشه", staff: "مریم حسینی", staffId: "s1", rating: 5, comment: "عالی بود، دقیقاً همون رنگی که می‌خواستم.", day: -1, status: "پاسخ داده شد", route: "public" },
+    { id: "sv2", customerId: null, name: "ژاله فرهادی", service: "فیشال هیدرا", staff: "الهام رضایی", staffId: "s3", rating: 5, comment: "پوستم خیلی روشن شد.", day: -2, status: "پاسخ داده شد", route: "public" },
+    { id: "sv3", customerId: null, name: "الناز جعفری", service: "ژل و لاک", staff: "سارا احمدی", staffId: "s4", rating: 2, comment: "کمی معطل شدم و لاک زود پرید.", day: -2, status: "پاسخ داده شد", route: "private", resolved: false },
+    { id: "sv4", customerId: null, name: "مهسا کاظمی", service: "کراتین", staff: "نازنین کریمی", staffId: "s2", rating: 4, comment: "خوب بود اما قیمت بالا بود.", day: -4, status: "پاسخ داده شد", route: "public" },
+    { id: "sv5", customerId: null, name: "پریسا نوری", service: "بالیاژ", staff: "مریم حسینی", staffId: "s1", rating: 5, comment: "بهترین بالیاژ عمرم!", day: -6, status: "پاسخ داده شد", route: "public" },
+    { id: "sv6", customerId: null, name: "نیلوفر صادقی", service: "کراتین", staff: "نازنین کریمی", staffId: "s2", rating: 3, comment: "نتیجه خوب بود ولی بوی مواد اذیت کرد.", day: -8, status: "پاسخ داده شد", route: "private", resolved: true, reply: "ممنون از بازخوردتان؛ برای نوبت بعد از مواد کم‌بو استفاده می‌کنیم." },
+  ];
+  const posts: Post[] = [
+    { id: "p1", kind: "service", caption: "✨ کراتین فوق‌العاده با دست نازنین! برای رزرو نوبت به لینک پروفایل سر بزن.", tags: ["#کراتین", "#سالن_زیبایی"], day: -3, status: "منتشر شد", service: "کراتین" },
+    { id: "p2", kind: "offer", caption: "🌸 هفته‌ی مراقبت از مو: ۱۰٪ تخفیف روی همه‌ی خدمات مو.", tags: ["#تخفیف", "#مو"], day: 2, status: "زمان‌بندی‌شده" },
+  ];
+  const market: MarketPro[] = [
+    { id: "m1", name: "آیدا مرادی", salon: "استودیو آیدا", city: "تهران", cats: ["مو"], rating: 4.9, reviews: 212, from: 900_000, bio: "متخصص رنگ و بالیاژ با ۱۰ سال سابقه.", works: 84, tint: ["#f7e4ea", "#f6ecd6"], services: [{ name: "بالیاژ", price: 4_800_000 }, { name: "رنگ ریشه", price: 1_900_000 }] },
+    { id: "m2", name: "لیلا صمدی", salon: "سالن لیلا", city: "تهران", cats: ["پوست"], rating: 4.8, reviews: 143, from: 1_100_000, bio: "متخصص پوست و لیزر، مشاور مراقبت‌های خانگی.", works: 51, tint: ["#e0f0e8", "#f6ecd6"], services: [{ name: "فیشال", price: 2_000_000 }, { name: "پاکسازی", price: 1_200_000 }] },
+    { id: "m3", name: "سحر نیک‌پی", salon: "نیل‌آرت سحر", city: "اصفهان", cats: ["ناخن"], rating: 4.7, reviews: 96, from: 450_000, bio: "طراحی ناخن و ژل، نمونه‌کارهای متنوع.", works: 130, tint: ["#e1edf8", "#f7e4ea"], services: [{ name: "ژل و لاک", price: 900_000 }, { name: "طراحی ناخن", price: 600_000 }] },
+    { id: "m4", name: "مینا کاشانی", salon: "بیوتی مینا", city: "شیراز", cats: ["مو", "آرایش"], rating: 4.6, reviews: 78, from: 650_000, bio: "کوتاهی مدرن و میکاپ مجلسی.", works: 60, tint: ["#f6ecd6", "#e1edf8"], services: [{ name: "کوتاهی", price: 700_000 }, { name: "میکاپ", price: 2_800_000 }] },
+    { id: "m5", name: "نگار رستمی", salon: "سالن نگار", city: "کرج", cats: ["مو"], rating: 4.8, reviews: 120, from: 700_000, bio: "کراتین و احیای موی آسیب‌دیده.", works: 45, tint: ["#f7e4ea", "#e0f0e8"], services: [{ name: "کراتین", price: 3_900_000 }, { name: "پروتئین‌تراپی", price: 2_500_000 }] },
+    { id: "m6", name: "هستی عباسی", salon: "هستی بیوتی", city: "مشهد", cats: ["پوست", "آرایش"], rating: 4.5, reviews: 64, from: 800_000, bio: "فیشال و لمینت مژه.", works: 38, tint: ["#e0f0e8", "#f7e4ea"], services: [{ name: "فیشال", price: 1_800_000 }, { name: "لمینت مژه", price: 1_600_000 }] },
+  ];
+  return {
+    surveys, reviewCfg: { auto: true, threshold: 4, googleUrl: "https://maps.app.goo.gl/salon-rose", points: true } as ReviewCfg,
+    posts, courses, enrollments: [] as Enrollment[], notifications: [
+      { id: "n1", audience: "salon", title: "نوبت جدید آنلاین", body: "دنیا ابراهیمی برای رنگ ریشه نوبت گرفت", href: "/calendar", day: 0, read: false },
+      { id: "n2", audience: "salon", title: "بازخورد منفی", body: "الناز جعفری امتیاز ۲ داد؛ لطفاً پیگیری کنید", href: "/reviews", day: -2, read: false },
+      { id: "n3", audience: "admin", title: "تیکت فوری", body: "آرایشگاه ماهتاب: ارسال پیامک یادآوری انجام نمی‌شود", href: "/admin/tickets", day: -1, read: false },
+      { id: "n4", audience: "admin", title: "پورسانت آماده شارژ", body: "۲ سفارش مهلت مرجوعی را گذرانده‌اند", href: "/admin/commissions", day: 0, read: false },
+    ] as Notification[], tickets, tenants, market,
+  };
+}

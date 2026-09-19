@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 import { storeProducts, type SCat } from "./mock3";
 import { appts as seedAppts, blocked as seedBlocked, staff as seedStaff, profile as seedProfile, customers as seedCustomerRows, type Appt, type Category, type Tier } from "./mock";
 import { catalog as seedCatalog } from "./mock2";
-import { seedExtra, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
+import { seedExtra, seedOps, type Survey, type ReviewCfg, type Post, type Course, type Enrollment, type Notification, type Ticket, type Tenant, type MarketPro, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
 import { ordersSeed, salons as seedSalons, CRM_PLAN, type CommStatus, type OrderStatus } from "./mock3";
 
 export type DBProduct = {
@@ -24,7 +24,7 @@ export type DBAppt = Appt & { day: number };
 export type Service = { id: string; cat: Category; name: string; price: number; min: number; staff: string[]; materials: string; materialCost: number; commission: number; capacity: string; discount?: string; pkg?: string; active: boolean };
 // ---------- پرسنل ----------
 export type Leave = { id: string; from: number; to: number; reason: string }; // بازه بر حسب فاصله‌ی روز از امروز
-export type StaffMember = { id: string; name: string; role: string; color: string; phone: string; rating: number; revenue: number; clients: number; returning: number; commission: number; commissionPct: number; avgInvoice: number; fill: number; products: number; start: number; end: number; daysOff: number[]; breaks: { s: number; e: number; label: string }[]; leaves: Leave[]; active: boolean };
+export type StaffMember = { id: string; name: string; role: string; color: string; phone: string; rating: number; revenue: number; clients: number; returning: number; commission: number; commissionPct: number; avgInvoice: number; fill: number; products: number; start: number; end: number; daysOff: number[]; breaks: { s: number; e: number; label: string }[]; leaves: Leave[]; active: boolean; listed?: boolean; bio?: string };
 // ---------- مشتریان ----------
 export type LogEntry = { id: string; d: string; s: string; by: string; cat: Category; price: number; photos: boolean; before?: string; after?: string };
 export type Customer = {
@@ -56,10 +56,11 @@ export type DB = {
   products: DBProduct[]; invoices: PurchaseInvoice[]; moves: Movement[]; seq: number; appts: DBAppt[];
   services: Service[]; staff: StaffMember[]; customers: Customer[]; orders: Order[]; wallets: Record<string, number>; orderSeq: number;
   salon: SalonSettings; roles: SalonRole[]; users: SalonUser[]; adminUsers: AdminUser[]; sub: Subscription; onboarded: boolean; session: Session;
+  surveys: Survey[]; reviewCfg: ReviewCfg; posts: Post[]; courses: Course[]; enrollments: Enrollment[]; notifications: Notification[]; tickets: Ticket[]; tenants: Tenant[]; market: MarketPro[];
   inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
   loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null;
 };
-export type { Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
+export type { Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
 
 export const suppliers = ["پخش رز", "آرین‌مد", "شرکت سیلک‌لب", "درماکو"];
 export const TODAY_SHORT = "۲۸ شهریور";
@@ -101,7 +102,7 @@ const seedProducts: DBProduct[] = storeProducts.map((p) => ({
 }));
 // دمو: یک کالای ناموجود و چند کالای زیر نقطه سفارش
 const tweak: Record<string, Partial<DBProduct>> = { p5: { stock: 0, reorder: 12 }, p3: { stock: 8, reorder: 15 }, p3b: { stock: 6, reorder: 10, reorderQty: 20 }, p6: { stock: 15, reorder: 8 } };
-const seedBase: Omit<DB, keyof ReturnType<typeof seedExtra>> = {
+const seedBase: Omit<DB, keyof ReturnType<typeof seedExtra> | keyof ReturnType<typeof seedOps>> = {
   products: seedProducts.map((p) => ({ ...p, ...(tweak[p.id] ?? {}) })),
   invoices: [{ id: "خ-۱۰۰۱", supplier: "پخش رز", date: "۱۴ شهریور", lines: [{ productId: "p1", qty: 40, unitCost: 360_000 }, { productId: "p2", qty: 25, unitCost: 430_000 }], status: "دریافت‌شده" }],
   moves: [
@@ -144,6 +145,7 @@ const seedBase: Omit<DB, keyof ReturnType<typeof seedExtra>> = {
 };
 export const seedDB: DB = {
   ...seedBase,
+  ...seedOps(),
   appts: seedBase.appts.map((a) => ({ ...a, customerId: seedBase.customers.find((c) => c.name === a.client)?.id })),
   ...seedExtra({
     services: seedBase.services, staff: seedBase.staff, customers: seedBase.customers,
@@ -156,7 +158,7 @@ export const seedDB: DB = {
   }),
 };
 
-const KEY = "exir_db_v4";
+const KEY = "exir_db_v5";
 let state: DB = seedDB;
 let loaded = false;
 const listeners = new Set<() => void>();
