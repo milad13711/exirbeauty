@@ -1,26 +1,66 @@
 @import "tailwindcss";
+@import "@fontsource-variable/vazirmatn";
 
+/* Exir Beauty — design tokens: warm, luxe, rose & champagne */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #faf6f2;
+  --surface: #ffffff;
+  --surface-2: #f6efe9;
+  --line: #eadfd6;
+  --ink: #2b1f25;
+  --ink-2: #6b5b62;
+  --ink-3: #a09097;
+  --rose: #b4536f;
+  --rose-deep: #8f3a55;
+  --rose-soft: #f7e4ea;
+  --gold: #b8924a;
+  --gold-soft: #f6ecd6;
+  --sage: #4f8a73;
+  --sage-soft: #e0f0e8;
+  --amber: #c8801e;
+  --amber-soft: #fbeed6;
+  --danger: #c2453d;
+  --danger-soft: #fbe3e0;
+  --sky: #4a7fb0;
+  --sky-soft: #e1edf8;
+  --plum: #3a2431;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink-2);
+  --color-ink3: var(--ink-3);
+  --color-rose: var(--rose);
+  --color-rosedeep: var(--rose-deep);
+  --color-rosesoft: var(--rose-soft);
+  --color-gold: var(--gold);
+  --color-goldsoft: var(--gold-soft);
+  --color-sage: var(--sage);
+  --color-sagesoft: var(--sage-soft);
+  --color-amber: var(--amber);
+  --color-ambersoft: var(--amber-soft);
+  --color-danger: var(--danger);
+  --color-dangersoft: var(--danger-soft);
+  --color-sky: var(--sky);
+  --color-skysoft: var(--sky-soft);
+  --color-plum: var(--plum);
+  --font-sans: "Vazirmatn Variable", system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html { background: var(--bg); }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
 }
+::selection { background: var(--rose-soft); }
+:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+.scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
