@@ -96,3 +96,22 @@ export function PageTitle({ title, sub, actions }: { title: string; sub?: string
 }
 
 export const tierTone: Record<string, Tone> = { VIP: "rose", "طلایی": "gold", "نقره‌ای": "neutral", "برنزی": "amber" };
+
+export const fieldCls = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-rose";
+
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1 block text-xs font-semibold text-ink2">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} className={clsx("relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors", on ? "bg-rose" : "bg-line")}>
+      <span className={clsx("absolute top-0.5 size-5 rounded-full bg-white transition-all", on ? "right-0.5" : "right-[22px]")} />
+    </button>
+  );
+}
