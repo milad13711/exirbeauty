@@ -31,7 +31,7 @@ export type Customer = {
   id: string; name: string; phone: string; gender: string; birth: string; age?: number; tier: Tier; points: number; nextRewardIn: number;
   visits: number; total: number; avg: number; lastVisit: string; lastVisitDays: number; cycleDays: number; nextDue: string;
   favService: string; favStaff: string; occasions: string[]; allergies: string[]; note: string; tags: string[]; referrals: number; wallet: number;
-  risk: "ok" | "hot" | "lost"; debt: number; referredBy?: string; ptsLog: { d: string; delta: number; note: string }[];
+  risk: "ok" | "hot" | "lost"; debt: number; referredBy?: string; ptsLog: { d: string; delta: number; note: string }[]; walletLog: { d: string; delta: number; note: string }[];
   hair: { current: string; type: string; state: string; brand: string; oxidant: string; lastColor: string; formula: string; history: string[] };
   skin: { type: string; used: string; allergies: string; facials: string[] };
   nail: { services: string; colors: string; allergies: string };
@@ -67,7 +67,7 @@ export const TODAY_SHORT = "۲۸ شهریور";
 function mkFull(r: Record<string, unknown>): Customer {
   const base: Customer = {
     id: "", name: "", phone: "", gender: "زن", birth: "", tier: "برنزی", points: 0, nextRewardIn: 500, visits: 0, total: 0, avg: 0, lastVisit: "—", lastVisitDays: 0, cycleDays: 0, nextDue: "",
-    favService: "", favStaff: "", occasions: [], allergies: [], note: "", tags: [], referrals: 0, wallet: 0, risk: "ok", debt: 0, ptsLog: [],
+    favService: "", favStaff: "", occasions: [], allergies: [], note: "", tags: [], referrals: 0, wallet: 0, risk: "ok", debt: 0, ptsLog: [], walletLog: [],
     hair: { current: "", type: "", state: "", brand: "", oxidant: "", lastColor: "", formula: "", history: [] },
     skin: { type: "", used: "", allergies: "", facials: [] }, nail: { services: "", colors: "", allergies: "" }, products: [], log: [],
   };

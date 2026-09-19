@@ -8,13 +8,14 @@ import { actions, useDB, type DBAppt } from "@/lib/db";
 import { schedule } from "@/lib/schedule";
 import { newCustomer } from "@/lib/factories";
 import { digits } from "@/lib/validate";
+import { hoursUntil } from "@/lib/portal";
 import { catColor, NOW_MIN } from "@/lib/mock";
 import { clock, eligibleStaff, freeStarts, staffWorks, svcOf } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
 import { fa, short } from "@/lib/fa";
 
 type Mode = "public" | "staff";
-export type Initial = { staff?: string; day?: number; start?: number; service?: string; move?: string };
+export type Initial = { staff?: string; day?: number; start?: number; service?: string; move?: string; ref?: string };
 const steps = ["خدمت", "متخصص", "زمان", "اطلاعات"] as const;
 const repeats = [{ k: "none", l: "بدون تکرار", gap: 0 }, { k: "w1", l: "هر هفته", gap: 7 }, { k: "w2", l: "هر ۲ هفته", gap: 14 }, { k: "m1", l: "هر ماه", gap: 28 }] as const;
 
@@ -22,7 +23,12 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const db = useDB();
   const staff = db.staff.filter((s) => s.active);
   const customers = db.customers;
-  const moving = initial.move ? db.appts.find((a) => a.id === initial.move) : undefined;
+  const portalC = db.portal ? db.customers.find((c) => c.id === db.portal) : undefined;
+  const found = initial.move ? db.appts.find((a) => a.id === initial.move) : undefined;
+  // در حالت عمومی فقط صاحب نوبت می‌تواند آن را جابه‌جا کند و مهلت لغو باید نگذشته باشد
+  const moveDenied = mode === "public" && !!found && (!portalC || found.customerId !== portalC.id);
+  const moveLate = mode === "public" && !!found && !moveDenied && hoursUntil(found) < db.salon.online.cancelHours;
+  const moving = moveDenied || moveLate ? undefined : found;
   const movingSvc = moving ? db.services.find((x) => x.name === moving.service) : undefined;
   const lockedStaff = !moving && initial.staff && staff.some((s) => s.id === initial.staff) ? initial.staff : null;
   const [step, setStep] = useState(moving ? 2 : initial.service && initial.start !== undefined ? 3 : 0);
@@ -33,8 +39,8 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const [q, setQ] = useState("");
   const [pickedCustomer, setPickedCustomer] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(mode === "public");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(mode === "public" ? portalC?.name ?? "" : "");
+  const [phone, setPhone] = useState(mode === "public" ? portalC?.phone ?? "" : "");
   const [note, setNote] = useState("");
   const [remind, setRemind] = useState(true);
   const [repeat, setRepeat] = useState<(typeof repeats)[number]["k"]>("none");
@@ -73,7 +79,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
     // مشتری در CRM: پیدا کردن با موبایل یا ساختن خودکار
     const phoneKey = digits(phone).replace(/\s/g, "");
     let cust = !isNew && mode === "staff" ? customers.find((c) => c.name === pickedCustomer) : customers.find((c) => digits(c.phone).replace(/\s/g, "") === phoneKey);
-    if (!cust) { cust = { ...newCustomer(), name: customerName, phone, tags: [mode === "public" ? "رزرو آنلاین" : "ثبت پذیرش"] }; actions.saveCustomer(cust); }
+    if (!cust) { cust = { ...newCustomer(), name: customerName, phone, tags: [mode === "public" ? "رزرو آنلاین" : "ثبت پذیرش"], referredBy: initial.ref && customers.some((c) => c.id === initial.ref) ? initial.ref : undefined }; actions.saveCustomer(cust); }
     const gap = repeats.find((r) => r.k === repeat)!.gap;
     const total = mode === "staff" && gap ? count : 1;
     const list: DBAppt[] = [];
@@ -90,6 +96,8 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
     setDone({ created: list.length, skipped });
   };
 
+  if (moveDenied) return <Card className="mx-auto max-w-md p-7 text-center"><h2 className="font-extrabold">دسترسی به این نوبت ممکن نیست</h2><p className="mt-2 text-sm text-ink2">برای جابه‌جایی نوبت ابتدا وارد پنل مشتری شوید.</p><Link href="/me/login" className="mt-4 inline-block rounded-xl bg-rose px-4 py-2.5 text-[13px] font-semibold text-white">ورود به پنل من</Link></Card>;
+  if (moveLate) return <Card className="mx-auto max-w-md p-7 text-center"><h2 className="font-extrabold">مهلت جابه‌جایی گذشته است</h2><p className="mt-2 text-sm leading-7 text-ink2">جابه‌جایی آنلاین فقط تا {fa(db.salon.online.cancelHours)} ساعت قبل از نوبت ممکن است؛ لطفاً با سالن تماس بگیرید:<br /><bdi dir="ltr" className="font-bold text-ink">{db.salon.phone}</bdi></p></Card>;
   if (done) return (
     <Card className="mx-auto max-w-lg p-7 text-center">
       <span className="mx-auto grid size-14 place-items-center rounded-full bg-sagesoft text-sage"><CalendarCheck size={28} /></span>

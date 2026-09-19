@@ -22,9 +22,13 @@ function earnFor(l: Loyalty, lines: SaleLine[], pct: number): number {
   return (svc > 0 ? (rv?.pts ?? 0) : 0) + (rs ? Math.floor(svc / (rs.per ?? 100_000)) * rs.pts : 0) + (rp ? Math.floor(prod / (rp.per ?? 100_000)) * rp.pts : 0);
 }
 
-function withPoints(d: DB, c: Customer, delta: number, note: string): Customer {
+export function withPoints(d: DB, c: Customer, delta: number, note: string): Customer {
   const points = Math.max(0, c.points + delta);
-  return { ...c, points, tier: tierFor(d.loyalty, points), nextRewardIn: nextGoal(d.loyalty, points).left, ptsLog: [{ d: TODAY_SHORT, delta, note }, ...c.ptsLog].slice(0, 60) };
+  // سطح فقط بالا می‌رود؛ خرج کردن امتیاز باعث افت سطح نمی‌شود
+  const rank = (t: Tier) => d.loyalty.tiers.findIndex((x) => x.name === t);
+  const earned = tierFor(d.loyalty, points);
+  const tier = rank(earned) > rank(c.tier) ? earned : c.tier;
+  return { ...c, points, tier, nextRewardIn: nextGoal(d.loyalty, points).left, ptsLog: [{ d: TODAY_SHORT, delta, note }, ...c.ptsLog].slice(0, 60) };
 }
 
 export type SaleInput = { customerId: string | null; customerName: string; lines: SaleLine[]; discountPct: number; pays: Sale["pays"]; apptId?: string; note?: string };
@@ -51,7 +55,7 @@ export const sales = {
       const first = cust.visits === 0 && svcLines.length > 0;
       customers = customers.map((c) => {
         if (c.id !== cust.id) return c;
-        const n: Customer = { ...c, total: c.total + total, visits: c.visits + (svcLines.length ? 1 : 0), lastVisit: TODAY_SHORT, lastVisitDays: 0, risk: "ok", debt: c.debt + debt, wallet: c.wallet - walletUsed, products: [...new Set([...c.products, ...i.lines.filter((l) => l.kind === "product").map((l) => l.name)])] };
+        const n: Customer = { ...c, total: c.total + total, visits: c.visits + (svcLines.length ? 1 : 0), lastVisit: TODAY_SHORT, lastVisitDays: 0, risk: "ok", debt: c.debt + debt, wallet: c.wallet - walletUsed, walletLog: walletUsed ? [{ d: TODAY_SHORT, delta: -walletUsed, note: `پرداخت فاکتور ${id}` }, ...c.walletLog] : c.walletLog, products: [...new Set([...c.products, ...i.lines.filter((l) => l.kind === "product").map((l) => l.name)])] };
         n.avg = n.visits ? Math.round(n.total / n.visits) : 0;
         n.log = [...svcLines.map((l) => ({ id: uid("l"), d: TODAY_SHORT, s: l.name, by: d.staff.find((x) => x.id === l.staffId)?.name ?? "—", cat: d.services.find((x) => x.id === l.refId)?.cat ?? "مو", price: Math.round(l.price * l.qty * (1 - i.discountPct / 100)), photos: false })), ...n.log];
         return earned ? withPoints(d, n, earned, `فاکتور ${id}`) : n;
@@ -80,7 +84,7 @@ export const sales = {
       sales: d.sales.map((x) => (x.id === id ? { ...x, status: "باطل", voidReason: reason } : x)),
       customers: d.customers.map((c) => {
         if (c.id !== s.customerId) return c;
-        const n: Customer = { ...c, total: Math.max(0, c.total - s.total), visits: Math.max(0, c.visits - (svcLines.length ? 1 : 0)), debt: Math.max(0, c.debt - s.debt), wallet: c.wallet + s.walletUsed };
+        const n: Customer = { ...c, total: Math.max(0, c.total - s.total), visits: Math.max(0, c.visits - (svcLines.length ? 1 : 0)), debt: Math.max(0, c.debt - s.debt), wallet: c.wallet + s.walletUsed, walletLog: s.walletUsed ? [{ d: TODAY_SHORT, delta: s.walletUsed, note: `ابطال فاکتور ${id}` }, ...c.walletLog] : c.walletLog };
         n.avg = n.visits ? Math.round(n.total / n.visits) : 0;
         return s.earned ? withPoints(d, n, -s.earned, `ابطال فاکتور ${id}`) : n;
       }),
