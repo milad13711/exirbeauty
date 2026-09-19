@@ -16,7 +16,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { n: 4, href: "/services", label: "منوی خدمات", icon: Scissors, ready: true },
     { n: 5, href: "/staff", label: "پرسنل و متخصص‌ها", icon: UserCog, ready: true },
     { n: 6, href: "/cashier", label: "صندوق و درآمد", icon: Wallet, ready: true },
-    { n: 18, href: "/procurement", label: "تأمین و خرید عمده", icon: Truck },
+    { n: 18, href: "/procurement", label: "تأمین و خرید عمده", icon: Truck, ready: true },
   ]},
   { title: "رشد و وفاداری", items: [
     { n: 7, href: "/loyalty", label: "باشگاه مشتریان", icon: Crown, ready: true },
@@ -24,7 +24,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { n: 11, href: "/campaigns", label: "کمپین و بازاریابی", icon: Megaphone, ready: true },
     { n: 12, href: "/automation", label: "اتوماسیون بازگشت", icon: Repeat, ready: true },
     { n: 13, href: "/reviews", label: "نظرسنجی و اعتبار", icon: Star, ready: true },
-    { n: 24, href: "/content", label: "تولید محتوا", icon: PenSquare },
+    { n: 24, href: "/content", label: "تولید محتوا", icon: PenSquare, ready: true },
   ]},
   { title: "فروش و درآمد جدید", items: [
     { n: 9, href: "/shop", label: "فروشگاه آنلاین", icon: ShoppingBag, ready: true },
@@ -34,10 +34,10 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { n: 22, href: "/wallet", label: "کیف پول و کش‌بک", icon: WalletCards, ready: true },
   ]},
   { title: "اکوسیستم", items: [
-    { n: 20, href: "/ai", label: "مدیر هوشمند سالن", icon: Bot },
-    { n: 21, href: "/client-app", label: "پنل مشتری", icon: Smartphone },
-    { n: 16, href: "/marketplace", label: "مارکت‌پلیس متخصص‌ها", icon: Store },
-    { n: 17, href: "/academy", label: "آکادمی", icon: GraduationCap },
-    { n: 25, href: "/network", label: "شبکه خدمات جانبی", icon: Network },
+    { n: 20, href: "/ai", label: "مدیر هوشمند سالن", icon: Bot, ready: true },
+    { n: 21, href: "/client-app", label: "پنل مشتری", icon: Smartphone, ready: true },
+    { n: 16, href: "/marketplace", label: "مارکت‌پلیس متخصص‌ها", icon: Store, ready: true },
+    { n: 17, href: "/academy", label: "آکادمی", icon: GraduationCap, ready: true },
+    { n: 25, href: "/network", label: "شبکه خدمات جانبی", icon: Network, ready: true },
   ]},
 ];
