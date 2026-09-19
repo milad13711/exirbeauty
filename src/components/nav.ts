@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, CalendarDays, Scissors, UserCog, Wallet, Crown, Share2, ShoppingBag, Wand2,
   Megaphone, Repeat, Star, Package, Gift, Store, GraduationCap, Truck, Bot, Smartphone, WalletCards,
-  PenSquare, Network, Sparkles, type LucideIcon,
+  PenSquare, Network, Sparkles, Coins, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; ready?: boolean; n: number };
@@ -27,6 +27,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { n: 24, href: "/content", label: "تولید محتوا", icon: PenSquare, ready: true },
   ]},
   { title: "فروش و درآمد جدید", items: [
+    { n: 26, href: "/referral-store", label: "فروشگاه اکسیر (پورسانت)", icon: Coins, ready: true },
     { n: 9, href: "/shop", label: "فروشگاه آنلاین", icon: ShoppingBag, ready: true },
     { n: 10, href: "/recommend", label: "توصیه هوشمند محصول", icon: Wand2, ready: true },
     { n: 14, href: "/memberships", label: "پکیج و عضویت", icon: Package, ready: true },
