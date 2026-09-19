@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import clsx from "clsx";
 import { useState } from "react";
-import { BadgePercent, Building2, Coins, GraduationCap, LayoutDashboard, Menu, Package, Receipt, Store, Tags, Users, X } from "lucide-react";
+import { BadgePercent, Building2, Boxes, FileText, Coins, GraduationCap, LayoutDashboard, Menu, Package, Receipt, Store, Tags, Users, X } from "lucide-react";
 
 const groups = [
   { title: "", items: [{ href: "/admin", label: "نمای کلی", icon: LayoutDashboard }] },
@@ -16,6 +16,8 @@ const groups = [
   { title: "فروشگاه", items: [
     { href: "/admin/products", label: "محصولات", icon: Package },
     { href: "/admin/orders", label: "سفارش‌ها", icon: Receipt },
+    { href: "/admin/warehouse", label: "انبار", icon: Boxes },
+    { href: "/admin/purchases", label: "فاکتور خرید", icon: FileText },
     { href: "/admin/referrers", label: "سالن‌های معرف", icon: Users },
     { href: "/admin/commissions", label: "پورسانت‌ها", icon: Coins },
     { href: "/admin/referral-marketing", label: "ریفرال مارکتینگ", icon: BadgePercent },

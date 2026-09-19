@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Check, Copy, ExternalLink, Wallet } from "lucide-react";
 import { Badge, Button, Card, CardHead, PageTitle, Stat } from "@/components/ui";
 import { DataList } from "@/components/DataList";
-import { CRM_PLAN, ordersSeed, salons, storeProducts } from "@/lib/mock3";
+import { CRM_PLAN, ordersSeed, salons } from "@/lib/mock3";
+import { useDB } from "@/lib/db";
 import { commTone } from "@/lib/tones";
 import { fa, short, toman } from "@/lib/fa";
 
@@ -12,6 +13,7 @@ const me = salons[0]; // سالن رُز
 const mine = ordersSeed.filter((o) => o.salon === me.id);
 
 export default function ReferralStore() {
+  const db = useDB();
   const [copied, setCopied] = useState(false);
   const link = `exirbeauty.ir/store?ref=${me.code}`;
   const cov = Math.min(100, Math.round((me.wallet / CRM_PLAN.price) * 100));
@@ -52,7 +54,7 @@ export default function ReferralStore() {
         <Card>
           <CardHead title="پورسانت هر محصول" hint="پیشنهاد به مشتری در صفحه‌ی پروفایل او" />
           <ul className="divide-y divide-line">
-            {storeProducts.slice(0, 6).map((p) => (
+            {db.products.filter((p) => p.active).slice(0, 6).map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-5 py-2.5 text-sm"><span className="min-w-0 flex-1 truncate">{p.name}</span><Badge tone="gold">{fa(p.commission)}٪</Badge><b className="w-20 text-left">{short(p.price * p.commission / 100)}</b></li>
             ))}
           </ul>

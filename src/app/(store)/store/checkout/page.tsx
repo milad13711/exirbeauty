@@ -3,15 +3,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle2, Minus, Plus } from "lucide-react";
 import { useCart } from "@/components/store/CartProvider";
-import { storeProducts } from "@/lib/mock3";
+import { actions, useDB } from "@/lib/db";
 import { fa, toman } from "@/lib/fa";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-rose";
 
 export default function Checkout() {
   const { lines, add, dec, clear, refSalon } = useCart();
-  const [paid, setPaid] = useState(false);
-  const items = storeProducts.filter((p) => lines[p.id]);
+  const db = useDB();
+  const [paid, setPaid] = useState<string | null>(null);
+  const items = db.products.filter((p) => lines[p.id]);
   const sub = items.reduce((a, p) => a + p.price * lines[p.id], 0);
   const ship = sub > 2_000_000 || !sub ? 0 : 60_000;
 
@@ -19,7 +20,7 @@ export default function Checkout() {
     <div className="mx-auto max-w-md rounded-3xl border border-line bg-surface p-8 text-center">
       <CheckCircle2 className="mx-auto text-sage" size={44} />
       <h1 className="mt-3 text-xl font-extrabold">سفارش شما ثبت شد</h1>
-      <p className="mt-2 text-sm text-ink2">پیامک پیگیری برای شما ارسال می‌شود.</p>
+      <p className="mt-2 text-sm text-ink2">شماره‌ی سفارش: <b>#{paid}</b> · پیامک پیگیری برای شما ارسال می‌شود.</p>
       <Link href="/store" className="mt-5 inline-block rounded-xl bg-rose px-5 py-2.5 text-sm font-bold text-white">بازگشت به فروشگاه</Link>
     </div>
   );
@@ -44,7 +45,7 @@ export default function Checkout() {
               </li>
             ))}
           </ul>
-          <form onSubmit={(e) => { e.preventDefault(); setPaid(true); clear(); }} id="co" className="space-y-3 rounded-2xl border border-line bg-surface p-5">
+          <form onSubmit={(e) => { e.preventDefault(); const no = fa(2032 + db.moves.length); actions.sell(lines, no); setPaid(no); clear(); }} id="co" className="space-y-3 rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-bold">اطلاعات گیرنده</h2>
             <input required aria-label="نام و نام خانوادگی" placeholder="نام و نام خانوادگی" className={field} />
             <input required aria-label="شماره موبایل" inputMode="tel" placeholder="شماره موبایل" className={field} dir="ltr" style={{ textAlign: "right" }} />
