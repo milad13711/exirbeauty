@@ -36,8 +36,21 @@ export default function Customers() {
               f === x.k ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{x.l}</button>
         ))}
       </div>
-      <Card className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+      <Card className="md:hidden">
+        <ul className="divide-y divide-line">
+          {rows.map((c) => (
+            <li key={c.id}>
+              <Link href={c.id === "c1" ? "/customers/c1" : "#"} className="flex items-center gap-3 px-4 py-3.5">
+                <Avatar name={c.name} />
+                <span className="min-w-0 flex-1"><b className="block truncate text-sm">{c.name}</b><span className="block text-xs text-ink3">{fa(c.visits)} مراجعه · {short(c.total)} · {c.lastVisit}</span></span>
+                <span className="flex flex-col items-end gap-1"><Badge tone={tierTone[c.tier]}>{c.tier}</Badge>{riskBadge[c.risk]}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <Card className="hidden md:block">
+        <table className="w-full text-sm">
           <thead className="border-b border-line text-right text-xs text-ink3">
             <tr>{["مشتری", "سطح", "مراجعات", "مجموع خرید", "آخرین مراجعه", "خدمت موردعلاقه", "وضعیت"].map((h) => <th key={h} className="px-5 py-3 font-medium">{h}</th>)}</tr>
           </thead>

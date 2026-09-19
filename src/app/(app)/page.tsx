@@ -9,14 +9,14 @@ const oppIcon = { lost: AlertTriangle, vip: Crown, slot: Clock, stock: PackageOp
 function WeekChart() {
   const max = Math.max(...week.map((w) => w.v));
   return (
-    <div className="flex h-44 items-end gap-3 px-5 pb-5" role="img" aria-label="نمودار فروش هفتگی به میلیون تومان">
+    <div className="flex h-44 items-end gap-1.5 px-4 pb-5 sm:gap-3 sm:px-5" role="img" aria-label="نمودار فروش هفتگی به میلیون تومان">
       {week.map((w, i) => {
         const today = i === 0;
         return (
-          <div key={w.d} className="flex flex-1 flex-col items-center gap-2">
+          <div key={w.d} className="flex min-w-0 flex-1 flex-col items-center gap-2">
             <span className="text-[11px] font-semibold text-ink2">{fa(w.v)}</span>
             <div className="w-full rounded-t-lg" style={{ height: `${(w.v / max) * 100}%`, background: today ? "var(--rose)" : "var(--rose-soft)" }} />
-            <span className={`text-[11px] ${today ? "font-bold text-rosedeep" : "text-ink3"}`}>{w.d}</span>
+            <span className={`text-[11px] ${today ? "font-bold text-rosedeep" : "text-ink3"}`}><span className="sm:hidden">{w.d.slice(0, 1)}</span><span className="hidden sm:inline">{w.d}</span></span>
           </div>
         );
       })}
@@ -54,10 +54,10 @@ export default function Dashboard() {
               const Icon = oppIcon[o.icon as keyof typeof oppIcon];
               const tone = o.tone as Tone;
               return (
-                <li key={o.text} className="flex items-center gap-3 px-5 py-3.5">
+                <li key={o.text} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
                   <Badge tone={tone} className="size-9 justify-center !rounded-xl !p-0"><Icon size={17} /></Badge>
-                  <p className="flex-1 text-sm text-ink">{o.text}</p>
-                  <Link href={o.href} className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-semibold text-rose hover:text-rosedeep">
+                  <p className="min-w-0 flex-1 basis-40 text-sm text-ink">{o.text}</p>
+                  <Link href={o.href} className="inline-flex items-center gap-1 text-[13px] font-semibold text-rose hover:text-rosedeep">
                     {o.cta} <ArrowLeft size={14} />
                   </Link>
                 </li>

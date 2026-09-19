@@ -38,7 +38,12 @@ export default function Cashier() {
         <div className="space-y-5">
           <Card>
             <CardHead title="فاکتورهای امروز" action={<Receipt size={17} className="text-ink3" />} />
-            <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
+            <ul className="divide-y divide-line border-t border-line md:hidden">
+              {invoices.map((v) => (
+                <li key={v.id} className="flex items-center gap-3 px-5 py-3 text-sm"><span className="min-w-0 flex-1"><b className="block truncate">{v.client}</b><span className="block truncate text-xs text-ink3">#{v.id} · {v.items}</span></span><span className="flex flex-col items-end gap-1"><b>{short(v.total)}</b><Badge tone={mTone[v.method]}>{v.method}</Badge></span></li>
+              ))}
+            </ul>
+            <div className="hidden md:block"><table className="w-full text-sm">
               <thead className="border-y border-line text-right text-xs text-ink3"><tr>{["شماره", "مشتری", "اقلام", "متخصص", "مبلغ", "پرداخت"].map((h) => <th key={h} className="px-5 py-2.5 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map((v) => (
                 <tr key={v.id} className="border-b border-line/60 last:border-0">

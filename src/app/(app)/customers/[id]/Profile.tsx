@@ -78,10 +78,10 @@ export function Profile({ c }: { c: C }) {
         ))}
       </div>
 
-      <div className="mt-5 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
+      <div className="mt-5 grid grid-cols-2 gap-1 border-b border-line sm:flex" role="tablist">
         {tabs.map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={clsx("-mb-px cursor-pointer whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors", tab === t ? "border-rose text-rosedeep" : "border-transparent text-ink2 hover:text-ink")}>{t}</button>
+            className={clsx("-mb-px cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors", tab === t ? "border-rose text-rosedeep" : "border-transparent text-ink2 hover:text-ink")}>{t}</button>
         ))}
       </div>
 

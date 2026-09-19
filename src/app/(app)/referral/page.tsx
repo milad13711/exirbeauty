@@ -39,7 +39,7 @@ export default function Referral() {
         <Card>
           <CardHead title="لینک اختصاصی نمونه" action={<Link2 size={16} className="text-ink3" />} />
           <div className="px-5 pb-5">
-            <div className="flex items-center gap-2 rounded-xl border border-dashed border-rose/50 bg-rosesoft/50 p-3"><bdi dir="ltr" className="flex-1 truncate text-sm text-rosedeep">rose.exirbeauty.ir/r/sara-m</bdi><Button variant="ghost"><Copy size={14} />کپی</Button></div>
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-rose/50 bg-rosesoft/50 p-3"><bdi dir="ltr" className="min-w-0 flex-1 truncate text-sm text-rosedeep">rose.exirbeauty.ir/r/sara-m</bdi><Button variant="ghost"><Copy size={14} />کپی</Button></div>
             <p className="mt-3 text-xs text-ink3">هر مشتری و هر متخصص لینک مخصوص خودش را در پنل مشتری دارد.</p>
           </div>
         </Card>

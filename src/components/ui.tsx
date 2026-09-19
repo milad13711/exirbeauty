@@ -4,7 +4,7 @@ import { initials } from "@/lib/fa";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <section className={clsx("rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgba(60,30,40,.04)]", className)}>
+    <section className={clsx("min-w-0 rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgba(60,30,40,.04)]", className)}>
       {children}
     </section>
   );
