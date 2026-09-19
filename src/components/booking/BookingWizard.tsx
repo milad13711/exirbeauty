@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Clock, Repeat, Search, UserPlus } from "lucide-react";
 import { Avatar, Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { actions, useDB, type DBAppt } from "@/lib/db";
-import { catColor } from "@/lib/mock";
+import { catColor, NOW_MIN } from "@/lib/mock";
 import { clock, eligibleStaff, freeStarts, staffWorks, svcOf } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
 import { fa, short } from "@/lib/fa";
@@ -47,9 +47,12 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const slots = useMemo(() => {
     if (!svc) return [];
     const map = new Map<number, string>();
-    for (const s of candidates) for (const st of freeStarts(db, s.id, day, svc.min)) if (!map.has(st)) map.set(st, s.id);
+    for (const s of candidates) for (const st of freeStarts(db, s.id, day, svc.min)) {
+        if (mode === "public" && day === 0 && st < NOW_MIN + db.salon.online.leadHours * 60) continue; // حداقل فاصله تا نوبت
+        if (!map.has(st)) map.set(st, s.id);
+      }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [db, svc, candidates, day]);
+  }, [db, svc, candidates, day, mode]);
 
   const slotStaff = slot ? staff.find((s) => s.id === slot.staffId)! : null;
   const customerName = isNew ? name.trim() : pickedCustomer ?? "";
@@ -67,7 +70,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
       const d = day + i * gap;
       const conflict = freeStarts(db, slot.staffId, d, svc.min, list);
       if (!conflict.includes(slot.start)) { skipped++; continue; }
-      list.push({ id: `b${Date.now().toString(36)}${i}`, staffId: slot.staffId, start: slot.start, dur: svc.min, client: customerName, service: svc.name, cat: svc.cat, status: mode === "staff" ? "confirmed" : "pending", day: d });
+      list.push({ id: `b${Date.now().toString(36)}${i}`, staffId: slot.staffId, start: slot.start, dur: svc.min, client: customerName, service: svc.name, cat: svc.cat, status: mode === "staff" || db.salon.online.autoConfirm ? "confirmed" : "pending", day: d });
     }
     if (!list.length) { setErr("این ساعت دیگر خالی نیست؛ لطفاً زمان دیگری انتخاب کنید."); setSlot(null); setStep(2); return; }
     setErr("");
@@ -78,11 +81,11 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   if (done) return (
     <Card className="mx-auto max-w-lg p-7 text-center">
       <span className="mx-auto grid size-14 place-items-center rounded-full bg-sagesoft text-sage"><CalendarCheck size={28} /></span>
-      <h2 className="mt-4 text-xl font-extrabold">{mode === "public" ? "درخواست نوبت شما ثبت شد" : "نوبت ثبت شد"}</h2>
+      <h2 className="mt-4 text-xl font-extrabold">{mode === "public" ? (db.salon.online.autoConfirm ? "نوبت شما تأیید شد" : "درخواست نوبت شما ثبت شد") : "نوبت ثبت شد"}</h2>
       {svc && slotStaff && <p className="mt-2 text-sm leading-7 text-ink2">{svc.name} · {slotStaff.name}<br />{info.full} · ساعت {clock(slot!.start)}</p>}
       {done.created > 1 && <p className="mt-2 text-sm text-ink2">{fa(done.created)} نوبت تکرارشونده ثبت شد.</p>}
       {done.skipped > 0 && <p className="mt-2 rounded-xl bg-ambersoft p-2.5 text-xs text-amber">{fa(done.skipped)} نوبت به‌دلیل تداخل با نوبت دیگر ثبت نشد.</p>}
-      <p className="mt-3 text-xs text-ink3">{mode === "public" ? "پس از تأیید سالن، پیامک برای شما ارسال می‌شود." : "یادآوری خودکار برای مشتری فعال است."}</p>
+      <p className="mt-3 text-xs text-ink3">{mode === "public" ? (db.salon.online.autoConfirm ? "پیامک تأیید برای شما ارسال می‌شود." : "پس از تأیید سالن، پیامک برای شما ارسال می‌شود.") : "یادآوری خودکار برای مشتری فعال است."}</p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {mode === "staff" && <Link href="/calendar" className="rounded-xl bg-rose px-4 py-2.5 text-[13px] font-semibold text-white">مشاهده در تقویم</Link>}
         <Button variant="ghost" onClick={() => { setDone(null); setStep(0); setService(""); setSlot(null); setName(""); setPhone(""); setPickedCustomer(null); setNote(""); setRepeat("none"); }}>ثبت نوبت دیگر</Button>
@@ -227,7 +230,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
             <div className="flex justify-between border-t border-line pt-2.5"><dt className="text-ink3">هزینه‌ی تقریبی</dt><dd><b>{short(svc.price)}</b> تومان</dd></div>
           </dl>
         ) : <p className="text-sm text-ink3">هنوز خدمتی انتخاب نشده است.</p>}
-        {mode === "public" && <p className="mt-3"><Badge tone="amber">پس از ثبت، منتظر تأیید سالن باشید</Badge></p>}
+        {mode === "public" && !db.salon.online.autoConfirm && <p className="mt-3"><Badge tone="amber">پس از ثبت، منتظر تأیید سالن باشید</Badge></p>}
       </Card>
     </div>
   );

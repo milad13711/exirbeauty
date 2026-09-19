@@ -256,7 +256,8 @@ export const actions = {
   },
   // ---------- تنظیمات و کاربران ----------
   saveSalon(patch: Partial<SalonSettings>) { const d = getDB(); commit({ ...d, salon: { ...d.salon, ...patch } }); },
-  saveRole(r: SalonRole) { const d = getDB(); commit({ ...d, roles: d.roles.map((x) => (x.id === r.id ? r : x)) }); },
+  saveRole(r: SalonRole) { const d = getDB(); commit({ ...d, roles: d.roles.some((x) => x.id === r.id) ? d.roles.map((x) => (x.id === r.id ? r : x)) : [...d.roles, r] }); },
+  deleteRole(id: string) { const d = getDB(); commit({ ...d, roles: d.roles.filter((x) => x.id !== id) }); },
   saveUser(u: SalonUser) { const d = getDB(); commit({ ...d, users: d.users.some((x) => x.id === u.id) ? d.users.map((x) => (x.id === u.id ? u : x)) : [...d.users, u] }); },
   deleteUser(id: string) { const d = getDB(); commit({ ...d, users: d.users.filter((x) => x.id !== id) }); },
   saveAdminUser(u: AdminUser) { const d = getDB(); commit({ ...d, adminUsers: d.adminUsers.some((x) => x.id === u.id) ? d.adminUsers.map((x) => (x.id === u.id ? u : x)) : [...d.adminUsers, u] }); },

@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import clsx from "clsx";
 import { ArrowLeft, ArrowRight, CheckCircle2, Plus, Trash2 } from "lucide-react";
-import { Button, Card, Field, Toggle, fieldCls } from "@/components/ui";
+import { Button, Card, Field, fieldCls } from "@/components/ui";
+import { HoursEditor } from "@/components/HoursEditor";
 import { actions, useDB, type DayHours, type StaffMember } from "@/lib/db";
 import { serviceTemplates } from "@/lib/mock2";
-import { dayNames, hourToMin, minToHour, newStaff, uid } from "@/lib/factories";
+import { newStaff, uid } from "@/lib/factories";
 import { catColor } from "@/lib/mock";
 import { fa, short } from "@/lib/fa";
 
 const steps = ["مشخصات سالن", "ساعت کاری", "خدمات", "متخصص‌ها"] as const;
-const hourOpts = Array.from({ length: 11 }, (_, i) => 9 + i);
 
 export function OnboardingWizard() {
   const db = useDB();
@@ -25,7 +25,6 @@ export function OnboardingWizard() {
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
 
-  const setDay = (i: number, p: Partial<DayHours>) => setHours(hours.map((h, j) => (j === i ? { ...h, ...p } : h)));
   const next = () => {
     setErr("");
     if (step === 0 && (info.name.trim().length < 2 || info.address.trim().length < 5)) return setErr("نام و آدرس سالن را کامل کنید.");
@@ -72,20 +71,7 @@ export function OnboardingWizard() {
           </div>
         )}
         {step === 1 && (
-          <ul className="space-y-2">
-            {hours.map((h, i) => (
-              <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line px-4 py-2.5">
-                <Toggle on={h.open} label={`باز بودن ${dayNames[i]}`} onChange={(v) => setDay(i, { open: v })} />
-                <b className="w-20 text-sm">{dayNames[i]}</b>
-                {h.open ? (
-                  <span className="flex items-center gap-2 text-sm">
-                    از <select aria-label={`شروع ${dayNames[i]}`} value={minToHour(h.start)} onChange={(e) => setDay(i, { start: hourToMin(+e.target.value) })} className={`${fieldCls} !w-auto !py-1.5`}>{hourOpts.slice(0, -1).map((x) => <option key={x} value={x}>{fa(x)}:۰۰</option>)}</select>
-                    تا <select aria-label={`پایان ${dayNames[i]}`} value={minToHour(h.end)} onChange={(e) => setDay(i, { end: hourToMin(+e.target.value) })} className={`${fieldCls} !w-auto !py-1.5`}>{hourOpts.slice(1).map((x) => <option key={x} value={x}>{fa(x)}:۰۰</option>)}</select>
-                  </span>
-                ) : <span className="text-sm text-ink3">تعطیل</span>}
-              </li>
-            ))}
-          </ul>
+          <HoursEditor hours={hours} onChange={setHours} />
         )}
         {step === 2 && (
           <div className="space-y-4">
