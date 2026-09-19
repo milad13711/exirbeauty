@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import clsx from "clsx";
-import { Plus, Search, Send } from "lucide-react";
+import { Download, FileUp, Plus, Search } from "lucide-react";
 import { Avatar, Badge, Button, Card, LinkButton, PageTitle, tierTone } from "@/components/ui";
 import { useDB } from "@/lib/db";
 import { digits } from "@/lib/validate";
+import { exportXlsx } from "@/lib/export";
 import { fa, short } from "@/lib/fa";
 
 const filters = [{ k: "all", l: "همه" }, { k: "hot", l: "زمان مراجعه رسیده" }, { k: "lost", l: "در حال از دست رفتن" }, { k: "vip", l: "VIP" }] as const;
@@ -20,7 +21,7 @@ export default function Customers() {
   return (
     <>
       <PageTitle title="مشتریان" sub={`${fa(db.customers.length)} مشتری · سیستم زمان احتمالی مراجعه بعدی را پیش‌بینی می‌کند`}
-        actions={<><Button variant="ghost"><Send size={14} />پیام گروهی</Button><LinkButton href="/customers/new"><Plus size={14} />مشتری جدید</LinkButton></>} />
+        actions={<><Button variant="ghost" onClick={() => exportXlsx("مشتریان", [{ name: "مشتریان", head: ["نام", "موبایل", "جنسیت", "تولد", "سطح", "امتیاز", "مراجعات", "مجموع خرید", "آخرین مراجعه", "خدمت موردعلاقه", "بدهی", "وضعیت"], rows: rows.map((c) => [c.name, c.phone, c.gender, c.birth, c.tier, c.points, c.visits, c.total, c.lastVisit, c.favService, c.debt, c.risk === "ok" ? "فعال" : c.risk === "hot" ? "وقتش رسیده" : "در خطر"]) }])}><Download size={14} />خروجی Excel</Button><LinkButton href="/customers/import" variant="ghost"><FileUp size={14} />ورود از فایل</LinkButton><LinkButton href="/customers/new"><Plus size={14} />مشتری جدید</LinkButton></>} />
       <label className="relative mb-4 block max-w-md"><Search size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink3" /><input value={q} onChange={(e) => setQ(e.target.value)} aria-label="جستجوی مشتری" placeholder="جستجوی نام یا شماره…" className="w-full rounded-xl border border-line bg-surface py-2.5 pr-9 pl-3 text-sm outline-none focus:border-rose" /></label>
       <div className="mb-4 flex flex-wrap gap-2" role="tablist">
         {filters.map((x) => <button key={x.k} role="tab" aria-selected={f === x.k} onClick={() => setF(x.k)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors", f === x.k ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{x.l}</button>)}

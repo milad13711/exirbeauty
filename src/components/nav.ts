@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, CalendarDays, Scissors, UserCog, Wallet, Crown, Share2, ShoppingBag, Wand2,
   Megaphone, Repeat, Star, Package, Gift, Store, GraduationCap, Truck, Bot, Smartphone, WalletCards,
-  PenSquare, Network, Sparkles, Coins, type LucideIcon,
+  PenSquare, Network, Sparkles, Coins, BarChart3, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; ready?: boolean; n: number };
@@ -15,6 +15,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
   { title: "عملیات سالن", items: [
     { n: 4, href: "/services", label: "منوی خدمات", icon: Scissors, ready: true },
     { n: 5, href: "/staff", label: "پرسنل و متخصص‌ها", icon: UserCog, ready: true },
+    { n: 27, href: "/reports", label: "گزارش‌ها", icon: BarChart3, ready: true },
     { n: 6, href: "/cashier", label: "صندوق و درآمد", icon: Wallet, ready: true },
     { n: 18, href: "/procurement", label: "تأمین و خرید عمده", icon: Truck, ready: true },
   ]},
