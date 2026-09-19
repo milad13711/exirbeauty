@@ -1,57 +1,63 @@
-import { Copy, Link2, Share2, UserPlus } from "lucide-react";
-import { Avatar, Badge, Button, Card, CardHead, PageTitle, Stat } from "@/components/ui";
+"use client";
+import { useState } from "react";
+import { Check, Copy, Share2, UserPlus } from "lucide-react";
+import { Avatar, Badge, Button, Card, CardHead, Field, PageTitle, Stat, Toggle, fieldCls } from "@/components/ui";
+import { useDB } from "@/lib/db";
+import { growth } from "@/lib/growth";
 import { fa, short } from "@/lib/fa";
 
-const top = [
-  { n: "سارا محمدی", type: "مشتری", c: 6, rev: 11_400_000 },
-  { n: "مریم حسینی", type: "متخصص", c: 9, rev: 17_800_000 },
-  { n: "پریسا نوری", type: "مشتری", c: 4, rev: 7_200_000 },
-  { n: "الهام رضایی", type: "متخصص", c: 5, rev: 9_600_000 },
-];
-const flow = ["سارا لینک اختصاصی را می‌فرستد", "دوست وارد لینک می‌شود و ثبت‌نام می‌کند", "اولین خرید دوست انجام می‌شود", "سیستم خودکار پاداش می‌دهد"];
+export default function ReferralPage() {
+  const db = useDB();
+  const [cfg, setCfg] = useState(db.referral);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const referred = db.customers.filter((c) => c.referredBy);
+  const converted = referred.filter((c) => c.visits > 0);
+  const top = db.customers.filter((c) => c.referrals > 0).sort((a, b) => b.referrals - a.referrals).slice(0, 6);
+  const set = (p: Partial<typeof cfg>) => { setCfg({ ...cfg, ...p }); setSaved(false); };
+  const copy = (id: string) => { navigator.clipboard?.writeText(`https://exirbeauty.ir/book?ref=${id}`).catch(() => {}); setCopied(id); setTimeout(() => setCopied(null), 1600); };
 
-export default function Referral() {
   return (
     <>
-      <PageTitle title="معرفی دوستان (Referral)" sub="مشتری ← مشتری و متخصص ← مشتری؛ موتور بازاریابی ویروسی سالن" actions={<Button>تنظیم پاداش‌ها</Button>} />
+      <PageTitle title="معرفی دوستان (Referral)" sub="هر مشتری لینک اختصاصی دارد؛ پاداش پس از اولین خرید دوست خودکار ثبت می‌شود"
+        actions={<><Button onClick={() => { growth.saveReferral(cfg); setSaved(true); }}>ذخیره</Button>{saved && <span role="status" className="self-center text-sm font-bold text-sage">ذخیره شد ✓</span>}</>} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="مشتری جدید از معرفی" value={fa(37)} sub="این ماه" tone="sage" icon={<UserPlus size={16} />} />
-        <Stat label="درآمد ناشی از معرفی" value={short(46_000_000)} tone="rose" />
-        <Stat label="نرخ تبدیل لینک" value="۳۲٪" tone="gold" />
-        <Stat label="معرف‌های فعال" value={fa(58)} tone="sky" icon={<Share2 size={16} />} />
+        <Stat label="مشتری معرفی‌شده" value={fa(referred.length)} tone="rose" icon={<UserPlus size={16} />} />
+        <Stat label="اولین خرید انجام‌شده" value={fa(converted.length)} tone="sage" />
+        <Stat label="نرخ تبدیل" value={referred.length ? `${fa(Math.round((converted.length / referred.length) * 100))}٪` : "—"} tone="gold" />
+        <Stat label="معرف‌های فعال" value={fa(db.customers.filter((c) => c.referrals > 0).length)} tone="sky" icon={<Share2 size={16} />} />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHead title="پاداش‌ها" hint="به‌صورت خودکار پس از اولین خرید" />
-          <div className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
-            <div className="rounded-xl bg-rosesoft p-4"><p className="text-xs text-rosedeep">معرف (مشتری)</p><p className="mt-1 text-lg font-extrabold text-rosedeep">۱۰۰ امتیاز</p></div>
-            <div className="rounded-xl bg-goldsoft p-4"><p className="text-xs text-gold">دوست معرفی‌شده</p><p className="mt-1 text-lg font-extrabold text-gold">۱۰٪ تخفیف</p></div>
-            <div className="rounded-xl bg-sagesoft p-4 sm:col-span-2"><p className="text-xs text-sage">معرف (متخصص)</p><p className="mt-1 text-lg font-extrabold text-sage">۵٪ پورسانت از اولین فاکتور</p></div>
-          </div>
-        </Card>
-        <Card>
-          <CardHead title="مسیر معرفی" />
-          <ol className="space-y-3 px-5 pb-5">
-            {flow.map((f, i) => <li key={f} className="flex items-center gap-3 text-sm"><span className="grid size-7 place-items-center rounded-full bg-rose text-xs font-bold text-white">{fa(i + 1)}</span>{f}</li>)}
-          </ol>
-        </Card>
-        <Card>
-          <CardHead title="لینک اختصاصی نمونه" action={<Link2 size={16} className="text-ink3" />} />
-          <div className="px-5 pb-5">
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-rose/50 bg-rosesoft/50 p-3"><bdi dir="ltr" className="min-w-0 flex-1 truncate text-sm text-rosedeep">rose.exirbeauty.ir/r/sara-m</bdi><Button variant="ghost"><Copy size={14} />کپی</Button></div>
-            <p className="mt-3 text-xs text-ink3">هر مشتری و هر متخصص لینک مخصوص خودش را در پنل مشتری دارد.</p>
+          <CardHead title="پاداش‌ها" hint="در صندوق و پنل مشتری اعمال می‌شود" />
+          <div className="space-y-4 px-5 pb-5">
+            <div className="flex items-center gap-3"><Toggle on={cfg.enabled} onChange={(v) => set({ enabled: v })} label="فعال بودن برنامه‌ی معرفی" /><span className="text-sm">{cfg.enabled ? "برنامه‌ی معرفی فعال است" : "غیرفعال"}</span></div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="امتیاز معرف"><input type="number" min={0} value={cfg.referrerPts} onChange={(e) => set({ referrerPts: Math.max(0, +e.target.value || 0) })} className={fieldCls} /></Field>
+              <Field label="تخفیف دوست (٪)"><input type="number" min={0} max={60} value={cfg.friendOff} onChange={(e) => set({ friendOff: Math.min(60, Math.max(0, +e.target.value || 0)) })} className={fieldCls} /></Field>
+            </div>
+            <ol className="space-y-1.5 text-sm text-ink2">{["مشتری لینک اختصاصی خود را می‌فرستد", "دوست از لینک نوبت می‌گیرد و در CRM ثبت می‌شود", `در اولین فاکتور، ${fa(cfg.friendOff)}٪ تخفیف پیشنهاد می‌شود`, `معرف ${fa(cfg.referrerPts)} امتیاز می‌گیرد`].map((t, i) => <li key={t} className="flex gap-2"><span className="grid size-5 shrink-0 place-items-center rounded-full bg-rose text-[11px] font-bold text-white">{fa(i + 1)}</span>{t}</li>)}</ol>
           </div>
         </Card>
         <Card>
           <CardHead title="برترین معرف‌ها" />
           <ul className="divide-y divide-line">
-            {top.map((t) => (
-              <li key={t.n} className="flex items-center gap-3 px-5 py-3"><Avatar name={t.n} size={34} /><div className="flex-1"><p className="text-sm font-semibold">{t.n} <Badge tone={t.type === "متخصص" ? "sage" : "rose"}>{t.type}</Badge></p><p className="text-xs text-ink3">{fa(t.c)} مشتری جدید</p></div><b className="text-sm">{short(t.rev)}</b></li>
+            {top.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3"><Avatar name={c.name} size={34} /><span className="min-w-0 flex-1 basis-28"><b className="block text-sm">{c.name}</b><span className="text-xs text-ink3">{fa(c.referrals)} مشتری معرفی‌شده</span></span><Button variant="ghost" onClick={() => copy(c.id)}>{copied === c.id ? <><Check size={13} />کپی شد</> : <><Copy size={13} />لینک</>}</Button></li>
             ))}
+            {!top.length && <li className="px-5 pb-6 text-center text-sm text-ink3">هنوز معرفی ثبت نشده است.</li>}
           </ul>
         </Card>
       </div>
+
+      <Card className="mt-5">
+        <CardHead title="مشتریان معرفی‌شده" />
+        <ul className="divide-y divide-line">
+          {referred.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-sm"><b className="min-w-0 flex-1 basis-32">{c.name}</b><span className="text-xs text-ink3">معرف: {db.customers.find((x) => x.id === c.referredBy)?.name ?? "—"}</span>{c.visits > 0 ? <Badge tone="sage">خرید کرده · {short(c.total)}</Badge> : <Badge tone="amber">منتظر اولین خرید</Badge>}</li>)}
+          {!referred.length && <li className="px-5 pb-6 text-center text-sm text-ink3">هنوز مشتری معرفی‌شده‌ای نیست.</li>}
+        </ul>
+      </Card>
     </>
   );
 }
