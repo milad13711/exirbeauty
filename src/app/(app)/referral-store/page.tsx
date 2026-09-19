@@ -4,19 +4,21 @@ import { useState } from "react";
 import { Check, Copy, ExternalLink, Wallet } from "lucide-react";
 import { Badge, Button, Card, CardHead, PageTitle, Stat } from "@/components/ui";
 import { DataList } from "@/components/DataList";
-import { CRM_PLAN, ordersSeed, salons } from "@/lib/mock3";
+import { CRM_PLAN, salons } from "@/lib/mock3";
 import { useDB } from "@/lib/db";
 import { commTone } from "@/lib/tones";
 import { fa, short, toman } from "@/lib/fa";
 
 const me = salons[0]; // سالن رُز
-const mine = ordersSeed.filter((o) => o.salon === me.id);
 
 export default function ReferralStore() {
   const db = useDB();
+  const mine = db.orders.filter((o) => o.salon === me.id);
+  const wallet = db.wallets[me.id] ?? 0;
+  const pending = mine.filter((o) => o.cs === "در انتظار تحویل" || o.cs === "در انتظار مهلت مرجوعی" || o.cs === "آماده شارژ").reduce((a, o) => a + o.comm, 0);
   const [copied, setCopied] = useState(false);
   const link = `exirbeauty.ir/store?ref=${me.code}`;
-  const cov = Math.min(100, Math.round((me.wallet / CRM_PLAN.price) * 100));
+  const cov = Math.min(100, Math.round((wallet / CRM_PLAN.price) * 100));
   const copy = () => { navigator.clipboard?.writeText(link).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1800); };
   return (
     <>
@@ -35,16 +37,16 @@ export default function ReferralStore() {
       </Card>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="کیف پول سالن" value={short(me.wallet)} sub="قابل استفاده برای اشتراک" tone="sage" icon={<Wallet size={16} />} />
-        <Stat label="پورسانت در انتظار" value={short(me.pending)} sub={`تا ${fa(7)} روز پس از تحویل`} tone="amber" />
-        <Stat label="سفارش‌های معرفی‌شده" value={fa(me.orders)} tone="sky" />
-        <Stat label="فروش ایجادشده" value={short(me.sales)} tone="rose" />
+        <Stat label="کیف پول سالن" value={short(wallet)} sub="قابل استفاده برای اشتراک" tone="sage" icon={<Wallet size={16} />} />
+        <Stat label="پورسانت در انتظار" value={short(pending)} sub={`تا ${fa(7)} روز پس از تحویل`} tone="amber" />
+        <Stat label="سفارش‌های معرفی‌شده" value={fa(mine.length)} tone="sky" />
+        <Stat label="فروش ایجادشده" value={short(mine.reduce((a, o) => a + (o.status === "مرجوعی" ? 0 : o.total), 0))} tone="rose" />
       </div>
 
       <Card className="mt-5">
         <CardHead title="اشتراک با کیف پول" hint={`سررسید ${CRM_PLAN.renewal} · ${toman(CRM_PLAN.price)}`} />
         <div className="px-5 pb-5">
-          <div className="mb-1.5 flex justify-between text-sm"><span>کیف پول پوشش می‌دهد: <b>{fa(cov)}٪</b></span><span className="text-ink3">مانده: {toman(Math.max(0, CRM_PLAN.price - me.wallet))}</span></div>
+          <div className="mb-1.5 flex justify-between text-sm"><span>کیف پول پوشش می‌دهد: <b>{fa(cov)}٪</b></span><span className="text-ink3">مانده: {toman(Math.max(0, CRM_PLAN.price - wallet))}</span></div>
           <div className="h-3 rounded-full bg-surface2"><div className="h-3 rounded-full bg-sage" style={{ width: `${cov}%` }} /></div>
           <p className="mt-3 text-xs leading-6 text-ink2">در سررسید، ابتدا از کیف پول کسر می‌شود و اگر کم بود فقط مابقی را آنلاین می‌پردازید. با معرفی بیشتر، اشتراک تقریباً رایگان می‌شود.</p>
         </div>
@@ -63,7 +65,7 @@ export default function ReferralStore() {
           <CardHead title="سفارش‌های معرفی‌شده‌ی شما" />
           <DataList rows={mine} id={(o) => o.id} cols={[
             { h: "سفارش", title: true, cell: (o) => <>{o.customer} <span className="text-xs font-normal text-ink3">· {o.date}</span></> },
-            { h: "اقلام", cell: (o) => o.items },
+            { h: "اقلام", cell: (o) => o.lines.map((l) => l.name).join("، ") },
             { h: "پورسانت", cell: (o) => <b>{toman(o.comm)}</b> },
             { h: "وضعیت", cell: (o) => <Badge tone={commTone[o.cs]}>{o.cs}</Badge> },
           ]} />

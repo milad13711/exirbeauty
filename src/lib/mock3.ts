@@ -23,7 +23,7 @@ export const salons = [
 ];
 
 export type OrderStatus = "پرداخت‌شده" | "ارسال‌شده" | "تحویل‌شده" | "مرجوعی";
-export type CommStatus = "در انتظار مهلت مرجوعی" | "آماده شارژ" | "شارژ شد" | "لغو شد";
+export type CommStatus = "در انتظار تحویل" | "در انتظار مهلت مرجوعی" | "آماده شارژ" | "شارژ شد" | "لغو شد" | "بدون پورسانت";
 export const ordersSeed: { id: string; date: string; customer: string; phone: string; items: string; total: number; salon: string; via: string; status: OrderStatus; comm: number; cs: CommStatus }[] = [
   { id: "۲۰۳۱", date: "۲۸ شهریور", customer: "سارا محمدی", phone: "۰۹۱۲۳۴۵۶۷۸۹", items: "ست مراقبت رنگ مو", total: 1_900_000, salon: "s1", via: "لینک اختصاصی سالن", status: "پرداخت‌شده", comm: 342_000, cs: "در انتظار مهلت مرجوعی" },
   { id: "۲۰۳۰", date: "۲۷ شهریور", customer: "دنیا ابراهیمی", phone: "۰۹۳۶۲۲۲۳۳۴۴", items: "سرم ویتامین C + ضدآفتاب", total: 1_690_000, salon: "s1", via: "لینک متخصص: مریم حسینی", status: "ارسال‌شده", comm: 253_500, cs: "در انتظار مهلت مرجوعی" },

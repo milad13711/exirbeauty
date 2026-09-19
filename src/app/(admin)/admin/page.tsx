@@ -1,11 +1,14 @@
+"use client";
 import Link from "next/link";
 import { ArrowLeft, Coins, Receipt, ShoppingBag, Users } from "lucide-react";
 import { Badge, Card, CardHead, PageTitle, Stat } from "@/components/ui";
-import { CRM_PLAN, ordersSeed, salons } from "@/lib/mock3";
+import { CRM_PLAN, salons } from "@/lib/mock3";
+import { useDB } from "@/lib/db";
 import { fa, short } from "@/lib/fa";
 
 export default function AdminHome() {
-  const ready = ordersSeed.filter((o) => o.cs === "آماده شارژ");
+  const db = useDB();
+  const ready = db.orders.filter((o) => o.cs === "آماده شارژ");
   const readySum = ready.reduce((a, o) => a + o.comm, 0);
   const ranked = [...salons].sort((a, b) => b.sales - a.sales);
   return (
@@ -26,7 +29,7 @@ export default function AdminHome() {
         <CardHead title="برترین سالن‌های معرف" hint={`اشتراک ماهانه‌ی هر سالن ${short(CRM_PLAN.price)} تومان است`} />
         <ul className="divide-y divide-line">
           {ranked.map((s, i) => {
-            const cov = Math.min(100, Math.round((s.wallet / CRM_PLAN.price) * 100));
+            const cov = Math.min(100, Math.round(((db.wallets[s.id] ?? 0) / CRM_PLAN.price) * 100));
             return (
               <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
                 <span className="w-4 text-xs font-bold text-ink3">{fa(i + 1)}</span>

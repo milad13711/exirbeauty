@@ -45,11 +45,11 @@ export default function Checkout() {
               </li>
             ))}
           </ul>
-          <form onSubmit={(e) => { e.preventDefault(); const no = fa(2032 + db.moves.length); actions.sell(lines, no); setPaid(no); clear(); }} id="co" className="space-y-3 rounded-2xl border border-line bg-surface p-5">
+          <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const no = actions.createOrder({ customer: String(f.get("name")), phone: String(f.get("phone")), address: String(f.get("address")), lines, salon: refSalon?.id ?? null, via: refSalon ? "لینک اختصاصی سالن" : "مستقیم" }); setPaid(no); clear(); }} id="co" className="space-y-3 rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-bold">اطلاعات گیرنده</h2>
-            <input required aria-label="نام و نام خانوادگی" placeholder="نام و نام خانوادگی" className={field} />
-            <input required aria-label="شماره موبایل" inputMode="tel" placeholder="شماره موبایل" className={field} dir="ltr" style={{ textAlign: "right" }} />
-            <textarea required aria-label="آدرس" rows={3} placeholder="آدرس کامل" className={field} />
+            <input required name="name" aria-label="نام و نام خانوادگی" placeholder="نام و نام خانوادگی" className={field} />
+            <input required name="phone" aria-label="شماره موبایل" inputMode="tel" placeholder="شماره موبایل" className={field} dir="ltr" style={{ textAlign: "right" }} />
+            <textarea required name="address" aria-label="آدرس" rows={3} placeholder="آدرس کامل" className={field} />
           </form>
         </div>
         <aside className="h-fit space-y-3 rounded-2xl border border-line bg-surface p-5 text-sm lg:sticky lg:top-24">
