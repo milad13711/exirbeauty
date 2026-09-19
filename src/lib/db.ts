@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { storeProducts, type SCat } from "./mock3";
 import { appts as seedAppts, blocked as seedBlocked, staff as seedStaff, profile as seedProfile, customers as seedCustomerRows, type Appt, type Category, type Tier } from "./mock";
 import { catalog as seedCatalog } from "./mock2";
+import { seedExtra, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
 import { ordersSeed, salons as seedSalons, CRM_PLAN, type CommStatus, type OrderStatus } from "./mock3";
 
 export type DBProduct = {
@@ -30,7 +31,7 @@ export type Customer = {
   id: string; name: string; phone: string; gender: string; birth: string; age?: number; tier: Tier; points: number; nextRewardIn: number;
   visits: number; total: number; avg: number; lastVisit: string; lastVisitDays: number; cycleDays: number; nextDue: string;
   favService: string; favStaff: string; occasions: string[]; allergies: string[]; note: string; tags: string[]; referrals: number; wallet: number;
-  risk: "ok" | "hot" | "lost";
+  risk: "ok" | "hot" | "lost"; debt: number; referredBy?: string; ptsLog: { d: string; delta: number; note: string }[];
   hair: { current: string; type: string; state: string; brand: string; oxidant: string; lastColor: string; formula: string; history: string[] };
   skin: { type: string; used: string; allergies: string; facials: string[] };
   nail: { services: string; colors: string; allergies: string };
@@ -55,7 +56,10 @@ export type DB = {
   products: DBProduct[]; invoices: PurchaseInvoice[]; moves: Movement[]; seq: number; appts: DBAppt[];
   services: Service[]; staff: StaffMember[]; customers: Customer[]; orders: Order[]; wallets: Record<string, number>; orderSeq: number;
   salon: SalonSettings; roles: SalonRole[]; users: SalonUser[]; adminUsers: AdminUser[]; sub: Subscription; onboarded: boolean; session: Session;
+  inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
+  loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null;
 };
+export type { Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
 
 export const suppliers = ["پخش رز", "آرین‌مد", "شرکت سیلک‌لب", "درماکو"];
 export const TODAY_SHORT = "۲۸ شهریور";
@@ -63,7 +67,7 @@ export const TODAY_SHORT = "۲۸ شهریور";
 function mkFull(r: Record<string, unknown>): Customer {
   const base: Customer = {
     id: "", name: "", phone: "", gender: "زن", birth: "", tier: "برنزی", points: 0, nextRewardIn: 500, visits: 0, total: 0, avg: 0, lastVisit: "—", lastVisitDays: 0, cycleDays: 0, nextDue: "",
-    favService: "", favStaff: "", occasions: [], allergies: [], note: "", tags: [], referrals: 0, wallet: 0, risk: "ok",
+    favService: "", favStaff: "", occasions: [], allergies: [], note: "", tags: [], referrals: 0, wallet: 0, risk: "ok", debt: 0, ptsLog: [],
     hair: { current: "", type: "", state: "", brand: "", oxidant: "", lastColor: "", formula: "", history: [] },
     skin: { type: "", used: "", allergies: "", facials: [] }, nail: { services: "", colors: "", allergies: "" }, products: [], log: [],
   };
@@ -97,7 +101,7 @@ const seedProducts: DBProduct[] = storeProducts.map((p) => ({
 }));
 // دمو: یک کالای ناموجود و چند کالای زیر نقطه سفارش
 const tweak: Record<string, Partial<DBProduct>> = { p5: { stock: 0, reorder: 12 }, p3: { stock: 8, reorder: 15 }, p3b: { stock: 6, reorder: 10, reorderQty: 20 }, p6: { stock: 15, reorder: 8 } };
-export const seedDB: DB = {
+const seedBase: Omit<DB, keyof ReturnType<typeof seedExtra>> = {
   products: seedProducts.map((p) => ({ ...p, ...(tweak[p.id] ?? {}) })),
   invoices: [{ id: "خ-۱۰۰۱", supplier: "پخش رز", date: "۱۴ شهریور", lines: [{ productId: "p1", qty: 40, unitCost: 360_000 }, { productId: "p2", qty: 25, unitCost: 430_000 }], status: "دریافت‌شده" }],
   moves: [
@@ -113,7 +117,7 @@ export const seedDB: DB = {
     returning: m.returning, commission: m.commission, commissionPct: [30, 28, 30, 33][i], avgInvoice: m.avgInvoice, fill: m.fill, products: m.products,
     start: 0, end: 600, daysOff: m.id === "s4" ? [3] : [], breaks: seedBlocked[m.id]?.filter((b) => b.label !== "مرخصی ساعتی") ?? [], leaves: [], active: true,
   })),
-  customers: [mkFull(seedProfile), ...seedCustomerRows.slice(1).map((r) => mkFull(r as unknown as Record<string, unknown>))],
+  customers: [mkFull(seedProfile), ...seedCustomerRows.slice(1).map((r) => mkFull(r as unknown as Record<string, unknown>))].map((c) => (c.name === "الناز جعفری" ? { ...c, debt: 850_000 } : c)),
   orders: seedOrders(),
   wallets: Object.fromEntries(seedSalons.map((x) => [x.id, x.wallet])),
   orderSeq: 2032,
@@ -138,8 +142,21 @@ export const seedDB: DB = {
   onboarded: true,
   session: null,
 };
+export const seedDB: DB = {
+  ...seedBase,
+  appts: seedBase.appts.map((a) => ({ ...a, customerId: seedBase.customers.find((c) => c.name === a.client)?.id })),
+  ...seedExtra({
+    services: seedBase.services, staff: seedBase.staff, customers: seedBase.customers,
+    retail: [
+      { id: "r1", name: "شامپو ترمیم‌کننده", kind: "retail", price: 650_000, cost: 360_000, stock: 12, reorder: 5, supplier: "پخش رز" },
+      { id: "r2", name: "ماسک مو ابریشم", kind: "retail", price: 780_000, cost: 430_000, stock: 9, reorder: 5, supplier: "پخش رز" },
+      { id: "r3", name: "سرم ویتامین C", kind: "retail", price: 1_150_000, cost: 620_000, stock: 6, reorder: 4, supplier: "درماکو" },
+      { id: "r4", name: "ضدآفتاب SPF50", kind: "retail", price: 540_000, cost: 300_000, stock: 14, reorder: 6, supplier: "درماکو" },
+    ],
+  }),
+};
 
-const KEY = "exir_db_v3";
+const KEY = "exir_db_v4";
 let state: DB = seedDB;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -153,7 +170,7 @@ function load() {
   } catch {}
 }
 export const getDB = () => { load(); return state; };
-function commit(next: DB) {
+export function commit(next: DB) {
   state = next;
   try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
   listeners.forEach((l) => l());

@@ -11,7 +11,7 @@ export const newStaff = (n = 0): StaffMember => ({
 export const newService = (): Service => ({ id: uid("v"), cat: "مو", name: "", price: 0, min: 60, staff: [], materials: "", materialCost: 0, commission: 30, capacity: "۱ همزمان", active: true });
 export const newCustomer = (): Customer => ({
   id: uid("c"), name: "", phone: "", gender: "زن", birth: "", tier: "برنزی", points: 0, nextRewardIn: 500, visits: 0, total: 0, avg: 0, lastVisit: "—", lastVisitDays: 0, cycleDays: 0, nextDue: "",
-  favService: "", favStaff: "", occasions: [], allergies: [], note: "", tags: ["جدید"], referrals: 0, wallet: 0, risk: "ok",
+  favService: "", favStaff: "", occasions: [], allergies: [], note: "", tags: ["جدید"], referrals: 0, wallet: 0, risk: "ok", debt: 0, ptsLog: [],
   hair: { current: "", type: "", state: "", brand: "", oxidant: "", lastColor: "", formula: "", history: [] },
   skin: { type: "", used: "", allergies: "", facials: [] }, nail: { services: "", colors: "", allergies: "" }, products: [], log: [],
 });

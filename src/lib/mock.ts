@@ -59,7 +59,7 @@ export const customers = [
   { id: "c7", name: "ژاله فرهادی", phone: "۰۹۱۰ ۵۵۵ ۶۶۷۷", tier: "نقره‌ای" as Tier, visits: 12, total: 18_600_000, lastVisit: "۳ مرداد", lastVisitDays: 56, cycleDays: 30, favService: "مانیکور", risk: "lost" as const },
 ];
 
-export type Appt = { id: string; staffId: string; start: number; dur: number; client: string; service: string; cat: Category; status: "confirmed" | "pending" | "inservice" | "done"; };
+export type Appt = { customerId?: string; id: string; staffId: string; start: number; dur: number; client: string; service: string; cat: Category; status: "confirmed" | "pending" | "inservice" | "done"; };
 // start = دقیقه از ساعت ۹ صبح
 export const appts: Appt[] = [
   { id: "a1", staffId: "s1", start: 0, dur: 120, client: "دنیا ابراهیمی", service: "رنگ ریشه", cat: "مو", status: "done" },

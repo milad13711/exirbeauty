@@ -64,7 +64,7 @@ function ApptRow({ a, open, onToggle }: { a: Appt; open: boolean; onToggle: () =
         <div className="border-t border-line px-4 py-3">
           {a.client === "سارا محمدی" && <p className="mb-3 rounded-lg bg-dangersoft p-2.5 text-xs leading-6 text-danger">⚠️ حساسیت به PPD؛ از رنگ‌های بدون PPD استفاده شود.</p>}
           <p className="mb-3 text-xs text-ink2">{range(a.start, a.dur)}</p>
-          <div className="flex flex-wrap gap-2">{a.status === "pending" && <Button variant="soft" onClick={() => actions.setApptStatus(a.id, "confirmed")}>تأیید</Button>}<Button variant="ghost" className="!text-danger" onClick={() => actions.cancelAppt(a.id)}>لغو نوبت</Button></div>
+          <div className="flex flex-wrap gap-2">{a.status === "pending" && <Button variant="soft" onClick={() => actions.setApptStatus(a.id, "confirmed")}>تأیید</Button>}{a.status !== "done" && <Link href={`/cashier?appt=${a.id}`} className="inline-flex items-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink2 hover:bg-surface2">صدور فاکتور</Link>}<Button variant="ghost" className="!text-danger" onClick={() => actions.cancelAppt(a.id)}>لغو نوبت</Button></div>
           <p className="mt-3 flex items-center gap-1.5 text-xs text-ink3"><Bell size={12} />یادآوری خودکار ۲۴ ساعت و ۲ ساعت قبل</p>
         </div>
       )}
