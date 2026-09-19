@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, CalendarDays, Scissors, UserCog, Wallet, Crown, Share2, ShoppingBag, Wand2,
   Megaphone, Repeat, Star, Package, Gift, Store, GraduationCap, Truck, Bot, Smartphone, WalletCards,
-  Percent, PenSquare, Network, Sparkles, type LucideIcon,
+  PenSquare, Network, Sparkles, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; ready?: boolean; n: number };
@@ -27,12 +27,11 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { n: 24, href: "/content", label: "تولید محتوا", icon: PenSquare },
   ]},
   { title: "فروش و درآمد جدید", items: [
-    { n: 9, href: "/shop", label: "فروشگاه آنلاین", icon: ShoppingBag },
-    { n: 10, href: "/recommend", label: "توصیه هوشمند محصول", icon: Wand2 },
-    { n: 14, href: "/memberships", label: "پکیج و عضویت", icon: Package },
-    { n: 15, href: "/gift-cards", label: "کارت هدیه", icon: Gift },
-    { n: 22, href: "/wallet", label: "کیف پول و کش‌بک", icon: WalletCards },
-    { n: 23, href: "/cashback", label: "سیستم کش‌بک", icon: Percent },
+    { n: 9, href: "/shop", label: "فروشگاه آنلاین", icon: ShoppingBag, ready: true },
+    { n: 10, href: "/recommend", label: "توصیه هوشمند محصول", icon: Wand2, ready: true },
+    { n: 14, href: "/memberships", label: "پکیج و عضویت", icon: Package, ready: true },
+    { n: 15, href: "/gift-cards", label: "کارت هدیه", icon: Gift, ready: true },
+    { n: 22, href: "/wallet", label: "کیف پول و کش‌بک", icon: WalletCards, ready: true },
   ]},
   { title: "اکوسیستم", items: [
     { n: 20, href: "/ai", label: "مدیر هوشمند سالن", icon: Bot },
