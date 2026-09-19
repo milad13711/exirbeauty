@@ -9,6 +9,7 @@ import { schedule } from "@/lib/schedule";
 import { newCustomer } from "@/lib/factories";
 import { digits } from "@/lib/validate";
 import { hoursUntil } from "@/lib/portal";
+import { ops } from "@/lib/ops";
 import { catColor, NOW_MIN } from "@/lib/mock";
 import { clock, eligibleStaff, freeStarts, staffWorks, svcOf } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
@@ -93,6 +94,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
     if (!list.length) { setErr("این ساعت دیگر خالی نیست؛ لطفاً زمان دیگری انتخاب کنید."); setSlot(null); setStep(2); return; }
     setErr("");
     actions.addAppts(list);
+    if (mode === "public") ops.notify("salon", "نوبت جدید آنلاین", `${customerName} برای ${svc.name} نوبت ${db.salon.online.autoConfirm ? "گرفت" : "درخواست کرد"}`, "/calendar");
     setDone({ created: list.length, skipped });
   };
 
@@ -201,7 +203,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
                     <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                       <input aria-label="نام برای لیست انتظار" placeholder="نام و نام خانوادگی" value={wait.name} onChange={(e) => setWait({ ...wait, name: e.target.value })} className={fieldCls} />
                       <input aria-label="موبایل برای لیست انتظار" placeholder="09123456789" dir="ltr" style={{ textAlign: "right" }} value={wait.phone} onChange={(e) => setWait({ ...wait, phone: e.target.value })} className={fieldCls} />
-                      <Button onClick={() => { if (wait.name.trim().length < 3 || !/^09\d{9}$/.test(digits(wait.phone).replace(/\s/g, ""))) return setWait({ ...wait, err: "نام و موبایل معتبر را وارد کنید." }); schedule.addWait({ name: wait.name.trim(), phone: wait.phone, serviceId: svc!.id, staffId: who, from: day, to: Math.min(day + 3, 13), note: "از فرم رزرو" }); setWait({ ...wait, sent: true, err: "" }); }}>پیوستن به لیست انتظار</Button>
+                      <Button onClick={() => { if (wait.name.trim().length < 3 || !/^09\d{9}$/.test(digits(wait.phone).replace(/\s/g, ""))) return setWait({ ...wait, err: "نام و موبایل معتبر را وارد کنید." }); schedule.addWait({ name: wait.name.trim(), phone: wait.phone, serviceId: svc!.id, staffId: who, from: day, to: Math.min(day + 3, 13), note: "از فرم رزرو" }); ops.notify("salon", "مشتری جدید در لیست انتظار", `${wait.name.trim()} برای ${svc!.name}`, "/calendar"); setWait({ ...wait, sent: true, err: "" }); }}>پیوستن به لیست انتظار</Button>
                       {wait.err && <p role="alert" className="text-xs text-danger sm:col-span-3">{wait.err}</p>}
                     </div>
                   ))}

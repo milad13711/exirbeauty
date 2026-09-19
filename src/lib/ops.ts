@@ -91,6 +91,6 @@ export const ops = {
   addNote(id: string, note: string) { patch((d) => ({ tenants: d.tenants.map((x) => (x.id === id ? { ...x, notes: [`${TODAY_SHORT} · ${note}`, ...x.notes] } : x)) })); },
   /** تمدید دستی اشتراک + ثبت پرداخت */
   extend(id: string, months: number, amount: number, label: string) {
-    patch((d) => ({ tenants: d.tenants.map((x) => (x.id === id ? { ...x, status: "فعال" as const, expiry: `${fa(months)} ماه بعد از ${x.expiry}`, payments: [{ day: 0, amount, label }, ...x.payments] } : x)) }));
+    patch((d) => ({ tenants: d.tenants.map((x) => (x.id === id ? { ...x, status: "فعال" as const, expiry: /روز دیگر|ماه دیگر/.test(x.expiry) ? `${fa(months)} ماه دیگر` : `${fa(months)} ماه بعد از ${x.expiry}`, payments: [{ day: 0, amount, label }, ...x.payments] } : x)) }));
   },
 };

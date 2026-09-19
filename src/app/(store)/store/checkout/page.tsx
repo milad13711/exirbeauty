@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Minus, Plus } from "lucide-react";
 import { useCart } from "@/components/store/CartProvider";
 import { actions, useDB } from "@/lib/db";
+import { ops } from "@/lib/ops";
 import { fa, toman } from "@/lib/fa";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-rose";
@@ -45,7 +46,7 @@ export default function Checkout() {
               </li>
             ))}
           </ul>
-          <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const no = actions.createOrder({ customer: String(f.get("name")), phone: String(f.get("phone")), address: String(f.get("address")), lines, salon: refSalon?.id ?? null, via: refSalon ? "لینک اختصاصی سالن" : "مستقیم" }); setPaid(no); clear(); }} id="co" className="space-y-3 rounded-2xl border border-line bg-surface p-5">
+          <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const no = actions.createOrder({ customer: String(f.get("name")), phone: String(f.get("phone")), address: String(f.get("address")), lines, salon: refSalon?.id ?? null, via: refSalon ? "لینک اختصاصی سالن" : "مستقیم" }); ops.notify("admin", "سفارش جدید فروشگاه", `سفارش #${no}${refSalon ? ` از طریق ${refSalon.name}` : ""}`, "/admin/orders"); setPaid(no); clear(); }} id="co" className="space-y-3 rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-bold">اطلاعات گیرنده</h2>
             <input required name="name" aria-label="نام و نام خانوادگی" placeholder="نام و نام خانوادگی" className={field} />
             <input required name="phone" aria-label="شماره موبایل" inputMode="tel" placeholder="شماره موبایل" className={field} dir="ltr" style={{ textAlign: "right" }} />

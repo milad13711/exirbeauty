@@ -3,6 +3,7 @@ import { NOW_MIN } from "./mock";
 import { digits } from "./validate";
 import { withPoints } from "./sales";
 import { newCustomer } from "./factories";
+import { ops } from "./ops";
 import { fa, num } from "./fa";
 
 /** ساعت مانده تا شروع نوبت (نوبت‌های امروز نسبت به «اکنون» سنجیده می‌شوند) */
@@ -25,6 +26,7 @@ export const portal = {
     if (!a || a.customerId !== customerId) return { ok: false, msg: "این نوبت پیدا نشد." };
     if (hoursUntil(a) < d.salon.online.cancelHours) return { ok: false, msg: `لغو آنلاین فقط تا ${fa(d.salon.online.cancelHours)} ساعت قبل از نوبت ممکن است؛ لطفاً با سالن تماس بگیرید.` };
     commit({ ...d, appts: d.appts.filter((x) => x.id !== apptId) });
+    ops.notify("salon", "لغو نوبت توسط مشتری", `${a.client} نوبت ${a.service} را لغو کرد؛ این وقت خالی شد`, "/calendar");
     return { ok: true, msg: "نوبت شما لغو شد." };
   },
   /** خرج امتیاز: جایزه به‌صورت اعتبار کیف پول ثبت می‌شود */

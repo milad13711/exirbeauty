@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 import { storeProducts, type SCat } from "./mock3";
 import { appts as seedAppts, blocked as seedBlocked, staff as seedStaff, profile as seedProfile, customers as seedCustomerRows, type Appt, type Category, type Tier } from "./mock";
 import { catalog as seedCatalog } from "./mock2";
-import { seedExtra, seedOps, type Survey, type ReviewCfg, type Post, type Course, type Enrollment, type Notification, type Ticket, type Tenant, type MarketPro, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
+import { seedExtra, seedOps, type TStatus, type Survey, type ReviewCfg, type Post, type Course, type Enrollment, type Notification, type Ticket, type Tenant, type MarketPro, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
 import { ordersSeed, salons as seedSalons, CRM_PLAN, type CommStatus, type OrderStatus } from "./mock3";
 
 export type DBProduct = {
@@ -60,7 +60,7 @@ export type DB = {
   inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
   loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null;
 };
-export type { Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
+export type { TStatus, Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
 
 export const suppliers = ["پخش رز", "آرین‌مد", "شرکت سیلک‌لب", "درماکو"];
 export const TODAY_SHORT = "۲۸ شهریور";
@@ -287,8 +287,12 @@ export const actions = {
   /** ثبت‌نام سالن جدید + فعال‌سازی اشتراک (پرداخت‌شده یا دوره‌ی آزمایشی ۷ روزه) */
   signup(p: { owner: string; salonName: string; phone: string; city: string; planId: string; months: number; trial: boolean }) {
     const d = getDB();
-    const expiry = p.trial ? "۷ روز دیگر" : p.months === 1 ? "۲۸ مهر ۱۴۰۵" : `${String(p.months).replace(/\d/g, (c) => "۰۱۲۳۴۵۶۷۸۹"[+c])} ماه دیگر`;
-    commit({ ...d, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner } });
+    const fd = (n: number) => String(n).replace(/\d/g, (c) => "۰۱۲۳۴۵۶۷۸۹"[+c]);
+    const expiry = p.trial ? "۷ روز دیگر" : p.months === 1 ? "۲۸ مهر ۱۴۰۵" : `${fd(p.months)} ماه دیگر`;
+    const price = ({ basic: 790_000, pro: 1_490_000, elite: 2_900_000 } as Record<string, number>)[p.planId] ?? 0;
+    const tenant: Tenant = { id: `t${Date.now().toString(36)}`, name: p.salonName, owner: p.owner, city: p.city, phone: p.phone, plan: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, users: 1, customers: 0, wallet: 0, since: "شهریور ۱۴۰۵", notes: [p.trial ? "ثبت‌نام با دوره‌ی آزمایشی" : "ثبت‌نام با پرداخت آنلاین"], payments: p.trial ? [] : [{ day: 0, amount: price * p.months, label: `اشتراک ${fd(p.months)} ماهه — آنلاین` }] };
+    const note: Notification = { id: `n${Date.now().toString(36)}`, audience: "admin", title: "سالن جدید", body: `${p.salonName} (${p.city}) ${p.trial ? "دوره‌ی آزمایشی را شروع کرد" : "اشتراک خرید"}`, href: "/admin/tenants", day: 0, read: false };
+    commit({ ...d, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner }, tenants: [tenant, ...d.tenants], notifications: [note, ...d.notifications].slice(0, 80) });
   },
   paySubscription(planId: string, months: number, fromWallet: number) {
     const d = getDB();

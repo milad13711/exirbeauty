@@ -3,11 +3,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { Bell, LogIn, LogOut, Menu, Search, Settings, X, Flower2 } from "lucide-react";
+import { Bell, LifeBuoy, LogIn, LogOut, Menu, Search, Settings, X, Flower2 } from "lucide-react";
 import { navGroups } from "./nav";
 import { Avatar } from "./ui";
 import { TODAY } from "@/lib/mock";
 import { actions, useDB } from "@/lib/db";
+import { ops } from "@/lib/ops";
+import { fa } from "@/lib/fa";
+import { dayInfo } from "@/lib/dates";
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -15,6 +18,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const db = useDB();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [bell, setBell] = useState(false);
+  const notifs = db.notifications.filter((n) => n.audience === "salon");
+  const unread = notifs.filter((n) => !n.read).length;
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
 
   const nav = (
@@ -51,7 +57,8 @@ export function Shell({ children }: { children: ReactNode }) {
             })}
           </div>
         ))}
-        <Link href="/settings" onClick={() => setOpen(false)} className={clsx("mt-2 flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/settings") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><Settings size={17} />تنظیمات سالن</Link>
+        <Link href="/support" onClick={() => setOpen(false)} className={clsx("mt-2 flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/support") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><LifeBuoy size={17} />پشتیبانی</Link>
+        <Link href="/settings" onClick={() => setOpen(false)} className={clsx("flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/settings") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><Settings size={17} />تنظیمات سالن</Link>
       </div>
     </nav>
   );
@@ -76,12 +83,24 @@ export function Shell({ children }: { children: ReactNode }) {
             <input placeholder="جستجوی مشتری، خدمت، نوبت…" className="w-full rounded-xl border border-line bg-surface py-2 pr-9 pl-3 text-sm outline-none placeholder:text-ink3 focus:border-rose" />
           </label>
           <span className="hidden text-xs text-ink2 md:block">{TODAY}</span>
-          <button aria-label="اعلان‌ها" className="relative rounded-lg p-2 hover:bg-surface2">
-            <Bell size={19} className="text-ink2" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-rose" />
-          </button>
           <div className="relative">
-            <button aria-label="منوی کاربر" aria-expanded={menu} onClick={() => setMenu(!menu)} className="cursor-pointer rounded-full"><Avatar name={db.session?.name ?? "مدیر سالن"} color="#3a2431" /></button>
+            <button aria-label={`اعلان‌ها${unread ? `، ${fa(unread)} خوانده‌نشده` : ""}`} aria-expanded={bell} onClick={() => { setBell(!bell); setMenu(false); }} className="relative cursor-pointer rounded-lg p-2 hover:bg-surface2">
+              <Bell size={19} className="text-ink2" />
+              {unread > 0 && <span className="absolute -left-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose px-1 text-[10px] font-bold text-white">{fa(unread)}</span>}
+            </button>
+            {bell && (
+              <div className="absolute left-0 top-11 z-50 w-80 max-w-[85vw] rounded-2xl border border-line bg-surface shadow-lg">
+                <div className="flex items-center justify-between border-b border-line px-4 py-2.5"><b className="text-sm">اعلان‌ها</b>{unread > 0 && <button onClick={() => ops.markAllRead("salon")} className="cursor-pointer text-xs font-semibold text-rose">همه خوانده شد</button>}</div>
+                <ul className="max-h-80 overflow-y-auto">
+                  {notifs.slice(0, 6).map((n) => <li key={n.id}><Link href={n.href} onClick={() => { ops.markRead(n.id); setBell(false); }} className="flex items-start gap-2.5 px-4 py-3 hover:bg-surface2"><span className={clsx("mt-1.5 size-2 shrink-0 rounded-full", n.read ? "bg-line" : "bg-rose")} /><span className="min-w-0 flex-1"><b className="block text-[13px]">{n.title}</b><span className="line-clamp-2 text-xs text-ink2">{n.body}</span></span><span className="shrink-0 text-[10px] text-ink3">{n.day === 0 ? "امروز" : dayInfo(n.day).short}</span></Link></li>)}
+                  {!notifs.length && <li className="px-4 py-8 text-center text-xs text-ink3">اعلانی وجود ندارد.</li>}
+                </ul>
+                <Link href="/notifications" onClick={() => setBell(false)} className="block border-t border-line px-4 py-2.5 text-center text-xs font-semibold text-rose">همه‌ی اعلان‌ها</Link>
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <button aria-label="منوی کاربر" aria-expanded={menu} onClick={() => { setMenu(!menu); setBell(false); }} className="cursor-pointer rounded-full"><Avatar name={db.session?.name ?? "مدیر سالن"} color="#3a2431" /></button>
             {menu && (
               <div className="absolute left-0 top-11 z-50 w-52 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
                 <p className="truncate px-3 py-2 text-xs text-ink3">{db.session?.name ?? "وارد نشده‌اید"}</p>
