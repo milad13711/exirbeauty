@@ -30,12 +30,12 @@ export function offReason(db: DB, m: StaffMember, day: number): string {
 }
 
 /** ساعت‌های شروع خالی برای یک متخصص (بدون تداخل با نوبت، استراحت و خارج از ساعت کاری) */
-export function freeStarts(db: DB, staffId: string, day: number, dur: number, extra: DB["appts"] = []): number[] {
+export function freeStarts(db: DB, staffId: string, day: number, dur: number, extra: DB["appts"] = [], ignoreId?: string): number[] {
   const m = db.staff.find((x) => x.id === staffId);
   const win = m && workWindow(db, m, day);
   if (!m || !win) return [];
   const busy = [
-    ...[...db.appts, ...extra].filter((a) => a.staffId === staffId && a.day === day).map((a) => [a.start, a.start + a.dur]),
+    ...[...db.appts, ...extra].filter((a) => a.staffId === staffId && a.day === day && a.id !== ignoreId).map((a) => [a.start, a.start + a.dur]),
     ...m.breaks.map((b) => [b.s, b.e]),
   ];
   const out: number[] = [];
@@ -44,4 +44,30 @@ export function freeStarts(db: DB, staffId: string, day: number, dur: number, ex
     if (busy.every(([bs, be]) => s + dur <= bs || s >= be)) out.push(s);
   }
   return out;
+}
+
+/** ظرفیت و اشغال یک روز برای نمای هفتگی */
+export function dayLoad(db: DB, day: number) {
+  let capacity = 0;
+  for (const m of db.staff) {
+    const w = workWindow(db, m, day);
+    if (!w) continue;
+    const br = m.breaks.reduce((a, b) => a + Math.max(0, Math.min(b.e, w[1]) - Math.max(b.s, w[0])), 0);
+    capacity += w[1] - w[0] - br;
+  }
+  const list = db.appts.filter((a) => a.day === day);
+  const booked = list.reduce((a, x) => a + x.dur, 0);
+  return { capacity, booked, list, pct: capacity ? Math.min(100, Math.round((booked / capacity) * 100)) : 0, open: capacity > 0 };
+}
+
+/** اولین وقت خالی مناسب برای یک ورودی لیست انتظار */
+export function findSlot(db: DB, w: { serviceId: string; staffId: string; from: number; to: number }, ignoreId?: string): { day: number; start: number; staffId: string } | null {
+  const sv = svcOf(db, w.serviceId);
+  if (!sv) return null;
+  const staff = w.staffId === "any" ? eligibleStaff(db, sv.id) : eligibleStaff(db, sv.id).filter((s) => s.id === w.staffId);
+  for (let day = Math.max(0, w.from); day <= w.to; day++) {
+    const hits = staff.flatMap((s) => freeStarts(db, s.id, day, sv.min, [], ignoreId).map((st) => ({ day, start: st, staffId: s.id }))).sort((a, b) => a.start - b.start);
+    if (hits.length) return hits[0];
+  }
+  return null;
 }

@@ -5,13 +5,16 @@ import clsx from "clsx";
 import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Clock, Repeat, Search, UserPlus } from "lucide-react";
 import { Avatar, Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { actions, useDB, type DBAppt } from "@/lib/db";
+import { schedule } from "@/lib/schedule";
+import { newCustomer } from "@/lib/factories";
+import { digits } from "@/lib/validate";
 import { catColor, NOW_MIN } from "@/lib/mock";
 import { clock, eligibleStaff, freeStarts, staffWorks, svcOf } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
 import { fa, short } from "@/lib/fa";
 
 type Mode = "public" | "staff";
-export type Initial = { staff?: string; day?: number; start?: number; service?: string };
+export type Initial = { staff?: string; day?: number; start?: number; service?: string; move?: string };
 const steps = ["خدمت", "متخصص", "زمان", "اطلاعات"] as const;
 const repeats = [{ k: "none", l: "بدون تکرار", gap: 0 }, { k: "w1", l: "هر هفته", gap: 7 }, { k: "w2", l: "هر ۲ هفته", gap: 14 }, { k: "m1", l: "هر ماه", gap: 28 }] as const;
 
@@ -19,11 +22,13 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const db = useDB();
   const staff = db.staff.filter((s) => s.active);
   const customers = db.customers;
-  const lockedStaff = initial.staff && staff.some((s) => s.id === initial.staff) ? initial.staff : null;
-  const [step, setStep] = useState(initial.service && initial.start !== undefined ? 3 : 0);
-  const [service, setService] = useState(initial.service ?? "");
-  const [who, setWho] = useState<string>(lockedStaff ?? "any");
-  const [day, setDay] = useState(initial.day ?? 0);
+  const moving = initial.move ? db.appts.find((a) => a.id === initial.move) : undefined;
+  const movingSvc = moving ? db.services.find((x) => x.name === moving.service) : undefined;
+  const lockedStaff = !moving && initial.staff && staff.some((s) => s.id === initial.staff) ? initial.staff : null;
+  const [step, setStep] = useState(moving ? 2 : initial.service && initial.start !== undefined ? 3 : 0);
+  const [service, setService] = useState(movingSvc?.id ?? initial.service ?? "");
+  const [who, setWho] = useState<string>(moving?.staffId ?? lockedStaff ?? "any");
+  const [day, setDay] = useState(moving ? moving.day : initial.day ?? 0);
   const [slot, setSlot] = useState<{ start: number; staffId: string } | null>(initial.start !== undefined && lockedStaff ? { start: initial.start, staffId: lockedStaff } : null);
   const [q, setQ] = useState("");
   const [pickedCustomer, setPickedCustomer] = useState<string | null>(null);
@@ -36,6 +41,8 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const [count, setCount] = useState(4);
   const [done, setDone] = useState<{ created: number; skipped: number } | null>(null);
   const [err, setErr] = useState("");
+  const [moved, setMoved] = useState(false);
+  const [wait, setWait] = useState({ name: "", phone: "", sent: false, err: "" });
 
   const svc = service ? svcOf(db, service) ?? null : null;
   const canDo = (id: string) => (lockedStaff ? !!svcOf(db, id)?.staff.includes(lockedStaff) : true);
@@ -47,12 +54,12 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const slots = useMemo(() => {
     if (!svc) return [];
     const map = new Map<number, string>();
-    for (const s of candidates) for (const st of freeStarts(db, s.id, day, svc.min)) {
+    for (const s of candidates) for (const st of freeStarts(db, s.id, day, svc.min, [], moving?.id)) {
         if (mode === "public" && day === 0 && st < NOW_MIN + db.salon.online.leadHours * 60) continue; // حداقل فاصله تا نوبت
         if (!map.has(st)) map.set(st, s.id);
       }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [db, svc, candidates, day, mode]);
+  }, [db, svc, candidates, day, mode, moving]);
 
   const slotStaff = slot ? staff.find((s) => s.id === slot.staffId)! : null;
   const customerName = isNew ? name.trim() : pickedCustomer ?? "";
@@ -62,6 +69,11 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
 
   const submit = () => {
     if (!svc || !slot) return;
+    if (moving) { schedule.moveAppt(moving.id, { day, start: slot.start, staffId: slot.staffId }); setMoved(true); setDone({ created: 1, skipped: 0 }); return; }
+    // مشتری در CRM: پیدا کردن با موبایل یا ساختن خودکار
+    const phoneKey = digits(phone).replace(/\s/g, "");
+    let cust = !isNew && mode === "staff" ? customers.find((c) => c.name === pickedCustomer) : customers.find((c) => digits(c.phone).replace(/\s/g, "") === phoneKey);
+    if (!cust) { cust = { ...newCustomer(), name: customerName, phone, tags: [mode === "public" ? "رزرو آنلاین" : "ثبت پذیرش"] }; actions.saveCustomer(cust); }
     const gap = repeats.find((r) => r.k === repeat)!.gap;
     const total = mode === "staff" && gap ? count : 1;
     const list: DBAppt[] = [];
@@ -70,7 +82,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
       const d = day + i * gap;
       const conflict = freeStarts(db, slot.staffId, d, svc.min, list);
       if (!conflict.includes(slot.start)) { skipped++; continue; }
-      list.push({ id: `b${Date.now().toString(36)}${i}`, staffId: slot.staffId, start: slot.start, dur: svc.min, client: customerName, service: svc.name, cat: svc.cat, status: mode === "staff" || db.salon.online.autoConfirm ? "confirmed" : "pending", day: d });
+      list.push({ customerId: cust.id, id: `b${Date.now().toString(36)}${i}`, staffId: slot.staffId, start: slot.start, dur: svc.min, client: customerName, service: svc.name, cat: svc.cat, status: mode === "staff" || db.salon.online.autoConfirm ? "confirmed" : "pending", day: d });
     }
     if (!list.length) { setErr("این ساعت دیگر خالی نیست؛ لطفاً زمان دیگری انتخاب کنید."); setSlot(null); setStep(2); return; }
     setErr("");
@@ -81,14 +93,14 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   if (done) return (
     <Card className="mx-auto max-w-lg p-7 text-center">
       <span className="mx-auto grid size-14 place-items-center rounded-full bg-sagesoft text-sage"><CalendarCheck size={28} /></span>
-      <h2 className="mt-4 text-xl font-extrabold">{mode === "public" ? (db.salon.online.autoConfirm ? "نوبت شما تأیید شد" : "درخواست نوبت شما ثبت شد") : "نوبت ثبت شد"}</h2>
+      <h2 className="mt-4 text-xl font-extrabold">{moved ? "نوبت جابه‌جا شد" : mode === "public" ? (db.salon.online.autoConfirm ? "نوبت شما تأیید شد" : "درخواست نوبت شما ثبت شد") : "نوبت ثبت شد"}</h2>
       {svc && slotStaff && <p className="mt-2 text-sm leading-7 text-ink2">{svc.name} · {slotStaff.name}<br />{info.full} · ساعت {clock(slot!.start)}</p>}
       {done.created > 1 && <p className="mt-2 text-sm text-ink2">{fa(done.created)} نوبت تکرارشونده ثبت شد.</p>}
       {done.skipped > 0 && <p className="mt-2 rounded-xl bg-ambersoft p-2.5 text-xs text-amber">{fa(done.skipped)} نوبت به‌دلیل تداخل با نوبت دیگر ثبت نشد.</p>}
       <p className="mt-3 text-xs text-ink3">{mode === "public" ? (db.salon.online.autoConfirm ? "پیامک تأیید برای شما ارسال می‌شود." : "پس از تأیید سالن، پیامک برای شما ارسال می‌شود.") : "یادآوری خودکار برای مشتری فعال است."}</p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {mode === "staff" && <Link href="/calendar" className="rounded-xl bg-rose px-4 py-2.5 text-[13px] font-semibold text-white">مشاهده در تقویم</Link>}
-        <Button variant="ghost" onClick={() => { setDone(null); setStep(0); setService(""); setSlot(null); setName(""); setPhone(""); setPickedCustomer(null); setNote(""); setRepeat("none"); }}>ثبت نوبت دیگر</Button>
+        <Button variant="ghost" onClick={() => { setDone(null); setMoved(false); setStep(0); setService(""); setSlot(null); setName(""); setPhone(""); setPickedCustomer(null); setNote(""); setRepeat("none"); }}>ثبت نوبت دیگر</Button>
       </div>
     </Card>
   );
@@ -96,7 +108,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
       <div className="min-w-0">
-        <ol className="mb-5 grid grid-cols-4 gap-1.5" aria-label="مراحل رزرو">
+        <ol className={clsx("mb-5 grid grid-cols-4 gap-1.5", moving && "hidden")} aria-label="مراحل رزرو">
           {steps.map((s, i) => (
             <li key={s} className={clsx("rounded-xl px-1 py-2 text-center text-[12px] font-semibold", i === step ? "bg-rose text-white" : i < step ? "bg-rosesoft text-rosedeep" : "bg-surface2 text-ink3")}>
               <span className="ml-1">{fa(i + 1)}.</span>{s}
@@ -145,7 +157,16 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
 
           {step === 2 && svc && (
             <div className="space-y-4">
-              <h2 className="font-bold">چه روز و ساعتی؟</h2>
+              <h2 className="font-bold">{moving ? `جابه‌جایی نوبت ${moving.client}` : "چه روز و ساعتی؟"}</h2>
+              {moving && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface2 p-3 text-sm">
+                  <span>نوبت فعلی: <b>{dayInfo(moving.day).short} · {clock(moving.start)}</b> ({moving.service})</span>
+                  <select aria-label="متخصص" value={who} onChange={(e) => { setWho(e.target.value); setSlot(null); }} className={`${fieldCls} !w-auto !py-1.5`}>
+                    <option value="any">هر متخصص</option>
+                    {svc && eligibleStaff(db, svc.id).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
               {err && <p role="alert" className="rounded-xl bg-dangersoft p-3 text-sm text-danger">{err}</p>}
               <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7" role="radiogroup" aria-label="روز">
                 {Array.from({ length: 7 }, (_, i) => {
@@ -165,7 +186,19 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
                     return <button key={st} role="radio" aria-checked={on} onClick={() => setSlot({ start: st, staffId: sid })} className={clsx("cursor-pointer rounded-xl border py-2.5 text-sm font-bold", on ? "border-rose bg-rosesoft text-rosedeep ring-1 ring-rose" : "border-line hover:bg-surface2")}>{clock(st)}</button>;
                   })}
                 </div>
-              ) : <p className="rounded-xl bg-surface2 p-4 text-center text-sm text-ink2">در این روز وقت خالی وجود ندارد؛ روز دیگری را انتخاب کنید یا به لیست انتظار بپیوندید.</p>}
+              ) : (
+                <div className="space-y-3 rounded-xl bg-surface2 p-4 text-sm text-ink2">
+                  <p className="text-center">در این روز وقت خالی وجود ندارد؛ روز دیگری را انتخاب کنید یا به لیست انتظار بپیوندید.</p>
+                  {!moving && (wait.sent ? <p className="rounded-lg bg-sagesoft p-2.5 text-center text-xs text-sage">به لیست انتظار اضافه شدید؛ با خالی شدن وقت، سالن با شما تماس می‌گیرد.</p> : (
+                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                      <input aria-label="نام برای لیست انتظار" placeholder="نام و نام خانوادگی" value={wait.name} onChange={(e) => setWait({ ...wait, name: e.target.value })} className={fieldCls} />
+                      <input aria-label="موبایل برای لیست انتظار" placeholder="09123456789" dir="ltr" style={{ textAlign: "right" }} value={wait.phone} onChange={(e) => setWait({ ...wait, phone: e.target.value })} className={fieldCls} />
+                      <Button onClick={() => { if (wait.name.trim().length < 3 || !/^09\d{9}$/.test(digits(wait.phone).replace(/\s/g, ""))) return setWait({ ...wait, err: "نام و موبایل معتبر را وارد کنید." }); schedule.addWait({ name: wait.name.trim(), phone: wait.phone, serviceId: svc!.id, staffId: who, from: day, to: Math.min(day + 3, 13), note: "از فرم رزرو" }); setWait({ ...wait, sent: true, err: "" }); }}>پیوستن به لیست انتظار</Button>
+                      {wait.err && <p role="alert" className="text-xs text-danger sm:col-span-3">{wait.err}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
               {day === 0 && <p className="text-xs text-ink3">ساعت‌های گذشته‌ی امروز نمایش داده نمی‌شوند.</p>}
               {who === "any" && slot && slotStaff && <p className="text-xs text-ink2">متخصص این ساعت: <b>{slotStaff.name}</b></p>}
             </div>
@@ -213,8 +246,8 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
           )}
 
           <div className="mt-6 flex items-center justify-between gap-2 border-t border-line pt-4">
-            <Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}><ArrowRight size={14} />قبلی</Button>
-            {step < 3 ? <Button disabled={!ok} onClick={() => setStep(step + 1)}>بعدی<ArrowLeft size={14} /></Button> : <Button disabled={!ok} onClick={submit}><Check size={14} />{mode === "public" ? "ثبت درخواست نوبت" : "ثبت نوبت"}</Button>}
+            {moving ? <Button variant="ghost" onClick={() => history.back()}>انصراف</Button> : <Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}><ArrowRight size={14} />قبلی</Button>}
+            {moving ? <Button disabled={!slot} onClick={submit}><Check size={14} />تأیید جابه‌جایی</Button> : step < 3 ? <Button disabled={!ok} onClick={() => setStep(step + 1)}>بعدی<ArrowLeft size={14} /></Button> : <Button disabled={!ok} onClick={submit}><Check size={14} />{mode === "public" ? "ثبت درخواست نوبت" : "ثبت نوبت"}</Button>}
           </div>
         </Card>
       </div>
