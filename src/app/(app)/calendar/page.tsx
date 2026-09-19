@@ -6,11 +6,11 @@ import Link from "next/link";
 import { Avatar, Badge, Button, Card, LinkButton, PageTitle, type Tone } from "@/components/ui";
 import { actions, useDB } from "@/lib/db";
 import { dayInfo } from "@/lib/dates";
-import { blocked, NOW_MIN, smartSuggestions, staff, waitlist, type Appt } from "@/lib/mock";
-import { staffWorks } from "@/lib/booking";
+import { NOW_MIN, smartSuggestions, waitlist, type Appt } from "@/lib/mock";
+import { offReason, workWindow } from "@/lib/booking";
+import type { StaffMember } from "@/lib/db";
 import { fa, short } from "@/lib/fa";
 
-const DAY_LEN = 600; // ۹ تا ۱۹
 const MIN_GAP = 45;
 const clock = (m: number) => `${fa(String(9 + Math.floor(m / 60)).padStart(2, "0"))}:${fa(String(m % 60).padStart(2, "0"))}`;
 const range = (s: number, d: number) => `${clock(s)} تا ${clock(s + d)}`;
@@ -28,21 +28,22 @@ type Item =
   | { kind: "free"; start: number; dur: number }
   | { kind: "now"; start: number };
 
-function timeline(staffId: string, dayAppts: Appt[], showNow: boolean): Item[] {
+function timeline(m: StaffMember, win: [number, number], dayAppts: Appt[], showNow: boolean): Item[] {
+  const staffId = m.id;
   const busy = [
     ...dayAppts.filter((a) => a.staffId === staffId).map((a) => ({ s: a.start, e: a.start + a.dur })),
-    ...(blocked[staffId] ?? []).map((b) => ({ s: b.s, e: b.e })),
+    ...m.breaks.map((b) => ({ s: b.s, e: b.e })),
   ].sort((x, y) => x.s - y.s);
   const items: Item[] = [
     ...dayAppts.filter((a) => a.staffId === staffId).map((a): Item => ({ kind: "appt", start: a.start, a })),
-    ...(blocked[staffId] ?? []).map((b): Item => ({ kind: "break", start: b.s, dur: b.e - b.s, label: b.label })),
+    ...m.breaks.map((b): Item => ({ kind: "break", start: b.s, dur: b.e - b.s, label: b.label })),
   ];
-  let cur = 0;
+  let cur = win[0];
   for (const b of busy) {
     if (b.s - cur >= MIN_GAP) items.push({ kind: "free", start: cur, dur: b.s - cur });
     cur = Math.max(cur, b.e);
   }
-  if (DAY_LEN - cur >= MIN_GAP) items.push({ kind: "free", start: cur, dur: DAY_LEN - cur });
+  if (win[1] - cur >= MIN_GAP) items.push({ kind: "free", start: cur, dur: win[1] - cur });
   if (showNow) items.push({ kind: "now", start: NOW_MIN - 0.5 });
   return items.sort((x, y) => x.start - y.start);
 }
@@ -79,7 +80,7 @@ export default function CalendarPage() {
   const [who, setWho] = useState("all");
   const [view, setView] = useState<(typeof views)[number]["k"]>("day");
   const [open, setOpen] = useState<string | null>("a3");
-  const cols = staff.filter((s) => who === "all" || s.id === who);
+  const cols = db.staff.filter((s) => s.active && (who === "all" || s.id === who));
   const total = dayAppts.filter((a) => who === "all" || a.staffId === who).length;
 
   return (
@@ -95,7 +96,7 @@ export default function CalendarPage() {
           </div>
           <select aria-label="متخصص" value={who} onChange={(e) => setWho(e.target.value)} className="mr-auto cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm font-semibold">
             <option value="all">همه‌ی متخصص‌ها</option>
-            {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {db.staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
 
@@ -114,7 +115,7 @@ export default function CalendarPage() {
               <section key={s.id}>
                 <header className="mb-2 flex items-center gap-2.5"><Avatar name={s.name} color={s.color} size={30} /><div className="leading-tight"><h2 className="text-sm font-extrabold">{s.name}</h2><p className="text-[11px] text-ink3">{s.role}</p></div></header>
                 <ul className="space-y-2">
-                  {!staffWorks(s.id, info.idx) ? <li className="rounded-xl border border-dashed border-line px-4 py-3 text-xs text-ink3">{info.idx === 6 ? "سالن تعطیل است" : "مرخصی"}</li> : timeline(s.id, dayAppts, day === 0).map((it, i) => {
+                  {!workWindow(db, s, day) ? <li className="rounded-xl border border-dashed border-line px-4 py-3 text-xs text-ink3">{offReason(db, s, day)}</li> : timeline(s, workWindow(db, s, day)!, dayAppts, day === 0).map((it, i) => {
                     if (it.kind === "appt") return <ApptRow key={it.a.id} a={it.a} open={open === it.a.id} onToggle={() => setOpen(open === it.a.id ? null : it.a.id)} />;
                     if (it.kind === "now") return <li key={`n${i}`} className="flex items-center gap-2 text-[11px] font-bold text-danger" aria-label="اکنون"><span className="h-px flex-1 bg-danger/40" />اکنون {clock(NOW_MIN)}<span className="h-px flex-1 bg-danger/40" /></li>;
                     if (it.kind === "break") return <li key={`b${i}`} className="flex items-center gap-2 px-4 py-1.5 text-xs text-ink3"><Coffee size={13} />{it.label} · {range(it.start, it.dur)}</li>;

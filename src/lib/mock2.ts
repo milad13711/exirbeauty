@@ -33,3 +33,14 @@ export const posProducts = [
   { id: "p2", name: "ماسک مو", price: 780_000 },
   { id: "p3", name: "سرم ویتامین C", price: 1_150_000 },
 ];
+
+// قالب خدمات برای Onboarding سالن‌های جدید
+export const serviceTemplates: { name: string; cat: "مو" | "پوست" | "ناخن" | "آرایش"; price: number; min: number }[] = [
+  { name: "کوتاهی", cat: "مو", price: 650_000, min: 45 }, { name: "رنگ ریشه", cat: "مو", price: 1_800_000, min: 120 },
+  { name: "مش و هایلایت", cat: "مو", price: 3_200_000, min: 180 }, { name: "بالیاژ", cat: "مو", price: 4_500_000, min: 240 },
+  { name: "کراتین", cat: "مو", price: 3_800_000, min: 180 }, { name: "براشینگ و مدل مو", cat: "مو", price: 450_000, min: 45 },
+  { name: "فیشال هیدرا", cat: "پوست", price: 1_900_000, min: 75 }, { name: "پاکسازی عمیق", cat: "پوست", price: 1_100_000, min: 60 },
+  { name: "جوانسازی پوست", cat: "پوست", price: 2_400_000, min: 90 }, { name: "ژل و لاک", cat: "ناخن", price: 850_000, min: 90 },
+  { name: "مانیکور", cat: "ناخن", price: 450_000, min: 45 }, { name: "پدیکور", cat: "ناخن", price: 600_000, min: 60 },
+  { name: "میکاپ مجلسی", cat: "آرایش", price: 2_800_000, min: 90 }, { name: "لیفت و لمینت مژه", cat: "آرایش", price: 1_700_000, min: 60 },
+];

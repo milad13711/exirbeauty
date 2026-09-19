@@ -1,16 +1,20 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { Bell, Menu, Search, X, Flower2 } from "lucide-react";
+import { Bell, LogIn, LogOut, Menu, Search, Settings, X, Flower2 } from "lucide-react";
 import { navGroups } from "./nav";
 import { Avatar } from "./ui";
 import { TODAY } from "@/lib/mock";
+import { actions, useDB } from "@/lib/db";
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const db = useDB();
   const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
 
   const nav = (
@@ -19,7 +23,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <span className="grid size-9 place-items-center rounded-xl bg-rose text-white"><Flower2 size={20} /></span>
         <div className="leading-tight">
           <p className="text-[15px] font-extrabold text-ink">اکسیر بیوتی</p>
-          <p className="text-[11px] text-ink3">سالن رُز · تهران</p>
+          <p className="text-[11px] text-ink3">{db.salon.name} · {db.salon.city}</p>
         </div>
       </div>
       <div className="scroll-thin flex-1 overflow-y-auto px-3 pb-6">
@@ -47,6 +51,7 @@ export function Shell({ children }: { children: ReactNode }) {
             })}
           </div>
         ))}
+        <Link href="/settings" onClick={() => setOpen(false)} className={clsx("mt-2 flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/settings") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><Settings size={17} />تنظیمات سالن</Link>
       </div>
     </nav>
   );
@@ -75,9 +80,27 @@ export function Shell({ children }: { children: ReactNode }) {
             <Bell size={19} className="text-ink2" />
             <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-rose" />
           </button>
-          <Avatar name="مدیر سالن" color="#3a2431" />
+          <div className="relative">
+            <button aria-label="منوی کاربر" aria-expanded={menu} onClick={() => setMenu(!menu)} className="cursor-pointer rounded-full"><Avatar name={db.session?.name ?? "مدیر سالن"} color="#3a2431" /></button>
+            {menu && (
+              <div className="absolute left-0 top-11 z-50 w-52 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
+                <p className="truncate px-3 py-2 text-xs text-ink3">{db.session?.name ?? "وارد نشده‌اید"}</p>
+                <Link href="/settings" onClick={() => setMenu(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface2"><Settings size={15} />تنظیمات</Link>
+                {db.session ? (
+                  <button onClick={() => { actions.logout(); setMenu(false); router.push("/login"); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-danger hover:bg-dangersoft"><LogOut size={15} />خروج</button>
+                ) : (
+                  <Link href="/login" className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface2"><LogIn size={15} />ورود</Link>
+                )}
+              </div>
+            )}
+          </div>
         </header>
-        <main className="mx-auto max-w-[1400px] px-4 py-6 lg:px-8">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-4 py-6 lg:px-8">
+          {!db.onboarded && (
+            <Link href="/onboarding" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber/30 bg-ambersoft px-5 py-3 text-sm"><span>راه‌اندازی سالن هنوز کامل نشده است.</span><b className="text-amber">ادامه‌ی راه‌اندازی ←</b></Link>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -5,8 +5,7 @@ import clsx from "clsx";
 import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Clock, Repeat, Search, UserPlus } from "lucide-react";
 import { Avatar, Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { actions, useDB, type DBAppt } from "@/lib/db";
-import { catalog } from "@/lib/mock2";
-import { customers, staff, catColor } from "@/lib/mock";
+import { catColor } from "@/lib/mock";
 import { clock, eligibleStaff, freeStarts, staffWorks, svcOf } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
 import { fa, short } from "@/lib/fa";
@@ -18,6 +17,8 @@ const repeats = [{ k: "none", l: "بدون تکرار", gap: 0 }, { k: "w1", l: 
 
 export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: Initial }) {
   const db = useDB();
+  const staff = db.staff.filter((s) => s.active);
+  const customers = db.customers;
   const lockedStaff = initial.staff && staff.some((s) => s.id === initial.staff) ? initial.staff : null;
   const [step, setStep] = useState(initial.service && initial.start !== undefined ? 3 : 0);
   const [service, setService] = useState(initial.service ?? "");
@@ -36,19 +37,19 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
   const [done, setDone] = useState<{ created: number; skipped: number } | null>(null);
   const [err, setErr] = useState("");
 
-  const svc = service ? svcOf(service) : null;
-  const canDo = (id: string) => lockedStaff ? svcOf(id).staff.includes(lockedStaff) : true;
-  const cats = ["مو", "پوست", "ناخن"] as const;
-  const candidates = useMemo(() => (svc ? (who === "any" ? eligibleStaff(svc.id) : eligibleStaff(svc.id).filter((s) => s.id === who)) : []), [svc, who]);
+  const svc = service ? svcOf(db, service) ?? null : null;
+  const canDo = (id: string) => (lockedStaff ? !!svcOf(db, id)?.staff.includes(lockedStaff) : true);
+  const cats = ["مو", "پوست", "ناخن", "آرایش"] as const;
+  const candidates = useMemo(() => (svc ? (who === "any" ? eligibleStaff(db, svc.id) : eligibleStaff(db, svc.id).filter((s) => s.id === who)) : []), [db, svc, who]);
   const info = dayInfo(day);
 
   // ساعت‌های خالی؛ برای «هر متخصص» اولین متخصص آزاد هر ساعت انتخاب می‌شود
   const slots = useMemo(() => {
     if (!svc) return [];
     const map = new Map<number, string>();
-    for (const s of candidates) for (const st of freeStarts(s.id, day, info.idx, svc.min, db.appts)) if (!map.has(st)) map.set(st, s.id);
+    for (const s of candidates) for (const st of freeStarts(db, s.id, day, svc.min)) if (!map.has(st)) map.set(st, s.id);
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [svc, candidates, day, info.idx, db.appts]);
+  }, [db, svc, candidates, day]);
 
   const slotStaff = slot ? staff.find((s) => s.id === slot.staffId)! : null;
   const customerName = isNew ? name.trim() : pickedCustomer ?? "";
@@ -64,7 +65,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
     let skipped = 0;
     for (let i = 0; i < total; i++) {
       const d = day + i * gap;
-      const conflict = freeStarts(slot.staffId, d, dayInfo(d).idx, svc.min, [...db.appts, ...list]);
+      const conflict = freeStarts(db, slot.staffId, d, svc.min, list);
       if (!conflict.includes(slot.start)) { skipped++; continue; }
       list.push({ id: `b${Date.now().toString(36)}${i}`, staffId: slot.staffId, start: slot.start, dur: svc.min, client: customerName, service: svc.name, cat: svc.cat, status: mode === "staff" ? "confirmed" : "pending", day: d });
     }
@@ -108,7 +109,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
                 <section key={c}>
                   <p className={clsx("mb-2 text-xs font-bold", catColor[c].fg)}>{c}</p>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {catalog.filter((s) => s.active && s.cat === c && canDo(s.id)).map((s) => (
+                    {db.services.filter((s) => s.active && s.cat === c && canDo(s.id) && s.staff.length > 0).map((s) => (
                       <button key={s.id} onClick={() => { setService(s.id); setSlot(null); if (!lockedStaff) setWho("any"); }} aria-pressed={service === s.id} className={clsx("flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-right", service === s.id ? "border-rose bg-rosesoft ring-1 ring-rose" : "border-line hover:bg-surface2")}>
                         <span><b className="block text-sm">{s.name}</b><span className="text-xs text-ink3">{fa(s.min)} دقیقه</span></span>
                         <b className="text-sm">{short(s.price)}</b>
@@ -129,7 +130,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
                   <span><b className="block text-sm">هر متخصص</b><span className="text-xs text-ink3">نزدیک‌ترین وقت خالی نمایش داده می‌شود</span></span>
                 </button>
               )}
-              {eligibleStaff(svc.id).filter((s) => !lockedStaff || s.id === lockedStaff).map((s) => (
+              {eligibleStaff(db, svc.id).filter((s) => !lockedStaff || s.id === lockedStaff).map((s) => (
                 <button key={s.id} onClick={() => { setWho(s.id); setSlot(null); }} aria-pressed={who === s.id} className={clsx("flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-right", who === s.id ? "border-rose bg-rosesoft ring-1 ring-rose" : "border-line hover:bg-surface2")}>
                   <Avatar name={s.name} color={s.color} size={40} />
                   <span className="min-w-0 flex-1"><b className="block text-sm">{s.name}</b><span className="text-xs text-ink3">{s.role}</span></span>
@@ -146,10 +147,10 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
               <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7" role="radiogroup" aria-label="روز">
                 {Array.from({ length: 7 }, (_, i) => {
                   const d = dayInfo(i);
-                  const closed = candidates.every((s) => !staffWorks(s.id, d.idx));
+                  const closed = candidates.every((s) => !staffWorks(db, s.id, i));
                   return (
                     <button key={i} role="radio" aria-checked={day === i} disabled={closed} onClick={() => { setDay(i); setSlot(null); }} className={clsx("cursor-pointer rounded-xl border px-1 py-2 text-center text-[12px] leading-5 disabled:cursor-not-allowed disabled:opacity-40", day === i ? "border-rose bg-rose text-white" : "border-line hover:bg-surface2")}>
-                      <b className="block">{i === 0 ? "امروز" : d.weekday}</b>{d.short}{closed && <span className="block text-[10px]">تعطیل</span>}
+                      <b className="block">{i === 0 ? "امروز" : d.weekday}</b>{d.short}{closed && <span className="block text-[10px]">{db.salon.hours[d.idx].open ? "پر/مرخصی" : "تعطیل"}</span>}
                     </button>
                   );
                 })}

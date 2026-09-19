@@ -3,17 +3,19 @@ import { useState } from "react";
 import clsx from "clsx";
 import { Banknote, CreditCard, Globe, Minus, Plus, Receipt, Wallet } from "lucide-react";
 import { Badge, Button, Card, CardHead, PageTitle, Stat, type Tone } from "@/components/ui";
-import { catalog, expenses, invoices, posProducts } from "@/lib/mock2";
+import { expenses, invoices, posProducts } from "@/lib/mock2";
+import { useDB } from "@/lib/db";
 import { fa, short, toman } from "@/lib/fa";
 
 const methods = [{ k: "نقدی", i: Banknote }, { k: "کارت", i: CreditCard }, { k: "آنلاین", i: Globe }, { k: "بدهی", i: Wallet }] as const;
 const mTone: Record<string, Tone> = { "نقدی": "sage", "کارت": "sky", "آنلاین": "rose", "بدهی": "danger" };
 
 export default function Cashier() {
+  const db = useDB();
   const [cart, setCart] = useState<Record<string, number>>({ v1: 1, p1: 1 });
   const [disc, setDisc] = useState(10);
   const [method, setMethod] = useState<string>("کارت");
-  const all = [...catalog.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name, price: s.price })), ...posProducts];
+  const all = [...db.services.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name, price: s.price })), ...posProducts];
   const lines = all.filter((x) => cart[x.id]);
   const sub = lines.reduce((a, l) => a + l.price * cart[l.id], 0);
   const total = Math.round(sub * (1 - disc / 100));

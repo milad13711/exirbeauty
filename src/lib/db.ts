@@ -267,12 +267,12 @@ export const actions = {
   /** ثبت‌نام سالن جدید + فعال‌سازی اشتراک (پرداخت‌شده یا دوره‌ی آزمایشی ۷ روزه) */
   signup(p: { owner: string; salonName: string; phone: string; city: string; planId: string; months: number; trial: boolean }) {
     const d = getDB();
-    const expiry = p.trial ? "۷ روز دیگر" : p.months === 1 ? "۲۸ مهر ۱۴۰۵" : `${p.months} ماه دیگر`;
+    const expiry = p.trial ? "۷ روز دیگر" : p.months === 1 ? "۲۸ مهر ۱۴۰۵" : `${String(p.months).replace(/\d/g, (c) => "۰۱۲۳۴۵۶۷۸۹"[+c])} ماه دیگر`;
     commit({ ...d, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner } });
   },
   paySubscription(planId: string, months: number, fromWallet: number) {
     const d = getDB();
-    commit({ ...d, wallets: { ...d.wallets, s1: Math.max(0, (d.wallets.s1 ?? 0) - fromWallet) }, sub: { planId, status: "فعال", expiry: months === 1 ? "۲۸ مهر ۱۴۰۵" : `${months} ماه دیگر`, months } });
+    commit({ ...d, wallets: { ...d.wallets, s1: Math.max(0, (d.wallets.s1 ?? 0) - fromWallet) }, sub: { planId, status: "فعال", expiry: months === 1 ? "۲۸ مهر ۱۴۰۵" : `${String(months).replace(/\d/g, (c) => "۰۱۲۳۴۵۶۷۸۹"[+c])} ماه دیگر`, months } });
   },
   /** پایان Onboarding: خدمات و متخصص‌های انتخابی به سالن اضافه می‌شوند (بدون حذف موارد موجود) */
   finishOnboarding(svcs: Service[], staffList: StaffMember[]) {
