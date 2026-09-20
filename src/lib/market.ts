@@ -1,6 +1,7 @@
 import type { DB } from "./db";
 import type { Category } from "./mock";
 import { findSlot } from "./booking";
+import { moduleActive } from "./modules";
 
 export type Pro = {
   id: string; own: boolean; name: string; salon: string; city: string; cats: Category[]; rating: number; reviews: number; from: number; bio: string; works: number;
@@ -9,7 +10,7 @@ export type Pro = {
 
 /** متخصص‌های همین سالن (زنده) + متخصص‌های سالن‌های دیگر پلتفرم */
 export function listPros(d: DB): Pro[] {
-  const own: Pro[] = d.staff.filter((s) => s.active && s.listed !== false).map((s) => {
+  const own: Pro[] = (!moduleActive(d, "marketplace") ? [] : d.staff.filter((s) => s.active && s.listed !== false)).map((s) => {
     const svcs = d.services.filter((x) => x.active && x.staff.includes(s.id));
     const answered = d.surveys.filter((x) => x.staffId === s.id && x.rating);
     const first = svcs[0];

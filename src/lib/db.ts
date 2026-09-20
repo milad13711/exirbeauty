@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { storeProducts, type SCat } from "./mock3";
 import { appts as seedAppts, blocked as seedBlocked, staff as seedStaff, profile as seedProfile, customers as seedCustomerRows, type Appt, type Category, type Tier } from "./mock";
 import { catalog as seedCatalog } from "./mock2";
+import { defaultPlanModules, modulesAfterPlanChange } from "./modules";
 import { seedExtra, seedOps, type TStatus, type Survey, type ReviewCfg, type Post, type Course, type Enrollment, type Notification, type Ticket, type Tenant, type MarketPro, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
 import { ordersSeed, salons as seedSalons, CRM_PLAN, type CommStatus, type OrderStatus } from "./mock3";
 
@@ -56,6 +57,7 @@ export type DB = {
   products: DBProduct[]; invoices: PurchaseInvoice[]; moves: Movement[]; seq: number; appts: DBAppt[];
   services: Service[]; staff: StaffMember[]; customers: Customer[]; orders: Order[]; wallets: Record<string, number>; orderSeq: number;
   salon: SalonSettings; roles: SalonRole[]; users: SalonUser[]; adminUsers: AdminUser[]; sub: Subscription; onboarded: boolean; session: Session;
+  modules: { installed: string[]; addons: string[] }; planModules: Record<string, string[]>; modulePrices: Record<string, number>;
   surveys: Survey[]; reviewCfg: ReviewCfg; posts: Post[]; courses: Course[]; enrollments: Enrollment[]; notifications: Notification[]; tickets: Ticket[]; tenants: Tenant[]; market: MarketPro[];
   inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
   loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null;
@@ -103,6 +105,7 @@ const seedProducts: DBProduct[] = storeProducts.map((p) => ({
 // دمو: یک کالای ناموجود و چند کالای زیر نقطه سفارش
 const tweak: Record<string, Partial<DBProduct>> = { p5: { stock: 0, reorder: 12 }, p3: { stock: 8, reorder: 15 }, p3b: { stock: 6, reorder: 10, reorderQty: 20 }, p6: { stock: 15, reorder: 8 } };
 const seedBase: Omit<DB, keyof ReturnType<typeof seedExtra> | keyof ReturnType<typeof seedOps>> = {
+  modules: { installed: [...defaultPlanModules.pro], addons: [] }, planModules: defaultPlanModules, modulePrices: {},
   products: seedProducts.map((p) => ({ ...p, ...(tweak[p.id] ?? {}) })),
   invoices: [{ id: "خ-۱۰۰۱", supplier: "پخش رز", date: "۱۴ شهریور", lines: [{ productId: "p1", qty: 40, unitCost: 360_000 }, { productId: "p2", qty: 25, unitCost: 430_000 }], status: "دریافت‌شده" }],
   moves: [
@@ -158,7 +161,7 @@ export const seedDB: DB = {
   }),
 };
 
-const KEY = "exir_db_v5";
+const KEY = "exir_db_v6";
 let state: DB = seedDB;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -292,11 +295,11 @@ export const actions = {
     const price = ({ basic: 790_000, pro: 1_490_000, elite: 2_900_000 } as Record<string, number>)[p.planId] ?? 0;
     const tenant: Tenant = { id: `t${Date.now().toString(36)}`, name: p.salonName, owner: p.owner, city: p.city, phone: p.phone, plan: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, users: 1, customers: 0, wallet: 0, since: "شهریور ۱۴۰۵", notes: [p.trial ? "ثبت‌نام با دوره‌ی آزمایشی" : "ثبت‌نام با پرداخت آنلاین"], payments: p.trial ? [] : [{ day: 0, amount: price * p.months, label: `اشتراک ${fd(p.months)} ماهه — آنلاین` }] };
     const note: Notification = { id: `n${Date.now().toString(36)}`, audience: "admin", title: "سالن جدید", body: `${p.salonName} (${p.city}) ${p.trial ? "دوره‌ی آزمایشی را شروع کرد" : "اشتراک خرید"}`, href: "/admin/tenants", day: 0, read: false };
-    commit({ ...d, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner }, tenants: [tenant, ...d.tenants], notifications: [note, ...d.notifications].slice(0, 80) });
+    commit({ ...d, modules: { installed: [...(d.planModules[p.planId] ?? [])], addons: [] }, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner }, tenants: [tenant, ...d.tenants], notifications: [note, ...d.notifications].slice(0, 80) });
   },
   paySubscription(planId: string, months: number, fromWallet: number) {
     const d = getDB();
-    commit({ ...d, wallets: { ...d.wallets, s1: Math.max(0, (d.wallets.s1 ?? 0) - fromWallet) }, sub: { planId, status: "فعال", expiry: months === 1 ? "۲۸ مهر ۱۴۰۵" : `${String(months).replace(/\d/g, (c) => "۰۱۲۳۴۵۶۷۸۹"[+c])} ماه دیگر`, months } });
+    commit({ ...d, modules: modulesAfterPlanChange(d, planId), wallets: { ...d.wallets, s1: Math.max(0, (d.wallets.s1 ?? 0) - fromWallet) }, sub: { planId, status: "فعال", expiry: months === 1 ? "۲۸ مهر ۱۴۰۵" : `${String(months).replace(/\d/g, (c) => "۰۱۲۳۴۵۶۷۸۹"[+c])} ماه دیگر`, months } });
   },
   /** پایان Onboarding: خدمات و متخصص‌های انتخابی به سالن اضافه می‌شوند (بدون حذف موارد موجود) */
   finishOnboarding(svcs: Service[], staffList: StaffMember[]) {

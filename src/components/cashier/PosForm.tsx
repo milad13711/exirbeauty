@@ -5,6 +5,7 @@ import { AlertTriangle, Gift, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { Avatar, Badge, Button, Card, CardHead, Field, fieldCls, tierTone } from "@/components/ui";
 import { useDB, type Customer } from "@/lib/db";
 import { sales, tierOff } from "@/lib/sales";
+import { moduleActive } from "@/lib/modules";
 import type { PayMethod, SaleLine } from "@/lib/seed-extra";
 import { digits } from "@/lib/validate";
 import { fa, short, toman } from "@/lib/fa";
@@ -34,7 +35,7 @@ export function PosForm({ apptId, onDone }: { apptId?: string; onDone: (id: stri
   const total = subtotal - off;
   const paid = pays.reduce((a, p) => a + p.amount, 0);
   const left = total - paid;
-  const tierPct = cust ? tierOff(db.loyalty, cust.tier) : 0;
+  const tierPct = cust && moduleActive(db, "loyalty") ? tierOff(db.loyalty, cust.tier) : 0;
   const friendPct = cust && cust.visits === 0 && cust.referredBy && db.referral.enabled ? db.referral.friendOff : 0;
   const matches = q.trim() ? db.customers.filter((c) => c.name.includes(q.trim()) || digits(c.phone).replace(/\s/g, "").includes(digits(q.trim()))).slice(0, 5) : [];
 

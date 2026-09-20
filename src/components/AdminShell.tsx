@@ -6,13 +6,14 @@ import clsx from "clsx";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { actions, useDB } from "@/lib/db";
-import { BadgePercent, Bell, Building2, Boxes, FileText, LifeBuoy, ShieldCheck, LogOut, Coins, GraduationCap, LayoutDashboard, Menu, Package, Receipt, Store, Tags, Users, X } from "lucide-react";
+import { BadgePercent, Bell, Blocks, Building2, Boxes, FileText, LifeBuoy, ShieldCheck, LogOut, Coins, GraduationCap, LayoutDashboard, Menu, Package, Receipt, Store, Tags, Users, X } from "lucide-react";
 
 const groups = [
   { title: "", items: [{ href: "/admin", label: "نمای کلی", icon: LayoutDashboard }] },
   { title: "مشتریان پلتفرم", items: [
     { href: "/admin/tenants", label: "تننت‌ها (سالن‌ها)", icon: Building2 },
     { href: "/admin/plans", label: "تعرفه پلن‌ها", icon: Tags },
+    { href: "/admin/modules", label: "ماژول‌ها و دسترسی پلن‌ها", icon: Blocks },
     { href: "/admin/courses", label: "دوره‌های آموزشی", icon: GraduationCap },
   ]},
   { title: "فروشگاه", items: [

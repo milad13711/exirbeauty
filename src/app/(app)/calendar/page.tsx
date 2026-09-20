@@ -9,6 +9,7 @@ import { dayInfo } from "@/lib/dates";
 import { NOW_MIN, smartSuggestions, type Appt } from "@/lib/mock";
 import { clock, dayLoad, findSlot, offReason, svcOf, workWindow } from "@/lib/booking";
 import { schedule } from "@/lib/schedule";
+import { moduleActive } from "@/lib/modules";
 import { digits } from "@/lib/validate";
 import { fa, short } from "@/lib/fa";
 
@@ -46,6 +47,7 @@ const views = [{ k: "day", l: "روز" }, { k: "week", l: "هفته" }, { k: "sm
 
 function ApptRow({ a, open, onToggle }: { a: Appt; open: boolean; onToggle: () => void }) {
   const s = status[a.status];
+  const cashier = moduleActive(useDB(), "cashier");
   return (
     <li className={clsx("rounded-xl border border-line bg-surface", a.status === "done" && "bg-surface2/60")}>
       <button onClick={onToggle} aria-expanded={open} className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-right">
@@ -61,7 +63,7 @@ function ApptRow({ a, open, onToggle }: { a: Appt; open: boolean; onToggle: () =
           <div className="flex flex-wrap gap-2">
             {a.status === "pending" && <Button variant="soft" onClick={() => actions.setApptStatus(a.id, "confirmed")}>تأیید</Button>}
             {a.status !== "done" && <LinkButton href={`/calendar/new?move=${a.id}`} variant="ghost">جابه‌جایی</LinkButton>}
-            {a.status !== "done" && <LinkButton href={`/cashier?appt=${a.id}`} variant="ghost">صدور فاکتور</LinkButton>}
+            {a.status !== "done" && cashier && <LinkButton href={`/cashier?appt=${a.id}`} variant="ghost">صدور فاکتور</LinkButton>}
             <Button variant="ghost" className="!text-danger" onClick={() => actions.cancelAppt(a.id)}>لغو نوبت</Button>
           </div>
           <p className="mt-3 flex items-center gap-1.5 text-xs text-ink3"><Bell size={12} />یادآوری خودکار ۲۴ ساعت و ۲ ساعت قبل</p>

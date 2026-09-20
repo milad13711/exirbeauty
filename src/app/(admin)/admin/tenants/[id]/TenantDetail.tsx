@@ -6,6 +6,7 @@ import { ChevronRight, LogIn } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, fieldCls } from "@/components/ui";
 import { actions, useDB } from "@/lib/db";
 import { ops } from "@/lib/ops";
+import { moduleActions } from "@/lib/moduleActions";
 import { durationDiscount, plans } from "@/lib/mock4";
 import { dayInfo } from "@/lib/dates";
 import { fa, toman } from "@/lib/fa";
@@ -68,7 +69,7 @@ export function TenantDetail({ id }: { id: string }) {
                 <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="مدت">{durationDiscount.map((d) => <button key={d.m} role="radio" aria-checked={months === d.m} onClick={() => setMonths(d.m)} className={`cursor-pointer rounded-lg border py-1.5 text-xs font-bold ${months === d.m ? "border-rose bg-rosesoft text-rosedeep" : "border-line"}`}>{fa(d.m)}م</button>)}</div>
               </Field>
               <Button className="w-full" onClick={() => { ops.extend(t.id, months, amount, `تمدید ${fa(months)} ماهه — ثبت دستی توسط ادمین`); setMsg(`تمدید ${fa(months)} ماهه (${toman(amount)}) ثبت شد.`); }}>تمدید و ثبت پرداخت {toman(amount)}</Button>
-              <Field label="تغییر پلن"><select value={t.plan} onChange={(e) => { ops.saveTenant({ ...t, plan: e.target.value }); ops.addNote(t.id, `تغییر پلن به ${plans.find((p) => p.id === e.target.value)?.name}`); }} className={fieldCls}>{plans.map((p) => <option key={p.id} value={p.id}>{p.name} · {toman(p.price)}</option>)}</select></Field>
+              <Field label="تغییر پلن"><select value={t.plan} onChange={(e) => { ops.saveTenant({ ...t, plan: e.target.value }); if (t.id === "t1") moduleActions.setPlan(e.target.value); ops.addNote(t.id, `تغییر پلن به ${plans.find((p) => p.id === e.target.value)?.name}`); }} className={fieldCls}>{plans.map((p) => <option key={p.id} value={p.id}>{p.name} · {toman(p.price)}</option>)}</select></Field>
               <div className="flex gap-2">{t.status === "فعال" ? <Button variant="ghost" className="flex-1 !text-danger" onClick={() => { ops.saveTenant({ ...t, status: "تعلیق" }); ops.addNote(t.id, "تعلیق شد"); }}>تعلیق</Button> : <Button variant="soft" className="flex-1" onClick={() => { ops.saveTenant({ ...t, status: "فعال" }); ops.addNote(t.id, "فعال شد"); }}>فعال‌سازی</Button>}</div>
               {isMine ? <Button variant="ghost" className="w-full" onClick={() => { actions.login("owner", t.owner); router.push("/"); }}><LogIn size={14} />ورود به‌جای سالن</Button> : <p className="text-xs leading-6 text-ink3">«ورود به‌جای سالن» فقط برای سالنی که داده‌ی نمونه‌ی این مرورگر است فعال است.</p>}
               {msg && <p role="status" className="rounded-xl bg-sagesoft p-2.5 text-xs text-sage">{msg}</p>}

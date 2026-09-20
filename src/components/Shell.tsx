@@ -3,8 +3,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { Bell, LifeBuoy, LogIn, LogOut, Menu, Search, Settings, X, Flower2 } from "lucide-react";
+import { Bell, Blocks, LifeBuoy, LogIn, LogOut, Menu, Search, Settings, X, Flower2 } from "lucide-react";
 import { navGroups } from "./nav";
+import { moduleActive, moduleAvailable, moduleForPath, MODULES } from "@/lib/modules";
 import { Avatar } from "./ui";
 import { TODAY } from "@/lib/mock";
 import { actions, useDB } from "@/lib/db";
@@ -19,6 +20,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const [bell, setBell] = useState(false);
+  const moreCount = MODULES.filter((m) => moduleAvailable(db, m.id) && !db.modules.installed.includes(m.id)).length;
   const notifs = db.notifications.filter((n) => n.audience === "salon");
   const unread = notifs.filter((n) => !n.read).length;
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
@@ -33,15 +35,15 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </div>
       <div className="scroll-thin flex-1 overflow-y-auto px-3 pb-6">
-        {navGroups.map((g) => (
+        {navGroups.map((g) => ({ ...g, items: g.items.filter((it) => { const m = moduleForPath(it.href); return !m || moduleActive(db, m.id); }) })).filter((g) => g.items.length).map((g) => (
           <div key={g.title} className="mb-4">
             <p className="px-3 pb-1.5 text-[11px] font-semibold text-ink3">{g.title}</p>
             {g.items.map((it) => {
               const Icon = it.icon;
-              const on = active(it.href) && !(it.n === 3 && path !== "/customers/c1") && !(it.n === 1 && path === "/customers/c1");
+              const on = active(it.href);
               return (
                 <Link
-                  key={it.n}
+                  key={it.href}
                   href={it.href}
                   onClick={() => setOpen(false)}
                   className={clsx(
@@ -51,14 +53,14 @@ export function Shell({ children }: { children: ReactNode }) {
                 >
                   <Icon size={17} />
                   <span className="flex-1">{it.label}</span>
-                  {!it.ready && <span className="rounded-full bg-surface2 px-1.5 text-[10px] text-ink3">بعداً</span>}
                 </Link>
               );
             })}
           </div>
         ))}
-        <Link href="/support" onClick={() => setOpen(false)} className={clsx("mt-2 flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/support") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><LifeBuoy size={17} />پشتیبانی</Link>
-        <Link href="/settings" onClick={() => setOpen(false)} className={clsx("flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/settings") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><Settings size={17} />تنظیمات سالن</Link>
+        <Link href="/modules" onClick={() => setOpen(false)} className={clsx("mt-2 flex items-center gap-2.5 rounded-xl border-t border-line px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/modules") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><Blocks size={17} />ماژول‌ها{moreCount > 0 && <span className="mr-auto rounded-full bg-rose px-1.5 text-[10px] font-bold text-white">{fa(moreCount)}</span>}</Link>
+        <Link href="/support" onClick={() => setOpen(false)} className={clsx("flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/support") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><LifeBuoy size={17} />پشتیبانی</Link>
+        <Link href="/settings" onClick={() => setOpen(false)} className={clsx("flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] transition-colors", path.startsWith("/settings") ? "bg-rosesoft font-bold text-rosedeep" : "text-ink2 hover:bg-surface2")}><Settings size={17} />تنظیمات سالن</Link>
       </div>
     </nav>
   );

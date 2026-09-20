@@ -3,6 +3,7 @@ import type { DebtPayment, Expense, PayMethod, Sale, SaleLine, StockItem } from 
 import { uid } from "./factories";
 import { tierFor, tierOff, nextGoal, withPoints, earnFor } from "./loyalty";
 import { ops } from "./ops";
+import { moduleActive } from "./modules";
 
 export { tierFor, tierOff, nextGoal, withPoints, earnFor };
 export type Tier = Customer["tier"];
@@ -21,7 +22,7 @@ export const sales = {
     const debt = Math.max(0, total - paid);
     const walletUsed = i.pays.filter((p) => p.method === "کیف پول").reduce((a, p) => a + p.amount, 0);
     const cust = i.customerId ? d.customers.find((c) => c.id === i.customerId) : undefined;
-    const earned = cust ? earnFor(d.loyalty, i.lines, i.discountPct) : 0;
+    const earned = cust && moduleActive(d, "loyalty") ? earnFor(d.loyalty, i.lines, i.discountPct) : 0;
     const id = `F-${d.saleSeq}`;
     const sale: Sale = { id, day: 0, time: "۱۴:۲۰", customerId: i.customerId, customerName: i.customerName, lines: i.lines, subtotal, discountPct: i.discountPct, discount, total, pays: i.pays.filter((p) => p.amount > 0), debt, status: debt > 0 ? "بدهکار" : "پرداخت‌شده", earned, walletUsed, apptId: i.apptId, note: i.note };
 
@@ -37,7 +38,7 @@ export const sales = {
         return earned ? withPoints(d, n, earned, `فاکتور ${id}`) : n;
       });
       // پاداش معرفی: اولین خرید مشتریِ معرفی‌شده
-      if (first && cust.referredBy && d.referral.enabled) {
+      if (first && cust.referredBy && d.referral.enabled && moduleActive(d, "referral")) {
         customers = customers.map((c) => (c.id === cust.referredBy ? { ...withPoints(d, c, d.referral.referrerPts, `معرفی ${cust.name}`), referrals: c.referrals + 1 } : c));
       }
     }

@@ -6,6 +6,7 @@ import { useDB } from "@/lib/db";
 import { dayLoad } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
 import { summarize } from "@/lib/sales";
+import { moduleActive, moduleForPath } from "@/lib/modules";
 import { fa, short } from "@/lib/fa";
 
 export default function Dashboard() {
@@ -33,7 +34,7 @@ export default function Dashboard() {
     freeHours > 0 ? { icon: Clock, text: `${fa(freeHours)} ساعت ظرفیت خالی برای امروز`, cta: "دیدن تقویم", href: "/calendar", tone: "amber" as Tone } : null,
     lowStock.length ? { icon: PackageOpen, text: `${lowStock.map((x) => x.name).slice(0, 2).join("، ")} به نقطه‌ی سفارش رسیده`, cta: "ثبت ورود کالا", href: "/procurement", tone: "sky" as Tone } : null,
     debt > 0 ? { icon: HandCoins, text: `${short(debt)} تومان بدهی مشتریان وصول نشده`, cta: "دریافت بدهی", href: "/cashier", tone: "danger" as Tone } : null,
-  ].filter((x): x is NonNullable<typeof x> => !!x);
+  ].filter((x): x is NonNullable<typeof x> => !!x).filter((x) => { const m = moduleForPath(x.href); return !m || moduleActive(db, m.id); });
 
   // هفته‌ی اخیر
   const week = Array.from({ length: 7 }, (_, i) => -6 + i).map((d) => ({ d, v: summarize(db, d).revenue }));

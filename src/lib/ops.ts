@@ -1,6 +1,7 @@
 import { commit, getDB, TODAY_SHORT, type DB } from "./db";
 import type { Course, Notification, Post, ReviewCfg, Survey, Tenant, Ticket, TicketMsg } from "./seed-extra";
 import { withPoints } from "./loyalty";
+import { moduleActive } from "./modules";
 import { uid } from "./factories";
 import { fa, toman } from "./fa";
 
@@ -18,7 +19,7 @@ export const ops = {
   requestSurvey(saleId: string, customerId: string | null, name: string, lines: { name: string; staffId?: string }[]) {
     const d = getDB();
     const svc = lines.find((l) => l.staffId);
-    if (!d.reviewCfg.auto || !customerId || !svc) return;
+    if (!d.reviewCfg.auto || !customerId || !svc || !moduleActive(d, "reviews")) return;
     const staff = d.staff.find((x) => x.id === svc.staffId);
     const sv: Survey = { id: uid("sv"), customerId, name, service: svc.name, staff: staff?.name ?? "—", staffId: svc.staffId, saleId, rating: null, comment: "", day: 0, status: "منتظر پاسخ" };
     commit({ ...d, surveys: [sv, ...d.surveys] });
