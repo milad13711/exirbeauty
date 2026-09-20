@@ -1,29 +1,35 @@
 @import "tailwindcss";
 @import "@fontsource-variable/vazirmatn";
 
-/* Exir Beauty — design tokens: warm, luxe, rose & champagne */
+/* Exir Beauty — «Rose Atelier»: ivory, rose-gold, champagne and aubergine */
 :root {
-  --bg: #faf6f2;
-  --surface: #ffffff;
-  --surface-2: #f6efe9;
-  --line: #eadfd6;
-  --ink: #2b1f25;
-  --ink-2: #6b5b62;
-  --ink-3: #a09097;
-  --rose: #b4536f;
-  --rose-deep: #8f3a55;
-  --rose-soft: #f7e4ea;
-  --gold: #b8924a;
-  --gold-soft: #f6ecd6;
-  --sage: #4f8a73;
-  --sage-soft: #e0f0e8;
-  --amber: #c8801e;
+  --bg: #fbf6f1;
+  --surface: #fffdfb;
+  --surface-2: #f6ede6;
+  --line: #ecdfd5;
+  --ink: #2a1a24;
+  --ink-2: #6a5661;
+  --ink-3: #a1909a;
+  --rose: #b5476b;
+  --rose-deep: #8c2f50;
+  --rose-soft: #f8e6ec;
+  --gold: #b98d3f;
+  --gold-soft: #f7edd8;
+  --sage: #4b8a70;
+  --sage-soft: #e1f0e8;
+  --amber: #c07a1c;
   --amber-soft: #fbeed6;
-  --danger: #c2453d;
+  --danger: #bf433b;
   --danger-soft: #fbe3e0;
   --sky: #4a7fb0;
   --sky-soft: #e1edf8;
-  --plum: #3a2431;
+  --plum: #2e1a27;
+  --grad-rose: linear-gradient(135deg, #c65a80 0%, #9c3558 100%);
+  --grad-plum: linear-gradient(150deg, #43273a 0%, #24131e 100%);
+  --grad-gold: linear-gradient(135deg, #d9b56f 0%, #b98d3f 100%);
+  --shadow-card: 0 1px 2px rgba(60, 30, 40, 0.04), 0 12px 30px -14px rgba(60, 30, 40, 0.14);
+  --shadow-pop: 0 20px 50px -12px rgba(46, 26, 39, 0.35);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {
@@ -51,16 +57,40 @@
   --font-sans: "Vazirmatn Variable", system-ui, sans-serif;
 }
 
-html { background: var(--bg); }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(900px 420px at 100% -10%, rgba(199, 90, 128, 0.07), transparent 60%),
+    radial-gradient(700px 380px at 0% 0%, rgba(185, 141, 63, 0.06), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "ss01";
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 ::selection { background: var(--rose-soft); }
-:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; border-radius: 10px; }
+button, a, select, input, textarea { touch-action: manipulation; }
+button:not(:disabled), [role="button"] { -webkit-user-select: none; user-select: none; }
+
 .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* حرکت‌های ظریف */
+@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse-soft { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: 0.85; } }
+.page-in { animation: fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.sheet-in { animation: sheet-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.fade-in { animation: fade-in 0.2s ease-out both; }
+.press { transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease; }
+.press:active { transform: scale(0.97); }
+.glass { background: rgba(255, 253, 251, 0.82); backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px); }
+.pb-safe { padding-bottom: calc(var(--safe-b) + 0.75rem); }
+.font-num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }

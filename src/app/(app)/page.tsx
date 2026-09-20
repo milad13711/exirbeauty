@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CalendarCheck, Clock, Crown, HandCoins, PackageOpen, Percent, Repeat, ShoppingBag, Trophy, UserPlus, Wallet, CalendarX } from "lucide-react";
-import { Avatar, Badge, Card, CardHead, LinkButton, PageTitle, Stat, type Tone } from "@/components/ui";
+import { Avatar, Badge, Card, CardHead, Stat, type Tone } from "@/components/ui";
 import { useDB } from "@/lib/db";
 import { dayLoad } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
@@ -49,19 +49,33 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageTitle
-        title="صبح بخیر ☀️"
-        sub={`${dayInfo(0).full} · وضعیت زنده‌ی ${db.salon.name} و فرصت‌های امروز`}
-        actions={<><LinkButton href="/reports" variant="ghost">گزارش‌ها</LinkButton><LinkButton href="/calendar/new">+ نوبت جدید</LinkButton></>}
-      />
+      <section className="relative mb-4 overflow-hidden rounded-[28px] bg-[image:var(--grad-plum)] p-5 text-white shadow-[var(--shadow-pop)] md:p-7">
+        <div className="pointer-events-none absolute -left-16 -top-20 size-56 rounded-full bg-[radial-gradient(circle,rgba(217,181,111,.35),transparent_65%)]" />
+        <div className="pointer-events-none absolute -bottom-24 right-0 size-64 rounded-full bg-[radial-gradient(circle,rgba(198,90,128,.4),transparent_65%)]" />
+        <div className="relative">
+          <p className="text-[13px] text-white/70">صبح بخیر ☀️ · {dayInfo(0).full}</p>
+          <p className="mt-4 text-xs text-white/60">فروش امروز {db.salon.name}</p>
+          <p className="font-num mt-1 flex items-baseline gap-1.5 text-[34px] font-extrabold leading-none tracking-tight md:text-5xl">{short(today.revenue)}<span className="text-sm font-semibold text-white/60">تومان</span></p>
+          <p className="mt-2 text-xs text-[#e6c88e]">{delta === null ? `${fa(today.count)} فاکتور` : `${delta >= 0 ? "▲ +" : "▼ −"}${fa(Math.abs(delta))}٪ نسبت به هفته‌ی قبل`}</p>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            {[[fa(todayAppts.length), "نوبت امروز"], [fa(newToday), "مشتری جدید"], [`${fa(load.pct)}٪`, "پُری تقویم"]].map(([v, l]) => (
+              <div key={l} className="rounded-2xl bg-white/10 px-3 py-2.5 backdrop-blur"><p className="font-num text-lg font-extrabold">{v}</p><p className="text-[11px] text-white/65">{l}</p></div>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/calendar/new" className="press inline-flex min-h-11 flex-1 items-center justify-center rounded-[14px] bg-[image:var(--grad-gold)] px-4 text-[13.5px] font-extrabold text-plum sm:flex-none">＋ نوبت</Link>
+            <Link href="/cashier" className="press inline-flex min-h-11 flex-1 items-center justify-center rounded-[14px] bg-white/12 px-4 text-[13.5px] font-bold text-white sm:flex-none">صندوق</Link>
+            <Link href="/reports" className="press inline-flex min-h-11 flex-1 items-center justify-center rounded-[14px] bg-white/12 px-4 text-[13.5px] font-bold text-white sm:flex-none">گزارش‌ها</Link>
+          </div>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        <Stat label="فروش امروز" value={short(today.revenue)} sub={delta === null ? `${fa(today.count)} فاکتور` : `${delta >= 0 ? "+" : "−"}${fa(Math.abs(delta))}٪ نسبت به هفته‌ی قبل`} tone="rose" icon={<Wallet size={16} />} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-4">
         <Stat label="نوبت‌های امروز" value={fa(todayAppts.length)} sub={`${fa(todayAppts.filter((a) => a.status === "done").length)} انجام‌شده`} tone="sky" icon={<CalendarCheck size={16} />} />
-        <Stat label="مشتری جدید" value={fa(newToday)} tone="sage" icon={<UserPlus size={16} />} />
         <Stat label="مشتری برگشتی" value={fa(custToday.size - newToday)} tone="gold" icon={<Repeat size={16} />} />
         <Stat label="ظرفیت خالی" value={`${fa(freeHours)} ساعت`} sub={`${fa(load.pct)}٪ پُر`} tone="amber" icon={<Clock size={16} />} />
         <Stat label="فروش محصول" value={short(today.products)} tone="rose" icon={<ShoppingBag size={16} />} />
+        <Stat label="مشتری جدید" value={fa(newToday)} tone="sage" icon={<UserPlus size={16} />} />
         <Stat label="کمیسیون" value={short(today.commission)} tone="neutral" icon={<Percent size={16} />} />
       </div>
 
@@ -105,7 +119,7 @@ export default function Dashboard() {
               return (
                 <div key={w.d} className="flex min-w-0 flex-1 flex-col items-center gap-2">
                   <span className="text-[11px] font-semibold text-ink2">{fa((w.v / 1_000_000).toFixed(1).replace(".0", "").replace(".", "٫"))}</span>
-                  <div className="w-full rounded-t-lg" style={{ height: `${Math.max(3, (w.v / maxW) * 100)}%`, background: isToday ? "var(--rose)" : "var(--rose-soft)" }} />
+                  <div className="w-full rounded-t-lg" style={{ height: `${Math.max(3, (w.v / maxW) * 100)}%`, background: isToday ? "var(--grad-rose)" : "var(--rose-soft)" }} />
                   <span className={`text-[11px] ${isToday ? "font-bold text-rosedeep" : "text-ink3"}`}><span className="sm:hidden">{dayInfo(w.d).weekday.slice(0, 1)}</span><span className="hidden sm:inline">{dayInfo(w.d).weekday}</span></span>
                 </div>
               );
