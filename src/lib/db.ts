@@ -6,7 +6,7 @@ import { storeProducts, type SCat } from "./mock3";
 import { appts as seedAppts, blocked as seedBlocked, staff as seedStaff, profile as seedProfile, customers as seedCustomerRows, type Appt, type Category, type Tier } from "./mock";
 import { catalog as seedCatalog } from "./mock2";
 import { defaultPlanModules, modulesAfterPlanChange } from "./modules";
-import { seedExtra, seedOps, type TStatus, type Survey, type ReviewCfg, type Post, type Course, type Enrollment, type Notification, type Ticket, type Tenant, type MarketPro, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
+import { seedExtra, seedOps, type SmsAccount, type SmsTx, type SmsMsg, type SmsPricing, type SmsPackage, type SmsLine, type TStatus, type Survey, type ReviewCfg, type Post, type Course, type Enrollment, type Notification, type Ticket, type Tenant, type MarketPro, type Sale, type Expense, type DebtPayment, type DayClosing, type StockItem, type WaitEntry, type Loyalty, type ReferralCfg, type Campaign, type AutoRule, type MembershipPlan, type Membership, type GiftCard } from "./seed-extra";
 import { ordersSeed, salons as seedSalons, CRM_PLAN, type CommStatus, type OrderStatus } from "./mock3";
 
 export type DBProduct = {
@@ -59,10 +59,11 @@ export type DB = {
   salon: SalonSettings; roles: SalonRole[]; users: SalonUser[]; adminUsers: AdminUser[]; sub: Subscription; onboarded: boolean; session: Session;
   modules: { installed: string[]; addons: string[] }; planModules: Record<string, string[]>; modulePrices: Record<string, number>;
   surveys: Survey[]; reviewCfg: ReviewCfg; posts: Post[]; courses: Course[]; enrollments: Enrollment[]; notifications: Notification[]; tickets: Ticket[]; tenants: Tenant[]; market: MarketPro[];
+  smsAccounts: SmsAccount[]; smsTx: SmsTx[]; smsLog: SmsMsg[]; smsPricing: SmsPricing;
   inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
   loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null;
 };
-export type { TStatus, Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
+export type { SmsAccount, SmsTx, SmsMsg, SmsPricing, SmsPackage, SmsLine, TStatus, Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
 
 export const suppliers = ["پخش رز", "آرین‌مد", "شرکت سیلک‌لب", "درماکو"];
 export const TODAY_SHORT = "۲۸ شهریور";
@@ -161,7 +162,7 @@ export const seedDB: DB = {
   }),
 };
 
-const KEY = "exir_db_v6";
+const KEY = "exir_db_v7";
 let state: DB = seedDB;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -295,7 +296,7 @@ export const actions = {
     const price = ({ basic: 790_000, pro: 1_490_000, elite: 2_900_000 } as Record<string, number>)[p.planId] ?? 0;
     const tenant: Tenant = { id: `t${Date.now().toString(36)}`, name: p.salonName, owner: p.owner, city: p.city, phone: p.phone, plan: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, users: 1, customers: 0, wallet: 0, since: "شهریور ۱۴۰۵", notes: [p.trial ? "ثبت‌نام با دوره‌ی آزمایشی" : "ثبت‌نام با پرداخت آنلاین"], payments: p.trial ? [] : [{ day: 0, amount: price * p.months, label: `اشتراک ${fd(p.months)} ماهه — آنلاین` }] };
     const note: Notification = { id: `n${Date.now().toString(36)}`, audience: "admin", title: "سالن جدید", body: `${p.salonName} (${p.city}) ${p.trial ? "دوره‌ی آزمایشی را شروع کرد" : "اشتراک خرید"}`, href: "/admin/tenants", day: 0, read: false };
-    commit({ ...d, modules: { installed: [...(d.planModules[p.planId] ?? [])], addons: [] }, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner }, tenants: [tenant, ...d.tenants], notifications: [note, ...d.notifications].slice(0, 80) });
+    commit({ ...d, modules: { installed: [...(d.planModules[p.planId] ?? [])], addons: [] }, salon: { ...d.salon, name: p.salonName, phone: p.phone, city: p.city }, sub: { planId: p.planId, status: p.trial ? "آزمایشی" : "فعال", expiry, months: p.months }, onboarded: false, session: { role: "owner", name: p.owner }, tenants: [tenant, ...d.tenants], notifications: [note, ...d.notifications].slice(0, 80), smsAccounts: [...d.smsAccounts, { tenantId: tenant.id, balance: 50, line: { kind: "shared", number: "30005050", status: "فعال", requestedAt: 0 }, autoRecharge: { on: false, threshold: 150, packageId: "p2", source: "online" }, lowAlertSent: false, sent30: 0, lastTopup: 0, optOut: true }], smsTx: [{ id: `x${Date.now().toString(36)}`, tenantId: tenant.id, day: 0, kind: "هدیه", amount: 0, credits: 50, method: "—", note: "هدیه‌ی ثبت‌نام: ۵۰ پیامک" }, ...d.smsTx] });
   },
   paySubscription(planId: string, months: number, fromWallet: number) {
     const d = getDB();

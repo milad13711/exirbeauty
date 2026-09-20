@@ -10,6 +10,7 @@ import { newCustomer } from "@/lib/factories";
 import { digits } from "@/lib/validate";
 import { hoursUntil } from "@/lib/portal";
 import { ops } from "@/lib/ops";
+import { sms } from "@/lib/sms";
 import { catColor, NOW_MIN } from "@/lib/mock";
 import { clock, eligibleStaff, freeStarts, staffWorks, svcOf } from "@/lib/booking";
 import { dayInfo } from "@/lib/dates";
@@ -94,6 +95,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
     if (!list.length) { setErr("این ساعت دیگر خالی نیست؛ لطفاً زمان دیگری انتخاب کنید."); setSlot(null); setStep(2); return; }
     setErr("");
     actions.addAppts(list);
+    sms.event("confirm", cust.id, { service: svc.name, time: clock(slot.start) });
     if (mode === "public") ops.notify("salon", "نوبت جدید آنلاین", `${customerName} برای ${svc.name} نوبت ${db.salon.online.autoConfirm ? "گرفت" : "درخواست کرد"}`, "/calendar");
     setDone({ created: list.length, skipped });
   };

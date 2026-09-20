@@ -11,6 +11,8 @@ import { TODAY } from "@/lib/mock";
 import { actions, useDB } from "@/lib/db";
 import { ops } from "@/lib/ops";
 import { fa } from "@/lib/fa";
+import { myAccount, smsActive, usage } from "@/lib/sms";
+import { MessageSquareText } from "lucide-react";
 import { dayInfo } from "@/lib/dates";
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -21,6 +23,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
   const [bell, setBell] = useState(false);
   const moreCount = MODULES.filter((m) => moduleAvailable(db, m.id) && !db.modules.installed.includes(m.id)).length;
+  const smsOn = smsActive(db);
+  const acc = myAccount(db);
+  const low = smsOn && acc.balance <= acc.autoRecharge.threshold;
+  const blocked7 = db.smsLog.filter((m) => m.status === "مسدود" && m.day >= -6);
   const notifs = db.notifications.filter((n) => n.audience === "salon");
   const unread = notifs.filter((n) => !n.read).length;
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
@@ -84,6 +90,11 @@ export function Shell({ children }: { children: ReactNode }) {
             <Search size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink3" />
             <input placeholder="جستجوی مشتری، خدمت، نوبت…" className="w-full rounded-xl border border-line bg-surface py-2 pr-9 pl-3 text-sm outline-none placeholder:text-ink3 focus:border-rose" />
           </label>
+          {smsOn && (
+            <Link href="/sms" aria-label={`اعتبار پیامک: ${fa(acc.balance)}`} className={clsx("flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-bold", acc.balance <= 0 ? "border-danger/40 bg-dangersoft text-danger" : low ? "border-amber/40 bg-ambersoft text-amber" : "border-line bg-surface text-ink2 hover:bg-surface2")}>
+              <MessageSquareText size={15} /><span>{fa(acc.balance.toLocaleString("en-US").replace(/,/g, "٬"))}</span><span className="hidden font-medium sm:inline">پیامک</span>
+            </Link>
+          )}
           <span className="hidden text-xs text-ink2 md:block">{TODAY}</span>
           <div className="relative">
             <button aria-label={`اعلان‌ها${unread ? `، ${fa(unread)} خوانده‌نشده` : ""}`} aria-expanded={bell} onClick={() => { setBell(!bell); setMenu(false); }} className="relative cursor-pointer rounded-lg p-2 hover:bg-surface2">
@@ -117,6 +128,13 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="mx-auto max-w-[1400px] px-4 py-6 lg:px-8">
+          {low && !path.startsWith("/sms") && (
+            <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber/40 bg-ambersoft px-5 py-3.5 text-sm">
+              <MessageSquareText className="text-amber" size={20} />
+              <p className="min-w-0 flex-1 basis-56">{acc.balance <= 0 ? "اعتبار پیامک شما تمام شده است" : `اعتبار پیامک شما فقط ${fa(acc.balance)} است`}؛ یادآوری نوبت و پیام‌های خودکار متوقف می‌شوند.{blocked7.length > 0 && <> <b>{fa(blocked7.length)} پیام</b> در ۷ روز اخیر ارسال نشد.</>}</p>
+              <Link href={`/sms?tab=charge&pkg=${usage(db).recommended.id}`} className="rounded-xl bg-rose px-4 py-2 text-[13px] font-bold text-white hover:bg-rosedeep">شارژ سریع</Link>
+            </div>
+          )}
           {!db.onboarded && (
             <Link href="/onboarding" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber/30 bg-ambersoft px-5 py-3 text-sm"><span>راه‌اندازی سالن هنوز کامل نشده است.</span><b className="text-amber">ادامه‌ی راه‌اندازی ←</b></Link>
           )}

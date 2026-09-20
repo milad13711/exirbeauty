@@ -1,8 +1,10 @@
-import { commit, getDB, TODAY_SHORT, type Customer, type DB } from "./db";
+import { commit, getDB, type Customer, type DB } from "./db";
 import type { AutoKind, AutoRule, Campaign, GiftCard, Loyalty, MembershipPlan, ReferralCfg, Segment } from "./seed-extra";
 import { dayInfo } from "./dates";
 import { uid } from "./factories";
-import { sales, withPoints } from "./sales";
+import { sales } from "./sales";
+import { withPoints } from "./loyalty";
+import { NOW_MIN } from "./mock";
 import type { PayMethod } from "./seed-extra";
 
 /** نام ماه شمسیِ امروز، برای تشخیص تولدهای این ماه */
@@ -17,22 +19,43 @@ export function audience(d: DB, s: Segment): Customer[] {
     (!s.favService || c.favService === s.favService));
 }
 
-export const autoMeta: Record<AutoKind, { label: string; unit: string; when: (days: number) => string }> = {
-  inactive: { label: "مراجعه نکرده", unit: "روز بعد از آخرین مراجعه", when: (n) => `${n} روز از آخرین مراجعه گذشته` },
-  cycle: { label: "زمان سرویس بعدی", unit: "روز مانده به چرخه‌ی معمول مشتری", when: (n) => `حداکثر ${n} روز به چرخه‌ی معمول مانده` },
-  afterPurchase: { label: "پس از خرید محصول", unit: "روز اخیر", when: (n) => `در ${n} روز اخیر محصول خریده` },
-  birthday: { label: "تولد", unit: "(ماه تولد)", when: () => "تولدش در این ماه است" },
-  winback: { label: "غیبت طولانی", unit: "روز بدون مراجعه", when: (n) => `${n} روز بدون مراجعه` },
+export type AutoMeta = { label: string; unit: string; when: (days: number) => string; promo: boolean; trigger: string; needsDays: boolean; event?: boolean };
+export const autoMeta: Record<AutoKind, AutoMeta> = {
+  reminder24: { label: "یادآوری نوبت (۲۴ ساعت قبل)", unit: "", when: () => "فردا نوبت دارد", promo: false, trigger: "خودکار قبل از نوبت", needsDays: false },
+  reminder2: { label: "یادآوری نوبت (۲ ساعت قبل)", unit: "", when: () => "تا ۲ ساعت دیگر نوبت دارد", promo: false, trigger: "خودکار قبل از نوبت", needsDays: false },
+  confirm: { label: "تأیید ثبت نوبت", unit: "", when: () => "نوبتی برایش ثبت شد", promo: false, trigger: "لحظه‌ی ثبت نوبت", needsDays: false, event: true },
+  thanks: { label: "تشکر بعد از خدمت", unit: "", when: () => "امروز خدمت گرفته است", promo: false, trigger: "بعد از فاکتور", needsDays: false, event: true },
+  inactive: { label: "مراجعه نکرده", unit: "روز بعد از آخرین مراجعه", when: (n) => `${n} روز از آخرین مراجعه گذشته`, promo: true, trigger: "غیبت مشتری", needsDays: true },
+  cycle: { label: "زمان سرویس بعدی", unit: "روز مانده به چرخه‌ی معمول مشتری", when: (n) => `حداکثر ${n} روز به چرخه‌ی معمول مانده`, promo: true, trigger: "چرخه‌ی مراجعه", needsDays: true },
+  afterPurchase: { label: "پیشنهاد محصول بعد از خرید", unit: "روز اخیر", when: (n) => `در ${n} روز اخیر محصول خریده`, promo: true, trigger: "بعد از خرید محصول", needsDays: true },
+  birthday: { label: "تبریک تولد", unit: "", when: () => "تولدش در این ماه است", promo: true, trigger: "تاریخ تولد", needsDays: false },
+  winback: { label: "غیبت طولانی (بازگشت ویژه)", unit: "روز بدون مراجعه", when: (n) => `${n} روز بدون مراجعه`, promo: true, trigger: "غیبت طولانی", needsDays: true },
+  capacity: { label: "پر کردن ظرفیت خالی فردا", unit: "", when: () => "فردا ظرفیت خالی است و مشتری وقتش رسیده", promo: true, trigger: "ظرفیت خالی", needsDays: false },
+  debt: { label: "یادآوری بدهی", unit: "", when: () => "بدهی پرداخت‌نشده دارد", promo: false, trigger: "بدهی مشتری", needsDays: false },
+  welcome: { label: "خوشامدگویی مشتری جدید", unit: "", when: () => "به‌تازگی ثبت‌نام کرده", promo: false, trigger: "ثبت‌نام آنلاین", needsDays: false },
+  expiry: { label: "انقضای عضویت", unit: "روز مانده به پایان", when: (n) => `عضویتش تا ${n} روز دیگر تمام می‌شود`, promo: false, trigger: "پایان عضویت", needsDays: true },
 };
 
-export function matching(d: DB, r: AutoRule): Customer[] {
+export type Target = { c: Customer; vars: Record<string, string> };
+export function matching(d: DB, r: AutoRule): Target[] {
+  const t = (c: Customer, vars: Record<string, string> = {}): Target => ({ c, vars });
+  const byId = (id?: string) => d.customers.find((c) => c.id === id);
   switch (r.kind) {
-    case "inactive": case "winback": return d.customers.filter((c) => c.lastVisitDays >= r.days && c.visits > 0);
-    case "cycle": return d.customers.filter((c) => c.cycleDays > 0 && c.cycleDays - c.lastVisitDays <= r.days && c.cycleDays - c.lastVisitDays >= 0);
-    case "afterPurchase": { const ids = new Set(d.sales.filter((s) => s.status !== "باطل" && s.day >= -r.days && s.customerId && s.lines.some((l) => l.kind === "product")).map((s) => s.customerId!)); return d.customers.filter((c) => ids.has(c.id)); }
-    case "birthday": return d.customers.filter((c) => c.birth.includes(thisMonth()));
+    case "inactive": case "winback": return d.customers.filter((c) => c.lastVisitDays >= r.days && c.visits > 0).map((c) => t(c));
+    case "cycle": return d.customers.filter((c) => c.cycleDays > 0 && c.cycleDays - c.lastVisitDays <= r.days && c.cycleDays - c.lastVisitDays >= 0).map((c) => t(c));
+    case "afterPurchase": { const ids = new Set(d.sales.filter((s) => s.status !== "باطل" && s.day >= -r.days && s.customerId && s.lines.some((l) => l.kind === "product")).map((s) => s.customerId!)); return d.customers.filter((c) => ids.has(c.id)).map((c) => t(c)); }
+    case "birthday": return d.customers.filter((c) => c.birth.includes(thisMonth())).map((c) => t(c));
+    case "reminder24": return d.appts.filter((a) => a.day === 1 && a.status !== "done" && byId(a.customerId)).map((a) => t(byId(a.customerId)!, { service: a.service, time: clockText(a.start) }));
+    case "reminder2": return d.appts.filter((a) => a.day === 0 && a.status !== "done" && a.start > NOW_MIN && a.start - NOW_MIN <= 120 && byId(a.customerId)).map((a) => t(byId(a.customerId)!, { service: a.service, time: clockText(a.start) }));
+    case "thanks": { const ids = new Set(d.sales.filter((s) => s.day === 0 && s.status !== "باطل" && s.customerId && s.lines.some((l) => l.kind === "service")).map((s) => s.customerId!)); return d.customers.filter((c) => ids.has(c.id)).map((c) => t(c)); }
+    case "capacity": { const ws = d.customers.filter((c) => c.visits > 0 && (c.lastVisitDays >= 30 || (c.cycleDays > 0 && c.cycleDays - c.lastVisitDays <= 7))); return ws.slice(0, 15).map((c) => t(c)); }
+    case "debt": return d.customers.filter((c) => c.debt > 0).map((c) => t(c, { debt: c.debt.toLocaleString("en-US").replace(/\d/g, (x) => "۰۱۲۳۴۵۶۷۸۹"[+x]).replace(/,/g, "٬") }));
+    case "welcome": return d.customers.filter((c) => c.visits <= 1 && c.tags.some((x) => x.includes("آنلاین") || x === "جدید")).map((c) => t(c));
+    case "expiry": return d.memberships.filter((m) => m.status === "فعال" && m.expiry <= r.days).map((m) => byId(m.customerId)).filter(Boolean).map((c) => t(c!, { days: String(r.days).replace(/\d/g, (x) => "۰۱۲۳۴۵۶۷۸۹"[+x]) }));
+    case "confirm": return [];
   }
 }
+const clockText = (m: number) => `${String(9 + Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`.replace(/\d/g, (x) => "۰۱۲۳۴۵۶۷۸۹"[+x]);
 
 const patch = (fn: (d: DB) => Partial<DB>) => { const d = getDB(); commit({ ...d, ...fn(d) }); };
 
@@ -41,19 +64,10 @@ export const growth = {
   adjustPoints(customerId: string, delta: number, note: string) { patch((d) => ({ customers: d.customers.map((c) => (c.id === customerId ? withPoints(d, c, delta, note || "تنظیم دستی") : c)) })); },
   saveReferral(r: ReferralCfg) { patch(() => ({ referral: r })); },
 
-  sendCampaign(c: Omit<Campaign, "id" | "day" | "count" | "ids" | "status"> & { whenDay?: number }): Campaign {
-    const d = getDB();
-    const ids = audience(d, c.segment).map((x) => x.id);
-    const camp: Campaign = { ...c, id: uid("cp"), day: 0, count: ids.length, ids, status: c.whenDay && c.whenDay > 0 ? "زمان‌بندی‌شده" : "ارسال‌شده" };
-    commit({ ...d, campaigns: [camp, ...d.campaigns] });
-    return camp;
-  },
   deleteCampaign(id: string) { patch((d) => ({ campaigns: d.campaigns.filter((c) => c.id !== id) })); },
 
   saveRule(r: AutoRule) { patch((d) => ({ automations: d.automations.some((x) => x.id === r.id) ? d.automations.map((x) => (x.id === r.id ? r : x)) : [...d.automations, r] })); },
   deleteRule(id: string) { patch((d) => ({ automations: d.automations.filter((x) => x.id !== id) })); },
-  /** اجرای دستی: پیام برای مشمولان «ارسال» می‌شود و شمارنده‌ها به‌روز می‌شوند */
-  runRule(id: string): number { const d = getDB(); const r = d.automations.find((x) => x.id === id); if (!r) return 0; const n = matching(d, r).length; commit({ ...d, automations: d.automations.map((x) => (x.id === id ? { ...x, sent: x.sent + n } : x)) }); return n; },
 
   savePlan(p: MembershipPlan) { patch((d) => ({ memPlans: d.memPlans.some((x) => x.id === p.id) ? d.memPlans.map((x) => (x.id === p.id ? p : x)) : [...d.memPlans, p] })); },
   deletePlan(id: string) { patch((d) => ({ memPlans: d.memPlans.filter((x) => x.id !== id) })); },
@@ -84,8 +98,8 @@ export const growth = {
     const card: GiftCard = { id: uid("g"), code, amount: g.amount, balance: g.amount, fromName: g.fromName, toName: g.toName, toPhone: g.toPhone, occasion: g.occasion, message: g.message, day: 0, status: "فعال" };
     const d2 = getDB();
     commit({ ...d2, giftCards: [card, ...d2.giftCards] });
-    return { ok: true, msg: `کارت هدیه صادر شد.`, code };
+    return { ok: true, msg: "کارت هدیه صادر شد.", code };
   },
   voidGift(id: string) { patch((d) => ({ giftCards: d.giftCards.map((x) => (x.id === id && x.status === "فعال" && x.balance === x.amount ? { ...x, status: "باطل", balance: 0 } : x)) })); },
 };
-export { TODAY_SHORT };
+export type { Campaign };

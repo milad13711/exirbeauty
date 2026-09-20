@@ -6,6 +6,7 @@ import { Avatar, Badge, Button, Card, CardHead, Field, fieldCls, tierTone } from
 import { useDB, type Customer } from "@/lib/db";
 import { sales, tierOff } from "@/lib/sales";
 import { moduleActive } from "@/lib/modules";
+import { sms } from "@/lib/sms";
 import type { PayMethod, SaleLine } from "@/lib/seed-extra";
 import { digits } from "@/lib/validate";
 import { fa, short, toman } from "@/lib/fa";
@@ -70,6 +71,7 @@ export function PosForm({ apptId, onDone }: { apptId?: string; onDone: (id: stri
       if (p.amount > g.balance) return setErr(`موجودی کارت هدیه ${toman(g.balance)} است.`);
     }
     const r = sales.createSale({ customerId: custId, customerName: cust?.name ?? (guest.trim() || "مهمان"), lines, discountPct: discount, pays: pays.map((p) => ({ ...p, ref: p.ref?.trim().toUpperCase() })), apptId });
+    if (custId && lines.some((l) => l.kind === "service")) sms.event("thanks", custId);
     onDone(r.id, r.earned);
   };
 

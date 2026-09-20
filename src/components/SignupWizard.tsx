@@ -8,12 +8,14 @@ import { Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { actions } from "@/lib/db";
 import { durationDiscount, plans } from "@/lib/mock4";
 import { DEMO_OTP, digits, isPhone } from "@/lib/validate";
+import { useDB } from "@/lib/db";
 import { fa, short, toman } from "@/lib/fa";
 
 const steps = ["اطلاعات", "تأیید موبایل", "انتخاب پلن", "پرداخت"] as const;
 
 export function SignupWizard() {
   const router = useRouter();
+  const db = useDB();
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ owner: "", salonName: "", phone: "", city: "" });
   const [code, setCode] = useState("");
@@ -71,7 +73,7 @@ export function SignupWizard() {
                 <button key={p.id} onClick={() => setPlanId(p.id)} aria-pressed={planId === p.id} className={clsx("cursor-pointer rounded-2xl border p-4 text-right", planId === p.id ? "border-rose bg-rosesoft ring-1 ring-rose" : "border-line hover:bg-surface2")}>
                   <span className="flex items-center justify-between"><b>{p.name}</b>{"hot" in p && p.hot && <Badge tone="rose">محبوب</Badge>}</span>
                   <b className="mt-2 block text-lg">{short(p.price)} <span className="text-xs font-normal text-ink3">تومان / ماه</span></b>
-                  <span className="mt-2 block text-xs leading-6 text-ink2">تا {fa(p.users)} کاربر<br />{p.features.slice(0, 3).join(" · ")}</span>
+                  <span className="mt-2 block text-xs leading-6 text-ink2">تا {fa(p.users)} کاربر · <b>{fa((db.planModules[p.id] ?? []).length)} ماژول</b><br />{p.features.slice(0, 3).join(" · ")}</span>
                 </button>
               ))}
             </div>

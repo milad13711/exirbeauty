@@ -5,13 +5,15 @@ import { ChevronDown, MessageSquare, Send, Trash2 } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, fieldCls } from "@/components/ui";
 import { useDB } from "@/lib/db";
 import { audience } from "@/lib/growth";
+import { myAccount, sms } from "@/lib/sms";
+import Link from "next/link";
 import { growth } from "@/lib/growth";
 import { dayInfo } from "@/lib/dates";
 import type { Segment } from "@/lib/seed-extra";
 import { fa, short } from "@/lib/fa";
 
 const tiers = ["برنزی", "نقره‌ای", "طلایی", "VIP"];
-const channels = ["پیامک", "واتساپ", "اعلان اپ"];
+const channels = ["پیامک"];
 const tpls: { l: string; name: string; seg: Segment; msg: string }[] = [
   { l: "بازگشت مشتری", name: "بازگشت مشتریان", seg: { inactiveDays: 60 }, msg: "{name} جان، دلتنگت شدیم ❤️ برای برگشتت یک پیشنهاد ویژه داریم: ۱۵٪ تخفیف تا آخر هفته." },
   { l: "ویژه VIP", name: "پیشنهاد VIP", seg: { tiers: ["VIP"] }, msg: "{name} عزیز، این پیشنهاد فقط برای مشتریان VIP ما فعال شده. یک ماسک مو هدیه بگیرید." },
@@ -30,6 +32,9 @@ export default function Campaigns() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const aud = useMemo(() => audience(db, seg), [db, seg]);
+  const acc = myAccount(db);
+  const cost = sms.campaignCost(db, { message: msg, segment: seg });
+  const short_ = cost.credits > acc.balance;
   const hasFilter = Object.values(seg).some((v) => v !== undefined && v !== false && !(Array.isArray(v) && !v.length));
   const preview = msg.replace(/\{name\}/g, aud[0]?.name.split(" ")[0] ?? "سارا");
   const svcNames = [...new Set(db.services.map((s) => s.name))];
@@ -40,8 +45,9 @@ export default function Campaigns() {
     if (msg.trim().length < 10) return setErr("متن پیام را کامل بنویسید.");
     if (!hasFilter) return setErr("حداقل یک شرط برای انتخاب مخاطب تعیین کنید.");
     if (!aud.length) return setErr("هیچ مشتری با این شرایط پیدا نشد.");
-    const c = growth.sendCampaign({ name: name.trim(), channel, message: msg.trim(), segment: seg, whenDay: when });
-    setErr(""); setOk(`${c.status === "ارسال‌شده" ? "کمپین برای" : "کمپین زمان‌بندی شد برای"} ${fa(c.count)} نفر ثبت شد.`); setName(""); setMsg(""); setSeg({});
+    const r = sms.campaign({ name: name.trim(), channel, message: msg.trim(), segment: seg, whenDay: when });
+    const c = r.campaign;
+    setErr(""); setOk(c.status === "ارسال‌شده" ? `پیامک برای ${fa(r.sum.sent)} نفر ارسال شد${r.sum.blocked ? ` · ${fa(r.sum.blocked)} پیام به‌دلیل کمبود اعتبار ارسال نشد` : ""}${r.sum.capped ? ` · ${fa(r.sum.capped)} مورد رد شد` : ""}.` : `کمپین برای ${fa(c.count)} نفر زمان‌بندی شد.`); setName(""); setMsg(""); setSeg({});
   };
   const segText = (s: Segment) => [s.inactiveDays !== undefined && `بیش از ${s.inactiveDays} روز غیبت`, s.tiers?.length && `سطح ${s.tiers.join("، ")}`, s.birthdayMonth && "تولد این ماه", s.minSpend && `خرید بیش از ${short(s.minSpend)}`, s.favService && `علاقه‌مند به ${s.favService}`].filter(Boolean).join(" · ") || "همه";
 
@@ -74,6 +80,7 @@ export default function Campaigns() {
               <Field label="زمان ارسال"><select value={when} onChange={(e) => setWhen(+e.target.value)} className={fieldCls}><option value={0}>همین حالا</option>{[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{dayInfo(d).weekday} {dayInfo(d).short}</option>)}</select></Field>
               {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
               {ok && <p role="status" className="rounded-xl bg-sagesoft p-2.5 text-sm text-sage">{ok}</p>}
+              <p className={clsx("rounded-xl p-2.5 text-xs leading-6", short_ ? "bg-ambersoft text-amber" : "bg-surface2 text-ink2")}>هزینه: <b>{fa(cost.credits)} پیامک</b> ({fa(cost.count)} نفر × {fa(cost.each)} بخش) · اعتبار شما {fa(acc.balance)}{short_ && <> — اعتبار کافی نیست؛ فقط تا سقف اعتبار ارسال می‌شود. <Link href="/sms?tab=charge" className="font-bold underline">شارژ</Link></>}</p>
               <Button onClick={send}><Send size={14} />{when > 0 ? "زمان‌بندی" : "ارسال"} به {fa(aud.length)} نفر</Button>
             </div>
           </Card>
