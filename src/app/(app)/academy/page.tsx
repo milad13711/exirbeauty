@@ -29,7 +29,7 @@ export default function Academy() {
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface2 p-1" role="tablist">{([["all", "همه‌ی دوره‌ها"], ["mine", "دوره‌های من"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("cursor-pointer rounded-lg px-4 py-1.5 text-[13px] font-bold", tab === k ? "bg-surface text-rosedeep shadow-sm" : "text-ink2")}>{l}</button>)}</div>
-        {aud.map((x) => <button key={x} onClick={() => setA(x)} aria-pressed={a === x} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", a === x ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2")}>{x}</button>)}
+        {aud.map((x) => <button key={x} onClick={() => setA(x)} aria-pressed={a === x} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", a === x ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2")}>{x}</button>)}
       </div>
       {msg && <p role="status" className={clsx("mb-4 rounded-xl p-3 text-sm", msg.ok ? "bg-sagesoft text-sage" : "bg-dangersoft text-danger")}>{msg.t}</p>}
 

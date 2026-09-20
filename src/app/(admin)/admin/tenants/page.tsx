@@ -30,7 +30,7 @@ export default function Tenants() {
         <Stat label="درآمد ماهانه (MRR)" value={short(mrr)} tone="gold" />
       </div>
       <div className="my-5 flex flex-wrap gap-2" role="tablist">
-        {filters.map((x) => <button key={x} role="tab" aria-selected={f === x} onClick={() => setF(x)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", f === x ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2")}>{x}</button>)}
+        {filters.map((x) => <button key={x} role="tab" aria-selected={f === x} onClick={() => setF(x)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", f === x ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2")}>{x}</button>)}
       </div>
       <Card>
         <DataList rows={list} id={(t) => t.id} cols={[

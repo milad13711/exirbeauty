@@ -169,7 +169,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber/40 bg-ambersoft px-5 py-3.5 text-sm">
               <MessageSquareText className="text-amber" size={20} />
               <p className="min-w-0 flex-1 basis-56">{acc.balance <= 0 ? "اعتبار پیامک شما تمام شده است" : `اعتبار پیامک شما فقط ${fa(acc.balance)} است`}؛ یادآوری نوبت و پیام‌های خودکار متوقف می‌شوند.{blocked7.length > 0 && <> <b>{fa(blocked7.length)} پیام</b> در ۷ روز اخیر ارسال نشد.</>}</p>
-              <Link href={`/sms?tab=charge&pkg=${usage(db).recommended.id}`} className="rounded-xl bg-rose px-4 py-2 text-[13px] font-bold text-white hover:bg-rosedeep">شارژ سریع</Link>
+              <Link href={`/sms?tab=charge&pkg=${usage(db).recommended.id}`} className="rounded-xl bg-[image:var(--grad-rose)] px-4 py-2 text-[13px] font-bold text-white press">شارژ سریع</Link>
             </div>
           )}
           {!db.onboarded && (

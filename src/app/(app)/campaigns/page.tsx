@@ -76,7 +76,7 @@ export default function Campaigns() {
             <div className="space-y-3 px-5 pb-5">
               <Field label="نام کمپین"><input value={name} onChange={(e) => setName(e.target.value)} className={fieldCls} /></Field>
               <Field label="متن پیام ({name} با نام مشتری جایگزین می‌شود)"><textarea rows={4} value={msg} onChange={(e) => setMsg(e.target.value)} className={`${fieldCls} leading-7`} /></Field>
-              <div className="flex flex-wrap gap-2">{channels.map((x) => <button key={x} onClick={() => setChannel(x)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", channel === x ? "border-rose bg-rose text-white" : "border-line text-ink2")}>{x}</button>)}</div>
+              <div className="flex flex-wrap gap-2">{channels.map((x) => <button key={x} onClick={() => setChannel(x)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", channel === x ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line text-ink2")}>{x}</button>)}</div>
               <Field label="زمان ارسال"><select value={when} onChange={(e) => setWhen(+e.target.value)} className={fieldCls}><option value={0}>همین حالا</option>{[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{dayInfo(d).weekday} {dayInfo(d).short}</option>)}</select></Field>
               {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
               {ok && <p role="status" className="rounded-xl bg-sagesoft p-2.5 text-sm text-sage">{ok}</p>}

@@ -49,9 +49,9 @@ export function SmsHub({ initialTab, pkg }: { initialTab?: string; pkg?: string 
 
   return (
     <>
-      <PageTitle title="پیامک و اعتبار" sub="اعتبار لحظه‌ای، خط اختصاصی و پیام‌های خودکار سالن" actions={<Link href="/automation" className="inline-flex items-center gap-1.5 rounded-xl bg-rose px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-rosedeep"><Zap size={14} />سناریوهای خودکار</Link>} />
-      <div className="mb-5 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap" role="tablist">
-        {tabs.map((t) => <button key={t.k} role="tab" aria-selected={tab === t.k} onClick={() => { setTab(t.k); setMsg(null); }} className={clsx("cursor-pointer rounded-xl border px-4 py-2 text-[13px] font-semibold", tab === t.k ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t.l}{t.k === "log" && queue.length > 0 && <span className="mr-1 rounded-full bg-sky px-1.5 text-[10px] text-white">{fa(queue.length)}</span>}</button>)}
+      <PageTitle title="پیامک و اعتبار" sub="اعتبار لحظه‌ای، خط اختصاصی و پیام‌های خودکار سالن" actions={<Link href="/automation" className="inline-flex items-center gap-1.5 rounded-xl bg-[image:var(--grad-rose)] px-3.5 py-2 text-[13px] font-semibold text-white press"><Zap size={14} />سناریوهای خودکار</Link>} />
+      <div className="mb-5 flex flex-wrap gap-2" role="tablist">
+        {tabs.map((t) => <button key={t.k} role="tab" aria-selected={tab === t.k} onClick={() => { setTab(t.k); setMsg(null); }} className={clsx("cursor-pointer rounded-xl border px-4 py-2 text-[13px] font-semibold", tab === t.k ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t.l}{t.k === "log" && queue.length > 0 && <span className="mr-1 rounded-full bg-sky px-1.5 text-[10px] text-white">{fa(queue.length)}</span>}</button>)}
       </div>
       {msg && <p role="status" className={clsx("mb-4 rounded-xl p-3 text-sm", msg.ok ? "bg-sagesoft text-sage" : "bg-dangersoft text-danger")}>{msg.t}</p>}
 

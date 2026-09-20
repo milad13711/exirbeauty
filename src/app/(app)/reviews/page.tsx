@@ -37,7 +37,7 @@ export default function Reviews() {
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[1fr_340px]">
         <div className="min-w-0 space-y-5">
           <Card>
-            <CardHead title="بازخوردها" action={<div className="flex gap-1.5" role="tablist">{([["all", "همه"], ["private", "خصوصی"], ["public", "عمومی"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className={clsx("cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold", filter === k ? "border-rose bg-rose text-white" : "border-line text-ink2")}>{l}</button>)}</div>} />
+            <CardHead title="بازخوردها" action={<div className="flex gap-1.5" role="tablist">{([["all", "همه"], ["private", "خصوصی"], ["public", "عمومی"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className={clsx("cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold", filter === k ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line text-ink2")}>{l}</button>)}</div>} />
             <ul className="divide-y divide-line">
               {rows.map((s) => (
                 <li key={s.id} className="space-y-2 px-5 py-4">

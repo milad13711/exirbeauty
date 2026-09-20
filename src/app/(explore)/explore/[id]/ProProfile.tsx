@@ -63,7 +63,7 @@ export function ProProfile({ id }: { id: string }) {
             {p.own ? (
               <>
                 {p.slot ? <p className="flex items-center gap-2 rounded-xl bg-sagesoft p-3 text-sm text-sage"><CalendarClock size={16} />اولین وقت خالی: <b>{p.slot.day === 0 ? "امروز" : dayInfo(p.slot.day).weekday} {clock(p.slot.start)}</b></p> : <p className="rounded-xl bg-ambersoft p-3 text-sm text-amber">وقت خالی در ۷ روز آینده وجود ندارد؛ می‌توانید به لیست انتظار بپیوندید.</p>}
-                <Link href={`/book?staff=${p.staffId}`} className="block rounded-xl bg-rose py-3 text-center text-sm font-bold text-white hover:bg-rosedeep">رزرو نوبت از {p.name.split(" ")[0]}</Link>
+                <Link href={`/book?staff=${p.staffId}`} className="block rounded-xl bg-[image:var(--grad-rose)] py-3 text-center text-sm font-bold text-white press">رزرو نوبت از {p.name.split(" ")[0]}</Link>
               </>
             ) : sent ? <p role="status" className="rounded-xl bg-sagesoft p-4 text-center text-sm text-sage">درخواست شما ثبت شد؛ سالن برای هماهنگی با شما تماس می‌گیرد.</p> : (
               <>

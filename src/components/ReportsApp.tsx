@@ -69,10 +69,10 @@ export function ReportsApp() {
     <>
       <PageTitle title="گزارش‌ها" sub={rangeLabel} actions={<><Button variant="ghost" onClick={exportCsvBtn}><Download size={14} />CSV فاکتورها</Button><Button onClick={exportAll}><FileSpreadsheet size={14} />خروجی Excel کامل</Button></>} />
       <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="بازه‌ی زمانی">
-        {ranges.map((r) => <button key={r.k} aria-pressed={rk === r.k} onClick={() => setRk(r.k)} className={clsx("cursor-pointer rounded-full border px-4 py-1.5 text-[13px] font-semibold", rk === r.k ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2")}>{r.l}</button>)}
+        {ranges.map((r) => <button key={r.k} aria-pressed={rk === r.k} onClick={() => setRk(r.k)} className={clsx("cursor-pointer rounded-full border px-4 py-1.5 text-[13px] font-semibold", rk === r.k ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2")}>{r.l}</button>)}
       </div>
-      <div className="mb-5 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap" role="tablist">
-        {tabs.map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={clsx("cursor-pointer rounded-xl border px-3.5 py-2 text-[13px] font-semibold", tab === t ? "border-plum bg-plum text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t}</button>)}
+      <div className="mb-5 flex flex-wrap gap-2" role="tablist">
+        {tabs.map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={clsx("press min-h-10 cursor-pointer rounded-full border px-4 py-2 text-[13px] font-bold", tab === t ? "border-plum bg-plum text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t}</button>)}
       </div>
 
       {tab === "خلاصه" && (

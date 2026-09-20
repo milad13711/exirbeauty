@@ -57,7 +57,7 @@ export default function Content() {
   return (
     <>
       <PageTitle title="تولید محتوا" sub="کپشن و کارت استوری از داخل سیستم؛ انتشار عکس مشتری فقط با رضایت او" />
-      <div className="mb-4 flex flex-wrap gap-2" role="tablist">{kinds.map((x) => <button key={x.k} role="tab" aria-selected={kind === x.k} onClick={() => { setKind(x.k); reset(); setMsg(null); }} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", kind === x.k ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{x.l}</button>)}</div>
+      <div className="mb-4 flex flex-wrap gap-2" role="tablist">{kinds.map((x) => <button key={x.k} role="tab" aria-selected={kind === x.k} onClick={() => { setKind(x.k); reset(); setMsg(null); }} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", kind === x.k ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{x.l}</button>)}</div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
         <Card>

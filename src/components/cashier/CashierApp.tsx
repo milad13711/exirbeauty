@@ -63,8 +63,8 @@ export function CashierApp({ apptId }: { apptId?: string }) {
   return (
     <>
       <PageTitle title="صندوق و درآمد" sub="فاکتور، هزینه، بدهی و بستن روز؛ همه به مشتری، امتیاز و موجودی وصل است" actions={closed ? <Badge tone="danger" className="!px-3 !py-1"><Lock size={12} />روز بسته شده</Badge> : <Badge tone="sage" className="!px-3 !py-1">روز باز است</Badge>} />
-      <div className="mb-5 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap" role="tablist">
-        {tabs.map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => { setTab(t); setDone(null); }} className={clsx("cursor-pointer rounded-xl border px-3.5 py-2 text-[13px] font-semibold", tab === t ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t}{t === "بدهی‌ها" && debtors.length > 0 && <span className="mr-1 rounded-full bg-amber px-1.5 text-[10px] text-white">{fa(debtors.length)}</span>}</button>)}
+      <div className="mb-5 flex flex-wrap gap-2" role="tablist">
+        {tabs.map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => { setTab(t); setDone(null); }} className={clsx("press min-h-10 cursor-pointer rounded-full border px-4 py-2 text-[13px] font-bold", tab === t ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t}{t === "بدهی‌ها" && debtors.length > 0 && <span className="mr-1 rounded-full bg-amber px-1.5 text-[10px] text-white">{fa(debtors.length)}</span>}</button>)}
       </div>
 
       {tab === "امروز" && (

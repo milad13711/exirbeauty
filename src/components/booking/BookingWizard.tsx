@@ -185,7 +185,7 @@ export function BookingWizard({ mode, initial = {} }: { mode: Mode; initial?: In
                   const d = dayInfo(i);
                   const closed = candidates.every((s) => !staffWorks(db, s.id, i));
                   return (
-                    <button key={i} role="radio" aria-checked={day === i} disabled={closed} onClick={() => { setDay(i); setSlot(null); }} className={clsx("cursor-pointer rounded-xl border px-1 py-2 text-center text-[12px] leading-5 disabled:cursor-not-allowed disabled:opacity-40", day === i ? "border-rose bg-rose text-white" : "border-line hover:bg-surface2")}>
+                    <button key={i} role="radio" aria-checked={day === i} disabled={closed} onClick={() => { setDay(i); setSlot(null); }} className={clsx("cursor-pointer rounded-xl border px-1 py-2 text-center text-[12px] leading-5 disabled:cursor-not-allowed disabled:opacity-40", day === i ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line hover:bg-surface2")}>
                       <b className="block">{i === 0 ? "امروز" : d.weekday}</b>{d.short}{closed && <span className="block text-[10px]">{db.salon.hours[d.idx].open ? "پر/مرخصی" : "تعطیل"}</span>}
                     </button>
                   );

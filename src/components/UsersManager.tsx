@@ -58,7 +58,7 @@ export function SalonUsers() {
       <Card>
         <CardHead title="نقش‌ها و دسترسی‌ها" hint="برای هر نقش مشخص کنید هر بخش را ببیند یا ویرایش کند" />
         <div className="flex flex-wrap gap-2 px-5 pb-3" role="tablist">
-          {db.roles.map((r) => <button key={r.id} role="tab" aria-selected={role.id === r.id} onClick={() => setRoleId(r.id)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", role.id === r.id ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2")}>{r.name}<span className="mr-1 text-[11px] opacity-70">({db.users.filter((u) => u.roleId === r.id).length})</span></button>)}
+          {db.roles.map((r) => <button key={r.id} role="tab" aria-selected={role.id === r.id} onClick={() => setRoleId(r.id)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", role.id === r.id ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2")}>{r.name}<span className="mr-1 text-[11px] opacity-70">({db.users.filter((u) => u.roleId === r.id).length})</span></button>)}
         </div>
         {role.id === "r1" && <p className="mx-5 mb-3 rounded-xl bg-surface2 p-2.5 text-xs text-ink2">نقش «مدیر» همیشه به همه‌ی بخش‌ها دسترسی کامل دارد و قابل تغییر نیست.</p>}
         <ul className="divide-y divide-line border-t border-line">

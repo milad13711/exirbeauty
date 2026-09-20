@@ -41,7 +41,7 @@ export default function Explore() {
           <select aria-label="مرتب‌سازی" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="cursor-pointer rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-semibold">{sorts.map((s) => <option key={s.k} value={s.k}>{s.l}</option>)}</select>
         </div>
         <div className="flex flex-wrap items-center gap-2" role="tablist">
-          {cats.map((c) => <button key={c} role="tab" aria-selected={cat === c} onClick={() => setCat(c)} className={clsx("cursor-pointer rounded-full border px-4 py-1.5 text-[13px] font-semibold", cat === c ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{c}</button>)}
+          {cats.map((c) => <button key={c} role="tab" aria-selected={cat === c} onClick={() => setCat(c)} className={clsx("cursor-pointer rounded-full border px-4 py-1.5 text-[13px] font-semibold", cat === c ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{c}</button>)}
           <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={onlySlot} onChange={(e) => setOnlySlot(e.target.checked)} className="size-4 accent-[#b4536f]" />فقط دارای وقت خالی</label>
         </div>
       </div>

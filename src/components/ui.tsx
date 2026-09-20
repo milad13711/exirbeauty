@@ -75,12 +75,12 @@ export function Avatar({ name, size = 36, color = "#b5476b" }: { name: string; s
 
 export function Stat({ label, value, sub, tone = "neutral", icon }: { label: string; value: string; sub?: string; tone?: Tone; icon?: ReactNode }) {
   return (
-    <Card className="p-4">
+    <Card className="p-3.5 sm:p-4">
       <div className="flex items-center gap-2">
         {icon && <span className={clsx("grid size-8 shrink-0 place-items-center rounded-xl", tones[tone])}>{icon}</span>}
         <p className="min-w-0 truncate text-xs font-semibold text-ink2">{label}</p>
       </div>
-      <p className="font-num mt-2.5 text-[22px] font-extrabold leading-tight tracking-tight text-ink">{value}</p>
+      <p className="font-num mt-2 text-xl sm:text-[22px] font-extrabold leading-tight tracking-tight text-ink">{value}</p>
       {sub && <p className="mt-1 text-[11.5px] leading-5 text-ink3">{sub}</p>}
     </Card>
   );

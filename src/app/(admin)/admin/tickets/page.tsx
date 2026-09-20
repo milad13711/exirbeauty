@@ -28,7 +28,7 @@ export default function AdminTickets() {
         <Stat label="فوری باز" value={fa(db.tickets.filter((t) => t.priority === "فوری" && t.status !== "بسته").length)} tone="danger" />
         <Stat label="بسته‌شده" value={fa(db.tickets.filter((t) => t.status === "بسته").length)} tone="sage" />
       </div>
-      <div className="my-5 flex flex-wrap gap-2" role="tablist">{filters.map((x) => <button key={x} role="tab" aria-selected={f === x} onClick={() => setF(x)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", f === x ? "border-rose bg-rose text-white" : "border-line bg-surface text-ink2")}>{x}</button>)}</div>
+      <div className="my-5 flex flex-wrap gap-2" role="tablist">{filters.map((x) => <button key={x} role="tab" aria-selected={f === x} onClick={() => setF(x)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold", f === x ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2")}>{x}</button>)}</div>
       <div className="grid items-start gap-5 lg:grid-cols-[340px_1fr]">
         <Card>
           <ul className="divide-y divide-line">
