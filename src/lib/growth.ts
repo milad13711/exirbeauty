@@ -62,6 +62,9 @@ const patch = (fn: (d: DB) => Partial<DB>) => { const d = getDB(); commit({ ...d
 export const growth = {
   saveLoyalty(l: Loyalty) { patch(() => ({ loyalty: l })); },
   adjustPoints(customerId: string, delta: number, note: string) { patch((d) => ({ customers: d.customers.map((c) => (c.id === customerId ? withPoints(d, c, delta, note || "تنظیم دستی") : c)) })); },
+  /** شارژ/کسر دستی اعتبار کیف پول مشتری (با ثبت در سوابق) */
+  adjustWallet(customerId: string, delta: number, note: string) { patch((d) => ({ customers: d.customers.map((c) => (c.id === customerId ? { ...c, wallet: Math.max(0, c.wallet + delta), walletLog: [{ d: dayInfo(0).short, delta, note: note || (delta > 0 ? "شارژ دستی" : "کسر دستی") }, ...c.walletLog].slice(0, 60) } : c)) })); },
+  saveRecRules(recRules: import("./db").RecRule[]) { patch(() => ({ recRules })); },
   saveReferral(r: ReferralCfg) { patch(() => ({ referral: r })); },
 
   deleteCampaign(id: string) { patch((d) => ({ campaigns: d.campaigns.filter((c) => c.id !== id) })); },

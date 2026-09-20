@@ -3,7 +3,7 @@ import type { Category } from "./mock";
 
 export type PayMethod = "نقدی" | "کارت" | "آنلاین" | "کیف پول" | "کارت هدیه";
 export type SaleLine = { kind: "service" | "product" | "membership"; refId: string; name: string; qty: number; price: number; staffId?: string; commissionPct?: number };
-export type Sale = { id: string; day: number; time: string; customerId: string | null; customerName: string; lines: SaleLine[]; subtotal: number; discountPct: number; discount: number; total: number; pays: { method: PayMethod; amount: number; ref?: string }[]; debt: number; status: "پرداخت‌شده" | "بدهکار" | "باطل"; earned: number; walletUsed: number; apptId?: string; note?: string; voidReason?: string };
+export type Sale = { id: string; day: number; time: string; customerId: string | null; customerName: string; lines: SaleLine[]; subtotal: number; discountPct: number; discount: number; total: number; pays: { method: PayMethod; amount: number; ref?: string }[]; debt: number; status: "پرداخت‌شده" | "بدهکار" | "باطل"; earned: number; walletUsed: number; cashback?: number; apptId?: string; note?: string; voidReason?: string };
 export type Expense = { id: string; day: number; title: string; amount: number; method: "نقدی" | "کارت"; cat: string };
 export type DebtPayment = { id: string; day: number; customerId: string; amount: number; method: "نقدی" | "کارت" | "آنلاین" };
 export type DayClosing = { day: number; expectedCash: number; countedCash: number; note: string };
@@ -14,7 +14,8 @@ export type WaitEntry = { id: string; name: string; phone: string; serviceId: st
 export type LoyaltyTier = { name: "برنزی" | "نقره‌ای" | "طلایی" | "VIP"; from: number; off: number; perks: string };
 export type EarnRule = { id: string; label: string; pts: number; per?: number };
 export type Reward = { id: string; name: string; cost: number; kind: "wallet" | "free" | "product"; value: number };
-export type Loyalty = { tiers: LoyaltyTier[]; earn: EarnRule[]; rewards: Reward[] };
+export type Cashback = { on: boolean; pct: number; minSpend: number; maxPerSale: number };
+export type Loyalty = { tiers: LoyaltyTier[]; earn: EarnRule[]; rewards: Reward[]; cashback?: Cashback };
 export type ReferralCfg = { enabled: boolean; referrerPts: number; friendOff: number; staffPct: number };
 export type Segment = { inactiveDays?: number; tiers?: string[]; birthdayMonth?: boolean; minSpend?: number; favService?: string };
 export type Campaign = { id: string; name: string; day: number; channel: string; message: string; segment: Segment; count: number; ids: string[]; status: "ارسال‌شده" | "زمان‌بندی‌شده"; whenDay?: number };
@@ -73,6 +74,7 @@ export function seedExtra(b: Base) {
     tiers: [{ name: "برنزی", from: 0, off: 0, perks: "امتیاز پایه" }, { name: "نقره‌ای", from: 500, off: 5, perks: "۵٪ تخفیف خدمات" }, { name: "طلایی", from: 1200, off: 8, perks: "۸٪ تخفیف + اولویت رزرو" }, { name: "VIP", from: 2000, off: 10, perks: "۱۰٪ تخفیف + هدیه تولد + اولویت" }],
     earn: [{ id: "visit", label: "هر مراجعه", pts: 50 }, { id: "svc", label: "خرید خدمت (به‌ازای هر ۱۰۰ هزار تومان)", pts: 10, per: 100_000 }, { id: "prod", label: "خرید محصول (به‌ازای هر ۱۰۰ هزار تومان)", pts: 15, per: 100_000 }, { id: "ref", label: "معرفی دوست (پس از اولین خرید)", pts: 100 }, { id: "review", label: "ثبت نظر", pts: 20 }, { id: "bday", label: "تولد", pts: 100 }],
     rewards: [{ id: "w1", name: "اعتبار ۵۰ هزار تومانی", cost: 500, kind: "wallet", value: 50_000 }, { id: "w2", name: "اعتبار ۲۰۰ هزار تومانی", cost: 1800, kind: "wallet", value: 200_000 }, { id: "w3", name: "ژل ناخن رایگان", cost: 1200, kind: "free", value: 850_000 }],
+    cashback: { on: true, pct: 3, minSpend: 500_000, maxPerSale: 300_000 }
   };
   const A = (id: string, kind: AutoKind, days: number, message: string, on: boolean, sent: number, back: number, o: Partial<AutoRule> = {}): AutoRule => ({ id, kind, days, message, gift: "", on, sent, back, window: [9, 21], dailyCap: 60, perCustomer30: 2, approval: false, ...o });
   const automations: AutoRule[] = [

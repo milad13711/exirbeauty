@@ -23,8 +23,11 @@ export const sales = {
     const walletUsed = i.pays.filter((p) => p.method === "کیف پول").reduce((a, p) => a + p.amount, 0);
     const cust = i.customerId ? d.customers.find((c) => c.id === i.customerId) : undefined;
     const earned = cust && moduleActive(d, "loyalty") ? earnFor(d.loyalty, i.lines, i.discountPct) : 0;
+    const cbc = d.loyalty.cashback;
+    const cbBase = i.pays.filter((p) => p.method !== "کیف پول" && p.method !== "کارت هدیه").reduce((a, p) => a + p.amount, 0);
+    const cashback = cust && cbc?.on && moduleActive(d, "loyalty") && total >= cbc.minSpend ? Math.min(cbc.maxPerSale, Math.round((Math.min(cbBase, total) * cbc.pct) / 100 / 1000) * 1000) : 0;
     const id = `F-${d.saleSeq}`;
-    const sale: Sale = { id, day: 0, time: "۱۴:۲۰", customerId: i.customerId, customerName: i.customerName, lines: i.lines, subtotal, discountPct: i.discountPct, discount, total, pays: i.pays.filter((p) => p.amount > 0), debt, status: debt > 0 ? "بدهکار" : "پرداخت‌شده", earned, walletUsed, apptId: i.apptId, note: i.note };
+    const sale: Sale = { id, day: 0, time: "۱۴:۲۰", customerId: i.customerId, customerName: i.customerName, lines: i.lines, subtotal, discountPct: i.discountPct, discount, total, pays: i.pays.filter((p) => p.amount > 0), debt, status: debt > 0 ? "بدهکار" : "پرداخت‌شده", earned, walletUsed, cashback, apptId: i.apptId, note: i.note };
 
     const svcLines = i.lines.filter((l) => l.kind === "service");
     let customers = d.customers;
@@ -32,7 +35,7 @@ export const sales = {
       const first = cust.visits === 0 && svcLines.length > 0;
       customers = customers.map((c) => {
         if (c.id !== cust.id) return c;
-        const n: Customer = { ...c, total: c.total + total, visits: c.visits + (svcLines.length ? 1 : 0), lastVisit: TODAY_SHORT, lastVisitDays: 0, risk: "ok", debt: c.debt + debt, wallet: c.wallet - walletUsed, walletLog: walletUsed ? [{ d: TODAY_SHORT, delta: -walletUsed, note: `پرداخت فاکتور ${id}` }, ...c.walletLog] : c.walletLog, products: [...new Set([...c.products, ...i.lines.filter((l) => l.kind === "product").map((l) => l.name)])] };
+        const n: Customer = { ...c, total: c.total + total, visits: c.visits + (svcLines.length ? 1 : 0), lastVisit: TODAY_SHORT, lastVisitDays: 0, risk: "ok", debt: c.debt + debt, wallet: c.wallet - walletUsed + cashback, walletLog: [...(cashback ? [{ d: TODAY_SHORT, delta: cashback, note: `کش‌بک فاکتور ${id}` }] : []), ...(walletUsed ? [{ d: TODAY_SHORT, delta: -walletUsed, note: `پرداخت فاکتور ${id}` }] : []), ...c.walletLog], products: [...new Set([...c.products, ...i.lines.filter((l) => l.kind === "product").map((l) => l.name)])] };
         n.avg = n.visits ? Math.round(n.total / n.visits) : 0;
         n.log = [...svcLines.map((l) => ({ id: uid("l"), d: TODAY_SHORT, s: l.name, by: d.staff.find((x) => x.id === l.staffId)?.name ?? "—", cat: d.services.find((x) => x.id === l.refId)?.cat ?? "مو", price: Math.round(l.price * l.qty * (1 - i.discountPct / 100)), photos: false })), ...n.log];
         return earned ? withPoints(d, n, earned, `فاکتور ${id}`) : n;
@@ -62,7 +65,7 @@ export const sales = {
       sales: d.sales.map((x) => (x.id === id ? { ...x, status: "باطل", voidReason: reason } : x)),
       customers: d.customers.map((c) => {
         if (c.id !== s.customerId) return c;
-        const n: Customer = { ...c, total: Math.max(0, c.total - s.total), visits: Math.max(0, c.visits - (svcLines.length ? 1 : 0)), debt: Math.max(0, c.debt - s.debt), wallet: c.wallet + s.walletUsed, walletLog: s.walletUsed ? [{ d: TODAY_SHORT, delta: s.walletUsed, note: `ابطال فاکتور ${id}` }, ...c.walletLog] : c.walletLog };
+        const n: Customer = { ...c, total: Math.max(0, c.total - s.total), visits: Math.max(0, c.visits - (svcLines.length ? 1 : 0)), debt: Math.max(0, c.debt - s.debt), wallet: Math.max(0, c.wallet + s.walletUsed - (s.cashback ?? 0)), walletLog: [...(s.cashback ? [{ d: TODAY_SHORT, delta: -s.cashback, note: `برگشت کش‌بک فاکتور ${id}` }] : []), ...(s.walletUsed ? [{ d: TODAY_SHORT, delta: s.walletUsed, note: `ابطال فاکتور ${id}` }] : []), ...c.walletLog] };
         n.avg = n.visits ? Math.round(n.total / n.visits) : 0;
         return s.earned ? withPoints(d, n, -s.earned, `ابطال فاکتور ${id}`) : n;
       }),
