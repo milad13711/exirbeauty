@@ -4,12 +4,13 @@ import clsx from "clsx";
 import { Check } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, Toggle, fieldCls } from "@/components/ui";
 import { HoursEditor } from "@/components/HoursEditor";
+import { BrandSettings } from "@/components/BrandSettings";
 import { SalonUsers } from "@/components/UsersManager";
 import { actions, useDB, type DayHours, type SalonSettings } from "@/lib/db";
 import { durationDiscount, plans } from "@/lib/mock4";
 import { fa, short, toman } from "@/lib/fa";
 
-const tabs = ["مشخصات سالن", "ساعت کاری", "رزرو آنلاین", "اعلان‌ها", "کاربران و نقش‌ها", "اشتراک"] as const;
+const tabs = ["مشخصات سالن", "برند و ظاهر", "ساعت کاری", "رزرو آنلاین", "اعلان‌ها", "کاربران و نقش‌ها", "اشتراک"] as const;
 type Tab = (typeof tabs)[number];
 
 function Saved({ on }: { on: boolean }) { return on ? <span className="inline-flex items-center gap-1 text-xs font-bold text-sage"><Check size={14} />ذخیره شد</span> : null; }
@@ -57,6 +58,8 @@ export default function SettingsPage() {
           </form>
         </Card>
       )}
+
+      {tab === "برند و ظاهر" && <BrandSettings />}
 
       {tab === "ساعت کاری" && (
         <Card className="max-w-3xl">

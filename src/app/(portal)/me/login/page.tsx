@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Flower2 } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { Button, Card, Field, fieldCls } from "@/components/ui";
 import { useDB } from "@/lib/db";
 import { portal } from "@/lib/portal";
@@ -33,7 +33,7 @@ export default function MeLogin() {
 
   return (
     <>
-      <div className="mb-6 text-center"><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-rose text-white"><Flower2 size={26} /></span><h1 className="mt-3 text-xl font-extrabold">{db.salon.name}</h1><p className="text-sm text-ink2">پنل مشتری؛ نوبت‌ها، امتیازها و کیف پول شما</p></div>
+      <div className="mb-6 text-center"><BrandMark size={64} className="mx-auto" /><h1 className="mt-3 text-xl font-extrabold">{db.salon.name}</h1><p className="text-sm text-ink2">پنل مشتری؛ نوبت‌ها، امتیازها و کیف پول شما</p></div>
       <Card className="p-6">
         <form onSubmit={(e) => { e.preventDefault(); next(); }} className="space-y-4">
           <Field label="شماره موبایل"><input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={step !== "phone"} inputMode="tel" dir="ltr" placeholder="09123456789" style={{ textAlign: "right" }} className={fieldCls} autoComplete="tel" /></Field>

@@ -3,10 +3,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { Bell, Blocks, CalendarDays, LayoutDashboard, LayoutGrid, LifeBuoy, LogIn, LogOut, Search, Settings, Users, X, Flower2, Wallet } from "lucide-react";
+import { Bell, Blocks, CalendarDays, LayoutDashboard, LayoutGrid, LifeBuoy, LogIn, LogOut, Search, Settings, Users, X, Wallet } from "lucide-react";
 import { navGroups } from "./nav";
 import { moduleActive, moduleAvailable, moduleForPath, MODULES } from "@/lib/modules";
 import { Avatar } from "./ui";
+import { BrandMark } from "./BrandMark";
 import { TODAY } from "@/lib/mock";
 import { actions, useDB } from "@/lib/db";
 import { ops } from "@/lib/ops";
@@ -35,7 +36,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const nav = (
     <nav className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="grid size-10 place-items-center rounded-2xl bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-8px_rgba(156,53,88,.6)]"><Flower2 size={20} /></span>
+        <BrandMark size={40} />
         <div className="leading-tight">
           <p className="text-[15px] font-extrabold text-ink">اکسیر بیوتی</p>
           <p className="text-[11px] text-ink3">{db.salon.name} · {db.salon.city}</p>
@@ -113,7 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <header className="glass sticky top-0 z-30 flex items-center gap-2.5 border-b border-line/70 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)] lg:px-8">
           <Link href="/" className="flex min-w-0 items-center gap-2 lg:hidden">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[image:var(--grad-rose)] text-white"><Flower2 size={18} /></span>
+            <BrandMark size={36} />
             <span className="min-w-0 leading-tight"><span className="block truncate text-[14px] font-extrabold">{db.salon.name}</span><span className="block text-[10.5px] text-ink3">اکسیر بیوتی</span></span>
           </Link>
           <label className="relative hidden max-w-md flex-1 lg:block">

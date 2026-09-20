@@ -43,7 +43,7 @@ export type OrderLine = { productId: string; name: string; qty: number; price: n
 export type Order = { id: string; date: string; customer: string; phone: string; address?: string; lines: OrderLine[]; total: number; salon: string | null; via: string; status: OrderStatus; comm: number; cs: CommStatus; tracking?: string; reason?: string; log: string[] };
 // ---------- تنظیمات، کاربران، اشتراک ----------
 export type DayHours = { open: boolean; start: number; end: number }; // دقیقه از ۹:۰۰
-export type SalonSettings = { name: string; phone: string; address: string; city: string; hours: DayHours[]; online: { enabled: boolean; autoConfirm: boolean; leadHours: number; cancelHours: number }; notify: { remind24: boolean; remind2: boolean; birthday: boolean; review: boolean } };
+export type SalonSettings = { brand?: import("./theme").Brand; name: string; phone: string; address: string; city: string; hours: DayHours[]; online: { enabled: boolean; autoConfirm: boolean; leadHours: number; cancelHours: number }; notify: { remind24: boolean; remind2: boolean; birthday: boolean; review: boolean } };
 export type Perm = "none" | "view" | "edit";
 export const permModules = ["مشتریان", "تقویم", "خدمات", "پرسنل", "صندوق", "انبار و فروشگاه", "بازاریابی", "تنظیمات"] as const;
 export type SalonRole = { id: string; name: string; perms: Record<string, Perm> };

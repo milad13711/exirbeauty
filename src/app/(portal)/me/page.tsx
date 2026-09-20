@@ -11,6 +11,7 @@ import { salons } from "@/lib/mock3";
 import { fa, num, short, toman } from "@/lib/fa";
 import { nextGoal } from "@/lib/sales";
 import { moduleActive } from "@/lib/modules";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { SurveyCard } from "@/components/portal/SurveyCard";
 
 const catMap: Record<string, string> = { "مو": "مو", "پوست": "پوست", "ناخن": "ناخن", "آرایش": "ست هدیه" };
@@ -75,6 +76,10 @@ export default function MeHome() {
           </ul>
         </Card>
       )}
+      <Card className="mt-4">
+        <CardHead title="نصب اپ روی گوشی" hint={`${db.salon.name} همیشه یک لمس با شماست`} />
+        <div className="px-5 pb-5"><InstallPrompt /></div>
+      </Card>
     </>
   );
 }
