@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { initials } from "@/lib/fa";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
   return (
@@ -61,17 +60,7 @@ export function LinkButton({ href, variant = "primary", className, children }: {
   return <Link href={href} className={clsx(btn.base, btn[variant], className)}>{children}</Link>;
 }
 
-export function Avatar({ name, size = 36, color = "#b5476b" }: { name: string; size?: number; color?: string }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-extrabold text-white shadow-[inset_0_-6px_12px_rgba(0,0,0,.12)]"
-      style={{ width: size, height: size, background: `linear-gradient(145deg, ${color}, ${color}cc)`, fontSize: size * 0.4 }}
-      aria-hidden
-    >
-      {initials(name)}
-    </span>
-  );
-}
+export { Avatar } from "./Avatar";
 
 export function Stat({ label, value, sub, tone = "neutral", icon }: { label: string; value: string; sub?: string; tone?: Tone; icon?: ReactNode }) {
   return (

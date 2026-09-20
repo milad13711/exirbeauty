@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import clsx from "clsx";
 import { CalendarClock, Home, LogOut, Wallet } from "lucide-react";
-import { BrandMark } from "@/components/BrandMark";
+import { Avatar } from "@/components/Avatar";
 import { actions, useDB, type StaffMember } from "@/lib/db";
 
 const nav = [{ href: "/my", label: "خانه", icon: Home }, { href: "/my/appointments", label: "نوبت‌ها", icon: CalendarClock }, { href: "/my/wallet", label: "کیف پول", icon: Wallet }];
@@ -28,7 +28,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto min-h-dvh max-w-md pb-[calc(6rem+var(--safe-b))]">
       <header className="glass sticky top-0 z-20 flex items-center gap-2.5 border-b border-line/70 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)]">
-        <BrandMark size={38} />
+        <Link href="/my/profile" aria-label="پروفایل من" className="press shrink-0"><Avatar name={me.name} color={me.color} size={40} src={me.photo ?? ""} /></Link>
         <div className="min-w-0 flex-1 leading-tight"><p className="truncate text-sm font-extrabold">{db.salon.name}</p><p className="truncate text-[11px] text-ink3">{me.name} · {me.role}</p></div>
         <button aria-label="خروج" onClick={() => { actions.logout(); router.push("/my/login"); }} className="grid size-10 cursor-pointer place-items-center rounded-full text-ink3 hover:bg-surface2"><LogOut size={17} /></button>
       </header>

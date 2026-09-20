@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import clsx from "clsx";
 import { CalendarClock, Crown, Home, LogOut, Share2, Wallet } from "lucide-react";
+import { Avatar } from "@/components/Avatar";
 import { BrandMark } from "@/components/BrandMark";
 import { useDB, type Customer } from "@/lib/db";
 import { portal } from "@/lib/portal";
@@ -42,6 +43,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
       <header className="glass sticky top-0 z-20 flex items-center gap-2.5 border-b border-line/70 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)]">
         <BrandMark size={38} />
         <div className="min-w-0 flex-1 leading-tight"><p className="truncate text-sm font-extrabold">{db.salon.name}</p><p className="truncate text-[11px] text-ink3">{me.name}</p></div>
+        <Link href="/me/profile" aria-label="پروفایل من" className="press shrink-0"><Avatar name={me.name} size={36} src={me.photo ?? ""} /></Link>
         <button aria-label="خروج" onClick={() => { portal.logout(); router.push("/me/login"); }} className="cursor-pointer rounded-lg p-2 text-ink3 hover:bg-surface2"><LogOut size={17} /></button>
       </header>
       <main className="space-y-4 px-4 py-5">{children}</main>

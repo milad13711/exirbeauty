@@ -4,23 +4,23 @@ import clsx from "clsx";
 import { Check } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, Toggle, fieldCls } from "@/components/ui";
 import { HoursEditor } from "@/components/HoursEditor";
+import { MyProfile, SalonProfile } from "@/components/SalonProfile";
 import { BrandSettings } from "@/components/BrandSettings";
 import { SalonUsers } from "@/components/UsersManager";
 import { actions, useDB, type DayHours, type SalonSettings } from "@/lib/db";
 import { durationDiscount, plans } from "@/lib/mock4";
 import { fa, short, toman } from "@/lib/fa";
 
-const tabs = ["مشخصات سالن", "برند و ظاهر", "ساعت کاری", "رزرو آنلاین", "اعلان‌ها", "کاربران و نقش‌ها", "اشتراک"] as const;
+const tabs = ["پروفایل سالن", "پروفایل من", "برند و ظاهر", "ساعت کاری", "رزرو آنلاین", "اعلان‌ها", "کاربران و نقش‌ها", "اشتراک"] as const;
 type Tab = (typeof tabs)[number];
 
 function Saved({ on }: { on: boolean }) { return on ? <span className="inline-flex items-center gap-1 text-xs font-bold text-sage"><Check size={14} />ذخیره شد</span> : null; }
 
 export default function SettingsPage() {
   const db = useDB();
-  const [tab, setTab] = useState<Tab>("مشخصات سالن");
+  const [tab, setTab] = useState<Tab>(() => { const t = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null; return (tabs as readonly string[]).includes(t ?? "") ? (t as Tab) : "پروفایل سالن"; });
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
-  const [info, setInfo] = useState({ name: db.salon.name, phone: db.salon.phone, city: db.salon.city, address: db.salon.address });
   const [hours, setHours] = useState<DayHours[]>(db.salon.hours);
   const [online, setOnline] = useState<SalonSettings["online"]>(db.salon.online);
   const [notify, setNotify] = useState<SalonSettings["notify"]>(db.salon.notify);
@@ -45,19 +45,8 @@ export default function SettingsPage() {
         {tabs.map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => go(t)} className={clsx("press min-h-10 cursor-pointer rounded-full border px-4 py-2 text-[13px] font-bold", tab === t ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{t}</button>)}
       </div>
 
-      {tab === "مشخصات سالن" && (
-        <Card className="max-w-3xl">
-          <CardHead title="مشخصات سالن" hint="در فرم رزرو آنلاین و پیامک‌ها نمایش داده می‌شود" />
-          <form onSubmit={(e) => { e.preventDefault(); if (info.name.trim().length < 2) return setErr("نام سالن را وارد کنید."); actions.saveSalon(info); flash(); }} className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
-            <Field label="نام سالن"><input value={info.name} onChange={(e) => setInfo({ ...info, name: e.target.value })} className={fieldCls} /></Field>
-            <Field label="تلفن"><input value={info.phone} onChange={(e) => setInfo({ ...info, phone: e.target.value })} inputMode="tel" className={fieldCls} /></Field>
-            <Field label="شهر"><input value={info.city} onChange={(e) => setInfo({ ...info, city: e.target.value })} className={fieldCls} /></Field>
-            <Field label="آدرس"><input value={info.address} onChange={(e) => setInfo({ ...info, address: e.target.value })} className={fieldCls} /></Field>
-            {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger sm:col-span-2">{err}</p>}
-            <div className="flex items-center gap-3 sm:col-span-2"><Button type="submit">ذخیره</Button><Saved on={saved} /></div>
-          </form>
-        </Card>
-      )}
+      {tab === "پروفایل سالن" && <SalonProfile />}
+      {tab === "پروفایل من" && <MyProfile />}
 
       {tab === "برند و ظاهر" && <BrandSettings />}
 

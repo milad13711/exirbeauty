@@ -116,3 +116,28 @@ export function readLogo(file: File): Promise<string> {
     fr.readAsDataURL(file);
   });
 }
+
+/** برش مرکزی و کوچک‌سازی عکس پروفایل/کاور (JPEG) برای ذخیره‌ی سبک */
+export function readPhoto(file: File, w = 320, h = 320, quality = 0.85): Promise<string> {
+  return new Promise((res, rej) => {
+    if (!file.type.startsWith("image/")) return rej(new Error("فایل باید تصویر باشد."));
+    if (file.size > 12 * 1024 * 1024) return rej(new Error("حجم تصویر بیش از ۱۲ مگابایت است."));
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error("خواندن فایل ممکن نشد."));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error("تصویر معتبر نیست."));
+      img.onload = () => {
+        const r = Math.max(w / img.width, h / img.height);
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const g = c.getContext("2d")!;
+        g.fillStyle = "#fff"; g.fillRect(0, 0, w, h);
+        g.drawImage(img, (w - img.width * r) / 2, (h - img.height * r) / 2, img.width * r, img.height * r);
+        res(c.toDataURL("image/jpeg", quality));
+      };
+      img.src = String(fr.result);
+    };
+    fr.readAsDataURL(file);
+  });
+}

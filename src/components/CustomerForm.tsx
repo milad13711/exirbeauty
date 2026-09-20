@@ -1,4 +1,5 @@
 "use client";
+import { PhotoPicker } from "./PhotoPicker";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
@@ -36,6 +37,7 @@ export function CustomerForm({ id }: { id?: string }) {
     <Card className="mx-auto max-w-3xl">
       <CardHead title={existing ? "ویرایش مشخصات مشتری" : "مشتری جدید"} />
       <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
+        <div className="sm:col-span-2"><PhotoPicker name={c.name} value={c.photo} onChange={(photo) => set("photo", photo)} /></div>
         <Field label="نام و نام خانوادگی"><input value={c.name} onChange={(e) => set("name", e.target.value)} className={fieldCls} autoComplete="off" /></Field>
         <Field label="شماره موبایل"><input value={c.phone} onChange={(e) => set("phone", e.target.value)} inputMode="tel" dir="ltr" style={{ textAlign: "right" }} className={fieldCls} /></Field>
         <Field label="جنسیت"><select value={c.gender} onChange={(e) => set("gender", e.target.value)} className={fieldCls}><option>زن</option><option>مرد</option></select></Field>

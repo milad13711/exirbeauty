@@ -25,10 +25,11 @@ export type DBAppt = Appt & { day: number };
 export type Service = { id: string; cat: Category; name: string; price: number; min: number; staff: string[]; materials: string; materialCost: number; commission: number; capacity: string; discount?: string; pkg?: string; active: boolean };
 // ---------- پرسنل ----------
 export type Leave = { id: string; from: number; to: number; reason: string }; // بازه بر حسب فاصله‌ی روز از امروز
-export type StaffMember = { id: string; name: string; role: string; color: string; phone: string; rating: number; revenue: number; clients: number; returning: number; commission: number; commissionPct: number; avgInvoice: number; fill: number; products: number; start: number; end: number; daysOff: number[]; breaks: { s: number; e: number; label: string }[]; leaves: Leave[]; active: boolean; listed?: boolean; bio?: string };
+export type StaffMember = { photo?: string; id: string; name: string; role: string; color: string; phone: string; rating: number; revenue: number; clients: number; returning: number; commission: number; commissionPct: number; avgInvoice: number; fill: number; products: number; start: number; end: number; daysOff: number[]; breaks: { s: number; e: number; label: string }[]; leaves: Leave[]; active: boolean; listed?: boolean; bio?: string };
 // ---------- مشتریان ----------
 export type LogEntry = { id: string; d: string; s: string; by: string; cat: Category; price: number; photos: boolean; before?: string; after?: string };
 export type Customer = {
+  photo?: string;
   id: string; name: string; phone: string; gender: string; birth: string; age?: number; tier: Tier; points: number; nextRewardIn: number;
   visits: number; total: number; avg: number; lastVisit: string; lastVisitDays: number; cycleDays: number; nextDue: string;
   favService: string; favStaff: string; occasions: string[]; allergies: string[]; note: string; tags: string[]; referrals: number; wallet: number;
@@ -46,11 +47,12 @@ export type DayHours = { open: boolean; start: number; end: number }; // دقی�
 export type Settlement = { id: string; staffId: string; amount: number; note: string; day: number; status: "در انتظار" | "پرداخت شد" | "رد شد" | "لغو شد"; method?: "نقدی" | "کارت"; ref?: string; paidDay?: number; reason?: string };
 export type NetLead = { id: string; cat: string; note: string; day: number; status: "ثبت شد" | "در حال بررسی" | "پاسخ داده شد" };
 export type RecRule = { id: string; serviceIds: string[]; why: string; productIds: string[]; on: boolean };
-export type SalonSettings = { brand?: import("./theme").Brand; name: string; phone: string; address: string; city: string; hours: DayHours[]; online: { enabled: boolean; autoConfirm: boolean; leadHours: number; cancelHours: number }; notify: { remind24: boolean; remind2: boolean; birthday: boolean; review: boolean } };
+export type SalonProfile = { about: string; instagram: string; website: string; telegram: string; mapUrl: string; tags: string[]; cover?: string };
+export type SalonSettings = { profile?: SalonProfile; brand?: import("./theme").Brand; name: string; phone: string; address: string; city: string; hours: DayHours[]; online: { enabled: boolean; autoConfirm: boolean; leadHours: number; cancelHours: number }; notify: { remind24: boolean; remind2: boolean; birthday: boolean; review: boolean } };
 export type Perm = "none" | "view" | "edit";
 export const permModules = ["مشتریان", "تقویم", "خدمات", "پرسنل", "صندوق", "انبار و فروشگاه", "بازاریابی", "تنظیمات"] as const;
 export type SalonRole = { id: string; name: string; perms: Record<string, Perm> };
-export type SalonUser = { id: string; name: string; phone: string; roleId: string; active: boolean };
+export type SalonUser = { photo?: string; id: string; name: string; phone: string; roleId: string; active: boolean };
 export type AdminUser = { id: string; name: string; email: string; role: string; active: boolean };
 export const adminRoles = [{ id: "super", name: "سوپرادمین", desc: "دسترسی کامل" }, { id: "support", name: "پشتیبانی", desc: "تننت‌ها و سفارش‌ها" }, { id: "finance", name: "مالی", desc: "پورسانت‌ها، کیف پول و فاکتور خرید" }, { id: "content", name: "محتوا", desc: "محصولات و دوره‌ها" }] as const;
 export type Subscription = { planId: string; status: "فعال" | "آزمایشی" | "منقضی‌شده"; expiry: string; months: number };
@@ -281,6 +283,13 @@ export const actions = {
     commit({ ...d, customers: d.customers.map((c) => (c.id === customerId ? { ...c, log: [e, ...c.log], visits: c.visits + 1, total: c.total + e.price, avg: Math.round((c.total + e.price) / (c.visits + 1)), lastVisit: e.d, lastVisitDays: 0, points: c.points + 50 } : c)) });
   },
   // ---------- تنظیمات و کاربران ----------
+  /** عکس پروفایل مشتری، متخصص یا کاربر سالن (undefined = حذف) */
+  setPhoto(kind: "customer" | "staff" | "user", id: string, photo?: string) {
+    const d = getDB();
+    if (kind === "customer") commit({ ...d, customers: d.customers.map((x) => (x.id === id ? { ...x, photo } : x)) });
+    else if (kind === "staff") commit({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, photo } : x)) });
+    else commit({ ...d, users: d.users.map((x) => (x.id === id ? { ...x, photo } : x)) });
+  },
   saveSalon(patch: Partial<SalonSettings>) { const d = getDB(); commit({ ...d, salon: { ...d.salon, ...patch } }); },
   saveRole(r: SalonRole) { const d = getDB(); commit({ ...d, roles: d.roles.some((x) => x.id === r.id) ? d.roles.map((x) => (x.id === r.id ? r : x)) : [...d.roles, r] }); },
   deleteRole(id: string) { const d = getDB(); commit({ ...d, roles: d.roles.filter((x) => x.id !== id) }); },

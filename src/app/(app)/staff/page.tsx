@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import clsx from "clsx";
 import { Award, ExternalLink, Heart, Link2, Palmtree, Pencil, Plus, Star, Trash2, TrendingUp, Trophy } from "lucide-react";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import { Avatar, Badge, Button, Card, CardHead, Field, PageTitle, Stat, Toggle, fieldCls } from "@/components/ui";
 import { actions, useDB, type StaffMember } from "@/lib/db";
 import { dayInfo } from "@/lib/dates";
@@ -57,6 +58,7 @@ export default function Staff() {
         <Card className="mb-5">
           <CardHead title={isNew ? "متخصص جدید" : `ویرایش ${edit.name || "متخصص"}`} />
           <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-5 px-5 pb-5">
+            <PhotoPicker name={edit.name} value={edit.photo} color={edit.color} onChange={(photo) => set("photo", photo)} />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="نام و نام خانوادگی"><input value={edit.name} onChange={(e) => set("name", e.target.value)} className={fieldCls} /></Field>
               <Field label="تخصص"><input value={edit.role} onChange={(e) => set("role", e.target.value)} placeholder="مثلاً رنگ و مش" className={fieldCls} /></Field>

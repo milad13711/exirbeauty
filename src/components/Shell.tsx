@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { Bell, Blocks, CalendarDays, LayoutDashboard, LayoutGrid, LifeBuoy, LogIn, LogOut, Search, Settings, Users, X, Wallet } from "lucide-react";
 import { navGroups } from "./nav";
 import { moduleActive, moduleAvailable, moduleForPath, MODULES } from "@/lib/modules";
-import { Avatar } from "./ui";
+import { Avatar } from "./Avatar";
 import { BrandMark } from "./BrandMark";
 import { ThemeToggle } from "./ThemeToggle";
 import { TODAY } from "@/lib/mock";
@@ -85,7 +85,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="mx-auto mt-2.5 h-1.5 w-11 shrink-0 rounded-full bg-line" />
             <div className="flex items-center justify-between px-5 pt-3 pb-2">
               <div className="flex items-center gap-2.5">
-                <Avatar name={db.session?.name ?? "مدیر سالن"} color="#2e1a27" size={40} />
+                <Avatar name={db.session?.name ?? db.users.find((u) => u.roleId === "r1")?.name ?? "مدیر سالن"} color="#2e1a27" size={40} />
                 <div className="leading-tight"><p className="text-sm font-extrabold">{db.salon.name}</p><p className="text-[11px] text-ink3">{db.session?.name ?? "وارد نشده‌اید"}</p></div>
               </div>
               <button aria-label="بستن" className="grid size-10 cursor-pointer place-items-center rounded-full bg-surface2" onClick={() => setOpen(false)}><X size={18} /></button>
@@ -116,7 +116,7 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
       <div className="min-w-0 flex-1">
         <header className="glass sticky top-0 z-30 flex items-center gap-2.5 border-b border-line/70 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)] lg:px-8">
-          <Link href="/" className="flex min-w-0 items-center gap-2 lg:hidden">
+          <Link href="/" className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
             <BrandMark size={36} />
             <span className="min-w-0 leading-tight"><span className="block truncate text-[14px] font-extrabold">{db.salon.name}</span><span className="block text-[10.5px] text-ink3">اکسیر بیوتی</span></span>
           </Link>
@@ -124,7 +124,6 @@ export function Shell({ children }: { children: ReactNode }) {
             <Search size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-ink3" />
             <input placeholder="جستجوی مشتری، خدمت، نوبت…" className="min-h-10 w-full rounded-2xl border border-line bg-surface py-2 pr-10 pl-3 text-sm outline-none placeholder:text-ink3 focus:border-rose" />
           </label>
-          <span className="flex-1 lg:hidden" />
           <button aria-label="جستجو" className="grid size-10 cursor-pointer place-items-center rounded-full text-ink2 hover:bg-surface2 lg:hidden" onClick={() => setFind(!find)}><Search size={19} /></button>
           {smsOn && (
             <Link href="/sms" aria-label={`اعتبار پیامک: ${fa(acc.balance)}`} className={clsx("press flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-xs font-bold", acc.balance <= 0 ? "border-danger/40 bg-dangersoft text-danger" : low ? "border-amber/40 bg-ambersoft text-amber" : "border-line bg-surface text-ink2 hover:bg-surface2")}>
@@ -149,11 +148,12 @@ export function Shell({ children }: { children: ReactNode }) {
             )}
           </div>
           <div className="relative">
-            <button aria-label="منوی کاربر" aria-expanded={menu} onClick={() => { setMenu(!menu); setBell(false); }} className="cursor-pointer rounded-full"><Avatar name={db.session?.name ?? "مدیر سالن"} color="#3a2431" /></button>
+            <button aria-label="منوی کاربر" aria-expanded={menu} onClick={() => { setMenu(!menu); setBell(false); }} className="cursor-pointer rounded-full"><Avatar name={db.session?.name ?? db.users.find((u) => u.roleId === "r1")?.name ?? "مدیر سالن"} color="#3a2431" /></button>
             {menu && (
               <div className="absolute left-0 top-11 z-50 w-64 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
                 <p className="truncate px-3 py-2 text-xs text-ink3">{db.session?.name ?? "وارد نشده‌اید"}</p>
                 <div className="px-1.5 pb-1.5"><ThemeToggle compact /></div>
+                <Link href="/settings?tab=پروفایل من" onClick={() => setMenu(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface2"><Settings size={15} />پروفایل من</Link>
                 <Link href="/settings" onClick={() => setMenu(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface2"><Settings size={15} />تنظیمات</Link>
                 {db.session ? (
                   <button onClick={() => { actions.logout(); setMenu(false); router.push("/login"); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-danger hover:bg-dangersoft"><LogOut size={15} />خروج</button>
