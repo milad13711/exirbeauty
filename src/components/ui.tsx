@@ -45,7 +45,7 @@ export function Badge({ tone = "neutral", children, className }: { tone?: Tone; 
 const btn = {
   base: "press inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[14px] px-4 py-2 text-[13.5px] font-bold disabled:cursor-not-allowed disabled:opacity-50",
   primary: "bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-8px_rgba(156,53,88,.6)] hover:brightness-110",
-  soft: "bg-rosesoft text-rosedeep hover:bg-[#f3d6df]",
+  soft: "bg-rosesoft text-rosedeep hover:brightness-95",
   ghost: "border border-line bg-surface text-ink2 hover:bg-surface2",
 } as const;
 

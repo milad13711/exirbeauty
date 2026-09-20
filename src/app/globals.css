@@ -30,6 +30,32 @@
   --shadow-card: 0 1px 2px rgba(60, 30, 40, 0.04), 0 12px 30px -14px rgba(60, 30, 40, 0.14);
   --shadow-pop: 0 20px 50px -12px rgba(46, 26, 39, 0.35);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --glass: rgba(255, 253, 251, 0.82);
+  color-scheme: light;
+}
+
+/* تم تیره: رنگ‌های معنایی ثابت؛ رنگ برند و سطوح از ThemeApplier می‌آید */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #16101a; --surface: #201822; --surface-2: #2a2130; --line: #3a2f41;
+  --ink: #f6eef2; --ink-2: #c9bcc4; --ink-3: #8f8290;
+  --rose: #d8688c; --rose-deep: #f0a4bd; --rose-soft: #3a2230;
+  --gold: #d9b56f; --gold-soft: #3a3020;
+  --sage: #6bbf9c; --sage-soft: #1f3329;
+  --amber: #e2a24a; --amber-soft: #3b2d19;
+  --danger: #ee7b73; --danger-soft: #3d201f;
+  --sky: #78a9dc; --sky-soft: #1d2d40;
+  --plum: #120c15;
+  --grad-plum: linear-gradient(150deg, #3a2436 0%, #1d1220 100%);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px -14px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 20px 50px -12px rgba(0, 0, 0, 0.7);
+  --glass: rgba(32, 24, 34, 0.8);
+}
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(900px 420px at 100% -10%, color-mix(in srgb, var(--rose) 14%, transparent), transparent 60%),
+    radial-gradient(700px 380px at 0% 0%, rgba(185, 141, 63, 0.07), transparent 60%),
+    var(--bg);
 }
 
 @theme inline {
@@ -89,7 +115,7 @@ button:not(:disabled), [role="button"] { -webkit-user-select: none; user-select:
 .fade-in { animation: fade-in 0.2s ease-out both; }
 .press { transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease; }
 .press:active { transform: scale(0.97); }
-.glass { background: rgba(255, 253, 251, 0.82); backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px); }
+.glass { background: var(--glass); backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px); }
 .pb-safe { padding-bottom: calc(var(--safe-b) + 0.75rem); }
 .font-num { font-variant-numeric: tabular-nums; }
 

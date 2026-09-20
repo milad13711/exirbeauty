@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import clsx from "clsx";
 import { Check, ImagePlus, RotateCcw, Trash2 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
+import { ThemeToggle } from "./ThemeToggle";
 import { InstallPrompt } from "./InstallPrompt";
 import { Button, Card, CardHead, Field, Toggle, fieldCls } from "./ui";
 import { actions, useDB } from "@/lib/db";
@@ -76,6 +77,11 @@ export function BrandSettings() {
             {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
             <Field label="نام اپ روی صفحه‌ی اصلی گوشی (کوتاه)"><input value={b.appName ?? ""} maxLength={20} placeholder={db.salon.name} onChange={(e) => setB({ ...b, appName: e.target.value })} className={fieldCls} /></Field>
           </div>
+        </Card>
+
+        <Card>
+          <CardHead title="حالت نمایش" hint="روشن، تیره یا خودکار طبق تنظیم گوشی؛ فقط برای همین دستگاه" />
+          <div className="px-5 pb-5"><ThemeToggle /></div>
         </Card>
 
         <Card>

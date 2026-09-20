@@ -11,6 +11,7 @@ import { salons } from "@/lib/mock3";
 import { fa, num, short, toman } from "@/lib/fa";
 import { nextGoal } from "@/lib/sales";
 import { moduleActive } from "@/lib/modules";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { SurveyCard } from "@/components/portal/SurveyCard";
 
@@ -30,29 +31,29 @@ export default function MeHome() {
 
   return (
     <>
-      <div><p className="text-xl font-extrabold">سلام {me.name.split(" ")[0]} 👋</p><p className="text-sm text-ink2">به پنل مشتری {db.salon.name} خوش آمدید</p></div>
+      <div className="flex items-start justify-between gap-3"><div><p className="text-xl font-extrabold">سلام {me.name.split(" ")[0]} 👋</p><p className="text-sm text-ink2">به پنل مشتری {db.salon.name} خوش آمدید</p></div><div className="w-28 shrink-0"><ThemeToggle iconOnly compact /></div></div>
 
       {surveys.map((s) => <SurveyCard key={s.id} s={s} />)}
 
       {next ? (
         <Card className="overflow-hidden">
-          <div className="bg-rose p-5 text-white">
+          <div className="relative overflow-hidden bg-[image:var(--grad-rose)] p-5 text-white"><span className="pointer-events-none absolute -left-10 -top-12 size-40 rounded-full bg-white/15" aria-hidden />
             <p className="flex items-center gap-1.5 text-xs text-white/75"><CalendarClock size={14} />نوبت بعدی شما</p>
             <p className="mt-1 text-xl font-extrabold">{dayInfo(next.day).weekday}، ساعت {clock(next.start)}</p>
             <p className="text-sm text-white/85">{next.service} · {db.staff.find((s) => s.id === next.staffId)?.name}</p>
             <p className="mt-1 text-xs text-white/70">{dayInfo(next.day).full}</p>
           </div>
-          <div className="flex gap-2 p-3"><Link href="/me/appointments" className="flex-1 rounded-xl border border-line py-2 text-center text-[13px] font-semibold text-ink2">مدیریت نوبت</Link><Link href="/book" className="flex-1 rounded-xl bg-rosesoft py-2 text-center text-[13px] font-semibold text-rosedeep">نوبت جدید</Link></div>
+          <div className="flex gap-2 p-3"><Link href="/me/appointments" className="press flex-1 rounded-[14px] border border-line py-3 text-center text-[13px] font-bold text-ink2">مدیریت نوبت</Link><Link href="/book" className="press flex-1 rounded-[14px] bg-rosesoft py-3 text-center text-[13px] font-bold text-rosedeep">نوبت جدید</Link></div>
         </Card>
       ) : (
-        <Card className="p-5 text-center"><p className="text-sm text-ink2">نوبت فعالی ندارید.</p><Link href="/book" className="mt-3 inline-block rounded-xl bg-rose px-5 py-2.5 text-[13px] font-bold text-white">رزرو نوبت</Link></Card>
+        <Card className="p-5 text-center"><p className="text-sm text-ink2">نوبت فعالی ندارید.</p><Link href="/book" className="press mt-3 inline-flex min-h-11 items-center rounded-[14px] bg-[image:var(--grad-rose)] px-6 text-[13px] font-bold text-white">رزرو نوبت</Link></Card>
       )}
 
       <Card className="overflow-hidden">
-        <div className="bg-plum p-5 text-white">
+        <div className="relative overflow-hidden bg-[image:var(--grad-plum)] p-5 text-white"><span className="pointer-events-none absolute -bottom-16 -right-10 size-44 rounded-full bg-[radial-gradient(circle,rgba(217,181,111,.35),transparent_65%)]" aria-hidden />
           <div className="flex items-center justify-between"><p className="text-xs text-white/60">مزایای من در این سالن</p><Badge tone={tierTone[me.tier]}>{me.tier}</Badge></div>
           <p className="mt-1 text-3xl font-extrabold">{num(me.points)} <span className="text-sm font-medium text-white/60">امتیاز</span></p>
-          <div className="mt-3 h-2 rounded-full bg-white/20"><div className="h-2 rounded-full bg-gold" style={{ width: `${pct}%` }} /></div>
+          <div className="mt-3 h-2 rounded-full bg-white/20"><div className="h-2 rounded-full bg-[image:var(--grad-gold)]" style={{ width: `${pct}%` }} /></div>
           <p className="mt-1.5 text-xs text-white/65">{goal.left > 0 ? `${fa(goal.left)} امتیاز تا ${goal.label}` : goal.label}</p>
         </div>
         <Link href="/me/rewards" className="block p-3 text-center text-[13px] font-semibold text-rose">دیدن جایزه‌ها ←</Link>
@@ -62,7 +63,7 @@ export default function MeHome() {
 
       <div className="grid grid-cols-3 gap-2">
         {[{ h: "/store?ref=" + ref, l: "فروشگاه", i: ShoppingBag }, { h: "/me/wallet", l: toman(me.wallet).replace(" تومان", ""), i: Gift, sub: "اعتبار" }, { h: "/me/invite", l: "معرفی دوستان", i: UserPlus }].map(({ h, l, i: I, sub }) => (
-          <Link key={h} href={h} className="rounded-2xl border border-line bg-surface p-3 text-center"><I size={20} className="mx-auto text-rose" /><p className="mt-1.5 text-[12px] font-bold leading-tight">{l}</p>{sub && <p className="text-[10px] text-ink3">{sub}</p>}</Link>
+          <Link key={h} href={h} className="press rounded-[20px] border border-line/80 bg-surface p-3 text-center shadow-[var(--shadow-card)]"><span className="mx-auto grid size-10 place-items-center rounded-2xl bg-rosesoft text-rose"><I size={19} /></span><p className="mt-1.5 text-[12px] font-bold leading-tight">{l}</p>{sub && <p className="text-[10px] text-ink3">{sub}</p>}</Link>
         ))}
       </div>
 

@@ -30,9 +30,19 @@ function lum(h: number, s: number, l: number) {
 }
 
 /** متغیرهای CSS تم؛ رنگ اصلی برای خوانایی متن سفید روی دکمه اگر روشن باشد تیره‌تر می‌شود */
-export function palette(hex: string): Record<string, string> {
+export function palette(hex: string, dark = false): Record<string, string> {
   const [h, s0, l0] = hexToHsl(hex);
   const s = Math.max(28, Math.min(s0, 82));
+  if (dark) {
+    const l = Math.max(52, Math.min(l0 + 12, 64));
+    return {
+      "--rose": hsl(h, s, l), "--rose-deep": hsl(h, Math.min(s + 10, 90), 76), "--rose-soft": hsl(h, 32, 20),
+      "--grad-rose": `linear-gradient(135deg, ${hsl(h, s, l - 4)} 0%, ${hsl(h, s, l - 16)} 100%)`,
+      "--bg": hsl(h, 20, 8), "--surface": hsl(h, 17, 12), "--surface-2": hsl(h, 15, 16), "--line": hsl(h, 13, 23),
+      "--ink": hsl(h, 25, 95), "--ink-2": hsl(h, 10, 74), "--ink-3": hsl(h, 8, 53),
+      "--plum": hsl(h, 30, 6), "--grad-plum": `linear-gradient(150deg, ${hsl(h, 28, 20)} 0%, ${hsl(h, 32, 11)} 100%)`,
+    };
+  }
   let l = Math.max(24, Math.min(l0, 52));
   while (l > 24 && 1.05 / (lum(h, s, l) + 0.05) < 4.5) l -= 1;
   const soft = Math.min(s, 70);

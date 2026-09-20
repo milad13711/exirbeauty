@@ -32,10 +32,10 @@ export default function Login() {
   };
 
   return (
-    <Card className="mx-auto max-w-md p-6">
-      <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-surface2 p-1" role="tablist">
+    <Card className="mx-auto max-w-md p-6 shadow-[var(--shadow-pop)]">
+      <div className="mb-5 grid grid-cols-2 gap-1 rounded-full bg-surface2 p-1" role="tablist">
         {([["owner", "ورود سالن‌دار"], ["admin", "ورود ادمین"]] as const).map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={who === k} onClick={() => { setWho(k); setErr(""); }} className={clsx("cursor-pointer rounded-lg py-2 text-[13px] font-bold", who === k ? "bg-surface text-rosedeep shadow-sm" : "text-ink2")}>{l}</button>
+          <button key={k} role="tab" aria-selected={who === k} onClick={() => { setWho(k); setErr(""); }} className={clsx("press min-h-10 cursor-pointer rounded-full text-[13px] font-bold", who === k ? "bg-surface text-rosedeep shadow-sm" : "text-ink2")}>{l}</button>
         ))}
       </div>
 
@@ -49,7 +49,7 @@ export default function Login() {
             </>
           )}
           {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
-          <Button type="submit" className="w-full !py-3">{sent ? "ورود" : "دریافت کد تأیید"}</Button>
+          <Button type="submit" className="w-full !min-h-12">{sent ? "ورود" : "دریافت کد تأیید"}</Button>
           <p className="text-center text-sm text-ink2">سالن جدید هستید؟ <Link href="/signup" className="font-bold text-rose">ثبت‌نام و شروع دوره‌ی آزمایشی</Link></p>
         </form>
       ) : (
@@ -57,7 +57,7 @@ export default function Login() {
           <Field label="ایمیل"><input value={email} onChange={(e) => setEmail(e.target.value)} type="email" dir="ltr" placeholder="milad@exirbeauty.ir" style={{ textAlign: "right" }} className={fieldCls} autoComplete="username" /></Field>
           <Field label="رمز عبور"><input value={pass} onChange={(e) => setPass(e.target.value)} type="password" dir="ltr" style={{ textAlign: "right" }} className={fieldCls} autoComplete="current-password" /></Field>
           {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
-          <Button type="submit" className="w-full !py-3">ورود به پنل ادمین</Button>
+          <Button type="submit" className="w-full !min-h-12">ورود به پنل ادمین</Button>
           <p className="text-center text-xs text-ink3">نسخه‌ی نمایشی: هر ایمیل معتبر و رمز حداقل ۶ کاراکتر</p>
         </form>
       )}

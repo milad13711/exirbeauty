@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useDB } from "@/lib/db";
+import { useDark } from "@/lib/mode";
 import { brandOf, colorFor, DEFAULT_COLOR, makeIcon, palette } from "@/lib/theme";
 
 type Scope = "app" | "portal" | null;
@@ -34,6 +35,7 @@ export function ThemeApplier() {
   const path = usePathname();
   const db = useDB();
   const scope = scopeOf(path);
+  const dark = useDark();
   const b = brandOf(db.salon);
   const color = scope ? colorFor(b, scope) : DEFAULT_COLOR;
   const name = db.salon.name;
@@ -41,12 +43,13 @@ export function ThemeApplier() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const vars = color.toLowerCase() === DEFAULT_COLOR ? {} : palette(color);
+    root.dataset.theme = dark ? "dark" : "light";
+    const vars = dark ? palette(color, true) : color.toLowerCase() === DEFAULT_COLOR ? {} : palette(color);
     const keys = ["--rose", "--rose-deep", "--rose-soft", "--grad-rose", "--bg", "--surface", "--surface-2", "--line", "--ink", "--ink-2", "--ink-3", "--plum", "--grad-plum"];
     keys.forEach((k) => root.style.removeProperty(k));
     Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
     setMeta("theme-color", vars["--bg"] ?? "#fbf6f1");
-  }, [color]);
+  }, [color, dark]);
 
   useEffect(() => {
     if (!scope) return;

@@ -8,6 +8,7 @@ import { navGroups } from "./nav";
 import { moduleActive, moduleAvailable, moduleForPath, MODULES } from "@/lib/modules";
 import { Avatar } from "./ui";
 import { BrandMark } from "./BrandMark";
+import { ThemeToggle } from "./ThemeToggle";
 import { TODAY } from "@/lib/mock";
 import { actions, useDB } from "@/lib/db";
 import { ops } from "@/lib/ops";
@@ -106,6 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link href="/support" onClick={() => setOpen(false)} className="press flex flex-col items-center gap-1.5 rounded-2xl bg-surface px-2 py-3.5 text-[11.5px] font-bold text-ink2 shadow-[var(--shadow-card)]"><LifeBuoy size={19} className="text-rose" />پشتیبانی</Link>
                 <Link href="/settings" onClick={() => setOpen(false)} className="press flex flex-col items-center gap-1.5 rounded-2xl bg-surface px-2 py-3.5 text-[11.5px] font-bold text-ink2 shadow-[var(--shadow-card)]"><Settings size={19} className="text-rose" />تنظیمات</Link>
               </div>
+              <div className="mt-4"><ThemeToggle compact /></div>
               {db.session && <button onClick={() => { actions.logout(); setOpen(false); router.push("/login"); }} className="mt-4 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl text-sm font-bold text-danger"><LogOut size={16} />خروج از حساب</button>}
             </div>
           </div>
@@ -148,8 +150,9 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="relative">
             <button aria-label="منوی کاربر" aria-expanded={menu} onClick={() => { setMenu(!menu); setBell(false); }} className="cursor-pointer rounded-full"><Avatar name={db.session?.name ?? "مدیر سالن"} color="#3a2431" /></button>
             {menu && (
-              <div className="absolute left-0 top-11 z-50 w-52 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
+              <div className="absolute left-0 top-11 z-50 w-64 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
                 <p className="truncate px-3 py-2 text-xs text-ink3">{db.session?.name ?? "وارد نشده‌اید"}</p>
+                <div className="px-1.5 pb-1.5"><ThemeToggle compact /></div>
                 <Link href="/settings" onClick={() => setMenu(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface2"><Settings size={15} />تنظیمات</Link>
                 {db.session ? (
                   <button onClick={() => { actions.logout(); setMenu(false); router.push("/login"); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-danger hover:bg-dangersoft"><LogOut size={15} />خروج</button>
