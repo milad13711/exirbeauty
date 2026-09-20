@@ -43,6 +43,7 @@ export type OrderLine = { productId: string; name: string; qty: number; price: n
 export type Order = { id: string; date: string; customer: string; phone: string; address?: string; lines: OrderLine[]; total: number; salon: string | null; via: string; status: OrderStatus; comm: number; cs: CommStatus; tracking?: string; reason?: string; log: string[] };
 // ---------- تنظیمات، کاربران، اشتراک ----------
 export type DayHours = { open: boolean; start: number; end: number }; // دقیقه از ۹:۰۰
+export type NetLead = { id: string; cat: string; note: string; day: number; status: "ثبت شد" | "در حال بررسی" | "پاسخ داده شد" };
 export type RecRule = { id: string; serviceIds: string[]; why: string; productIds: string[]; on: boolean };
 export type SalonSettings = { brand?: import("./theme").Brand; name: string; phone: string; address: string; city: string; hours: DayHours[]; online: { enabled: boolean; autoConfirm: boolean; leadHours: number; cancelHours: number }; notify: { remind24: boolean; remind2: boolean; birthday: boolean; review: boolean } };
 export type Perm = "none" | "view" | "edit";
@@ -62,7 +63,7 @@ export type DB = {
   surveys: Survey[]; reviewCfg: ReviewCfg; posts: Post[]; courses: Course[]; enrollments: Enrollment[]; notifications: Notification[]; tickets: Ticket[]; tenants: Tenant[]; market: MarketPro[];
   smsAccounts: SmsAccount[]; smsTx: SmsTx[]; smsLog: SmsMsg[]; smsPricing: SmsPricing;
   inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
-  loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null; recRules?: RecRule[];
+  loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null; recRules?: RecRule[]; netLeads?: NetLead[];
 };
 export type { SmsAccount, SmsTx, SmsMsg, SmsPricing, SmsPackage, SmsLine, TStatus, Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
 

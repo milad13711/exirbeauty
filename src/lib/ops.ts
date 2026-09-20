@@ -10,6 +10,13 @@ const push = (d: DB, n: Omit<Notification, "id" | "day" | "read">): Notification
 
 export const ops = {
   // ---------- اعلان‌ها ----------
+  /** درخواست خدمت از شبکه‌ی شرکا؛ برای ادمین اعلان ثبت می‌شود */
+  requestNetwork(cat: string, note: string) {
+    patch((d) => ({
+      netLeads: [{ id: `nl${Date.now().toString(36)}`, cat, note, day: 0, status: "ثبت شد" as const }, ...(d.netLeads ?? [])],
+      notifications: push(d, { audience: "admin", title: `درخواست شبکه‌ی خدمات: ${cat}`, body: `${d.salon.name}${note ? ` — ${note}` : ""}`, href: "/admin/notifications" }),
+    }));
+  },
   notify(audience: Notification["audience"], title: string, body: string, href: string) { patch((d) => ({ notifications: push(d, { audience, title, body, href }) })); },
   markRead(id: string) { patch((d) => ({ notifications: d.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)) })); },
   markAllRead(audience: Notification["audience"]) { patch((d) => ({ notifications: d.notifications.map((n) => (n.audience === audience ? { ...n, read: true } : n)) })); },
