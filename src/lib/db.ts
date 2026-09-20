@@ -43,6 +43,7 @@ export type OrderLine = { productId: string; name: string; qty: number; price: n
 export type Order = { id: string; date: string; customer: string; phone: string; address?: string; lines: OrderLine[]; total: number; salon: string | null; via: string; status: OrderStatus; comm: number; cs: CommStatus; tracking?: string; reason?: string; log: string[] };
 // ---------- تنظیمات، کاربران، اشتراک ----------
 export type DayHours = { open: boolean; start: number; end: number }; // دقیقه از ۹:۰۰
+export type Settlement = { id: string; staffId: string; amount: number; note: string; day: number; status: "در انتظار" | "پرداخت شد" | "رد شد" | "لغو شد"; method?: "نقدی" | "کارت"; ref?: string; paidDay?: number; reason?: string };
 export type NetLead = { id: string; cat: string; note: string; day: number; status: "ثبت شد" | "در حال بررسی" | "پاسخ داده شد" };
 export type RecRule = { id: string; serviceIds: string[]; why: string; productIds: string[]; on: boolean };
 export type SalonSettings = { brand?: import("./theme").Brand; name: string; phone: string; address: string; city: string; hours: DayHours[]; online: { enabled: boolean; autoConfirm: boolean; leadHours: number; cancelHours: number }; notify: { remind24: boolean; remind2: boolean; birthday: boolean; review: boolean } };
@@ -53,7 +54,7 @@ export type SalonUser = { id: string; name: string; phone: string; roleId: strin
 export type AdminUser = { id: string; name: string; email: string; role: string; active: boolean };
 export const adminRoles = [{ id: "super", name: "سوپرادمین", desc: "دسترسی کامل" }, { id: "support", name: "پشتیبانی", desc: "تننت‌ها و سفارش‌ها" }, { id: "finance", name: "مالی", desc: "پورسانت‌ها، کیف پول و فاکتور خرید" }, { id: "content", name: "محتوا", desc: "محصولات و دوره‌ها" }] as const;
 export type Subscription = { planId: string; status: "فعال" | "آزمایشی" | "منقضی‌شده"; expiry: string; months: number };
-export type Session = { role: "owner" | "admin"; name: string } | null;
+export type Session = { role: "owner" | "admin" | "staff"; name: string; staffId?: string } | null;
 
 export type DB = {
   products: DBProduct[]; invoices: PurchaseInvoice[]; moves: Movement[]; seq: number; appts: DBAppt[];
@@ -63,7 +64,7 @@ export type DB = {
   surveys: Survey[]; reviewCfg: ReviewCfg; posts: Post[]; courses: Course[]; enrollments: Enrollment[]; notifications: Notification[]; tickets: Ticket[]; tenants: Tenant[]; market: MarketPro[];
   smsAccounts: SmsAccount[]; smsTx: SmsTx[]; smsLog: SmsMsg[]; smsPricing: SmsPricing;
   inv: StockItem[]; sales: Sale[]; expenses: Expense[]; debtPays: DebtPayment[]; closings: DayClosing[]; saleSeq: number; waitlist: WaitEntry[];
-  loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null; recRules?: RecRule[]; netLeads?: NetLead[];
+  loyalty: Loyalty; referral: ReferralCfg; campaigns: Campaign[]; automations: AutoRule[]; memPlans: MembershipPlan[]; memberships: Membership[]; giftCards: GiftCard[]; portal: string | null; recRules?: RecRule[]; settlements?: Settlement[]; netLeads?: NetLead[];
 };
 export type { SmsAccount, SmsTx, SmsMsg, SmsPricing, SmsPackage, SmsLine, TStatus, Survey, ReviewCfg, Post, Course, Enrollment, Notification, Ticket, Tenant, MarketPro, Sale, Expense, DebtPayment, DayClosing, StockItem, WaitEntry, Loyalty, ReferralCfg, Campaign, AutoRule, MembershipPlan, Membership, GiftCard };
 
@@ -289,6 +290,7 @@ export const actions = {
   deleteAdminUser(id: string) { const d = getDB(); commit({ ...d, adminUsers: d.adminUsers.filter((x) => x.id !== id) }); },
   // ---------- ورود، ثبت‌نام، اشتراک ----------
   login(role: "owner" | "admin", name: string) { const d = getDB(); commit({ ...d, session: { role, name } }); },
+  loginStaff(staffId: string, name: string) { const d = getDB(); commit({ ...d, session: { role: "staff", name, staffId } }); },
   logout() { const d = getDB(); commit({ ...d, session: null }); },
   /** ثبت‌نام سالن جدید + فعال‌سازی اشتراک (پرداخت‌شده یا دوره‌ی آزمایشی ۷ روزه) */
   signup(p: { owner: string; salonName: string; phone: string; city: string; planId: string; months: number; trial: boolean }) {

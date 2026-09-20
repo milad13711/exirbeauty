@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Bell, Blocks, CalendarDays, LayoutDashboard, LayoutGrid, LifeBuoy, LogIn, LogOut, Search, Settings, Users, X, Wallet } from "lucide-react";
 import { navGroups } from "./nav";
@@ -32,7 +32,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const blocked7 = db.smsLog.filter((m) => m.status === "مسدود" && m.day >= -6);
   const notifs = db.notifications.filter((n) => n.audience === "salon");
   const unread = notifs.filter((n) => !n.read).length;
-  const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
+  useEffect(() => { if (db.session?.role === "staff") router.replace("/my"); }, [db.session, router]);
+  const active = (h: string) => (h === "/" ? path === "/" : h === "/staff" ? path === "/staff" : path.startsWith(h));
 
   const nav = (
     <nav className="flex h-full flex-col">

@@ -50,6 +50,7 @@ export default function Login() {
           )}
           {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
           <Button type="submit" className="w-full !min-h-12">{sent ? "ورود" : "دریافت کد تأیید"}</Button>
+          <p className="text-center text-sm text-ink2">پرسنل سالن هستید؟ <Link href="/my/login" className="font-bold text-rose">ورود پرسنل</Link></p>
           <p className="text-center text-sm text-ink2">سالن جدید هستید؟ <Link href="/signup" className="font-bold text-rose">ثبت‌نام و شروع دوره‌ی آزمایشی</Link></p>
         </form>
       ) : (

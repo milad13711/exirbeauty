@@ -5,9 +5,10 @@ import { useDB } from "@/lib/db";
 import { useDark } from "@/lib/mode";
 import { brandOf, colorFor, DEFAULT_COLOR, makeIcon, palette } from "@/lib/theme";
 
-type Scope = "app" | "portal" | null;
+type Scope = "app" | "portal" | "staff" | null;
 export const scopeOf = (path: string): Scope => {
   if (/^\/(admin|store|explore|login|signup)(\/|$)/.test(path)) return null;
+  if (/^\/my(\/|$)/.test(path)) return "staff";
   return /^\/(me|book)(\/|$)/.test(path) ? "portal" : "app";
 };
 
@@ -37,7 +38,7 @@ export function ThemeApplier() {
   const scope = scopeOf(path);
   const dark = useDark();
   const b = brandOf(db.salon);
-  const color = scope ? colorFor(b, scope) : DEFAULT_COLOR;
+  const color = scope ? colorFor(b, scope === "staff" ? "app" : scope) : DEFAULT_COLOR;
   const name = db.salon.name;
   const appName = (b.appName || name).trim();
 
@@ -60,11 +61,12 @@ export function ThemeApplier() {
         const [i192, i512, iMask, apple] = await Promise.all([makeIcon(192, color, appName, b.logo), makeIcon(512, color, appName, b.logo), makeIcon(512, color, appName, b.logo, true), makeIcon(180, color, appName, b.logo)]);
         if (dead) return;
         const portal = scope === "portal";
+        const staff = scope === "staff";
         const origin = location.origin;
         const nm = portal ? name : appName;
         const manifest = {
-          name: portal ? `${name} — پنل مشتری` : `${appName} — مدیریت سالن`, short_name: portal ? name : appName, lang: "fa", dir: "rtl",
-          start_url: `${origin}${portal ? "/me" : "/"}`, scope: `${origin}${portal ? "/me" : "/"}`, id: `${origin}${portal ? "/me" : "/"}`,
+          name: portal ? `${name} — پنل مشتری` : staff ? `${name} — پرسنل` : `${appName} — مدیریت سالن`, short_name: portal ? name : staff ? `${name} · پرسنل` : appName, lang: "fa", dir: "rtl",
+          start_url: `${origin}${portal ? "/me" : staff ? "/my" : "/"}`, scope: `${origin}${portal ? "/me" : staff ? "/my" : "/"}`, id: `${origin}${portal ? "/me" : staff ? "/my" : "/"}`,
           display: "standalone", orientation: "portrait", background_color: "#fbf6f1", theme_color: color,
           icons: [{ src: i192, sizes: "192x192", type: "image/png" }, { src: i512, sizes: "512x512", type: "image/png" }, { src: iMask, sizes: "512x512", type: "image/png", purpose: "maskable" }],
         };

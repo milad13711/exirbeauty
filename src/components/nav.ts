@@ -1,8 +1,7 @@
 import {
   LayoutDashboard, Users, CalendarDays, Scissors, UserCog, Wallet, Crown, Share2, ShoppingBag, Wand2,
   Megaphone, Repeat, Star, Package, Gift, Store, GraduationCap, Truck, Bot, Smartphone, WalletCards,
-  PenSquare, Network, Coins, BarChart3, MessageSquareText, type LucideIcon,
-} from "lucide-react";
+  PenSquare, Network, Coins, BarChart3, MessageSquareText, type LucideIcon, HandCoins } from "lucide-react";
 
 /** ماژول هر مورد از روی مسیر آن (modules.ts) تعیین می‌شود؛ موارد «هسته» همیشه نمایش داده می‌شوند */
 export type NavItem = { href: string; label: string; icon: LucideIcon };
@@ -13,6 +12,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     { href: "/customers", label: "مشتریان و پرونده‌ی زیبایی", icon: Users },
     { href: "/services", label: "منوی خدمات", icon: Scissors },
     { href: "/staff", label: "پرسنل و متخصص‌ها", icon: UserCog },
+    { href: "/staff/settle", label: "تسویه پرسنل", icon: HandCoins },
   ]},
   { title: "عملیات سالن", items: [
     { href: "/cashier", label: "صندوق و درآمد", icon: Wallet },
