@@ -1,11 +1,13 @@
 "use client";
+import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Star, X } from "lucide-react";
-import { Badge, Button, Card, fieldCls } from "@/components/ui";
+import { CalendarCheck, LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Star, X } from "lucide-react";
+import { Avatar, Badge, Button, Card, fieldCls } from "@/components/ui";
+import { useDB } from "@/lib/db";
 import {
-  CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, haversineKm, listFinderPros, nearestCity,
-  type FinderCat, type FinderProGeo,
+  CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, findCity, haversineKm, listFinderPros, nearestCity, reviewsFor, tintFor,
+  type FinderCat, type FinderProGeo, type Review,
 } from "@/lib/finder";
 
 const VB_W = 582, VB_H = 528;
@@ -18,12 +20,31 @@ function CatChip({ c }: { c: FinderCat }) {
   return <span className={clsx("inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[11px] font-bold", catStyle[c].bg, catStyle[c].fg)}>{c}</span>;
 }
 
+/** آواتار متخصص‌های فهرست مستقل (بدون اتصال به CRM)؛ عمداً از کامپوننت Avatar مشترک استفاده نمی‌کند
+ * چون آن با نام مشتری/پرسنل واقعی تطبیق می‌دهد و ممکن است تصادفاً به یک نام مشابه در دیتابیس گره بخورد. */
+function ProAvatar({ pro, size = 40 }: { pro: FinderProGeo; size?: number }) {
+  if (pro.onCrm) return <Avatar name={pro.name} size={size} color={catStyle[pro.cats[0]].dot} />;
+  const initials = pro.name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
+  const color = catStyle[pro.cats[0]].dot;
+  return (
+    <span className="inline-flex shrink-0 items-center justify-center rounded-full font-extrabold text-white shadow-[inset_0_-6px_12px_rgba(0,0,0,.12)]" style={{ width: size, height: size, background: `linear-gradient(145deg, ${color}, ${color}cc)`, fontSize: size * 0.4 }} aria-hidden>
+      {initials}
+    </span>
+  );
+}
+
+/* eslint-disable @next/next/no-img-element -- عکس‌های نمونه‌کار data-URL محلی‌اند */
 function PortfolioTiles({ pro, count }: { pro: FinderProGeo; count: number }) {
+  const photos = pro.photos ?? [];
   return (
     <>
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="aspect-square rounded-xl" style={{ background: `linear-gradient(${135 + i * 20}deg, ${pro.tint[0]}, ${pro.tint[1]})` }} />
-      ))}
+      {Array.from({ length: count }).map((_, i) =>
+        photos[i] ? (
+          <img key={i} src={photos[i]} alt="نمونه‌کار" className="aspect-square w-full rounded-xl object-cover" />
+        ) : (
+          <div key={i} className="aspect-square rounded-xl" style={{ background: `linear-gradient(${135 + i * 20}deg, ${pro.tint[0]}, ${pro.tint[1]})` }} />
+        ),
+      )}
     </>
   );
 }
@@ -83,6 +104,7 @@ function ZoomableMap({ children }: { children: React.ReactNode }) {
 }
 
 export default function FinderPage() {
+  const db = useDB();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<FinderCat | "all">("all");
   const [city, setCity] = useState<string>("all");
@@ -90,6 +112,28 @@ export default function FinderPage() {
   const [locState, setLocState] = useState<"idle" | "loading" | "denied">("idle");
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+
+  /** متخصص‌هایی که واقعاً از پنل مدیریت اکسیر استفاده می‌کنند (پرسنل فعال این سالن)؛ فقط این‌ها رزرو مستقیم دارند.
+   * عمداً مستقل از ماژول اختیاری «مارکت‌پلیس داخلی» است — داشتن پنل مدیریت با روشن بودن آن ماژول یکی نیست. */
+  const crmPros = useMemo<FinderProGeo[]>(() => {
+    const c = findCity(db.salon.city) ?? CITIES[0];
+    const ownWorks = db.posts.filter((x) => x.status === "منتشر شد" && (x.before || x.after)).flatMap((w) => [w.before, w.after].filter(Boolean) as string[]);
+    return db.staff.filter((s) => s.active).map((s) => {
+      const svcs = db.services.filter((x) => x.active && x.staff.includes(s.id));
+      const cats = [...new Set(svcs.map((x) => x.cat))] as FinderCat[];
+      const answered = db.surveys.filter((x) => x.staffId === s.id && x.rating);
+      const surveyReviews: Review[] = answered.filter((x) => x.route === "public")
+        .map((x, i) => ({ name: x.name.split(" ")[0] || "مشتری", rating: x.rating!, text: x.comment || "—", daysAgo: 3 + i * 4 }));
+      return {
+        id: `crm-${s.id}`, name: s.name, salon: db.salon.name, city: db.salon.city, cats: cats.length ? cats : (["مو"] as FinderCat[]),
+        rating: s.rating, reviews: answered.length, from: svcs.length ? Math.min(...svcs.map((x) => x.price)) : 0, bio: s.bio || `${s.role} در ${db.salon.name}`, verified: true,
+        x: c.x, y: c.y, lat: c.lat, lng: c.lng, tint: tintFor(cats.length ? cats : (["مو"] as FinderCat[])), portfolio: Math.max(3, Math.min(6, ownWorks.length || 3)),
+        reviewList: surveyReviews.length ? surveyReviews : reviewsFor(s.id, s.rating), onCrm: true, staffId: s.id, photos: ownWorks,
+      };
+    });
+  }, [db]);
+
+  const allPros = useMemo(() => [...crmPros, ...PROS], [crmPros]);
 
   function useMyLocation() {
     if (!("geolocation" in navigator)) { setLocState("denied"); return; }
@@ -115,7 +159,7 @@ export default function FinderPage() {
   }
 
   const results = useMemo(() => {
-    let list = PROS.filter((p) => {
+    let list = allPros.filter((p) => {
       if (cat !== "all" && !p.cats.includes(cat)) return false;
       if (city !== "all" && p.city !== city) return false;
       if (q.trim()) {
@@ -130,9 +174,9 @@ export default function FinderPage() {
       list = [...list].sort((a, b) => b.rating - a.rating);
     }
     return list as (FinderProGeo & { dist?: number })[];
-  }, [q, cat, city, myLoc]);
+  }, [allPros, q, cat, city, myLoc]);
 
-  const selectedPro = PROS.find((p) => p.id === selected) ?? null;
+  const selectedPro = allPros.find((p) => p.id === selected) ?? null;
 
   return (
     <div className="page-in">
@@ -187,6 +231,7 @@ export default function FinderPage() {
                     className={clsx("absolute -translate-x-1/2 -translate-y-full transition-transform", active && "z-10 scale-125")}
                     title={p.name}
                   >
+                    {p.onCrm && <span className="absolute -inset-1.5 -z-10 rounded-full bg-sage/25 ring-2 ring-sage" />}
                     <MapPin size={active ? 26 : 20} fill={catStyle[p.cats[0]].dot} className="drop-shadow-md" style={{ color: catStyle[p.cats[0]].dot }} />
                   </button>
                 );
@@ -210,21 +255,30 @@ export default function FinderPage() {
               onMouseLeave={() => setHovered((h) => (h === p.id ? null : h))}
               onClick={() => setSelected(p.id)}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-[13.5px] font-extrabold text-ink">{p.name}</p>
+              <div className="flex items-start gap-2.5">
+                <ProAvatar pro={p} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate text-[13.5px] font-extrabold text-ink">{p.name}</p>
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-gold"><Star size={13} fill="currentColor" />{p.rating}</span>
+                  </div>
                   <p className="mt-0.5 truncate text-xs text-ink3">{p.salon} · {p.city}</p>
                 </div>
-                <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-gold"><Star size={13} fill="currentColor" />{p.rating}</span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {p.cats.map((c) => <CatChip key={c} c={c} />)}
                 {"dist" in p && p.dist !== undefined && <Badge tone="sky">{p.dist < 1 ? "کمتر از ۱ کیلومتر" : `${Math.round(p.dist)} کیلومتر`}</Badge>}
+                {p.onCrm && <Badge tone="sage"><CalendarCheck size={11} />رزرو مستقیم</Badge>}
               </div>
               <div className="mt-2.5 grid grid-cols-4 gap-1.5">
                 <PortfolioTiles pro={p} count={Math.min(4, p.portfolio)} />
               </div>
-              <p className="mt-2.5 text-xs text-ink3">از {p.from.toLocaleString("fa-IR")} تومان · {p.reviews} نظر</p>
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <p className="text-xs text-ink3">از {p.from.toLocaleString("fa-IR")} تومان · {p.reviews} نظر</p>
+                {p.onCrm && (
+                  <Link href={`/book?staff=${p.staffId}`} onClick={(e) => e.stopPropagation()} className="shrink-0 rounded-full bg-[image:var(--grad-rose)] px-3 py-1.5 text-[11px] font-bold text-white">رزرو نوبت</Link>
+                )}
+              </div>
             </Card>
           ))}
         </div>
@@ -242,15 +296,19 @@ export default function FinderPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={() => setSelected(null)}>
           <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-[22px] bg-surface p-5 shadow-[var(--shadow-pop)] sm:rounded-[22px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[16px] font-extrabold text-ink">{selectedPro.name}</p>
-                <p className="mt-0.5 text-xs text-ink3">{selectedPro.salon} · {selectedPro.city}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <ProAvatar pro={selectedPro} size={52} />
+                <div className="min-w-0">
+                  <p className="truncate text-[16px] font-extrabold text-ink">{selectedPro.name}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink3">{selectedPro.salon} · {selectedPro.city}</p>
+                </div>
               </div>
               <button onClick={() => setSelected(null)} className="grid size-8 shrink-0 place-items-center rounded-full text-ink3 hover:bg-surface2"><X size={16} /></button>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {selectedPro.cats.map((c) => <CatChip key={c} c={c} />)}
               {selectedPro.verified && <Badge tone="sage">تأیید شده</Badge>}
+              {selectedPro.onCrm && <Badge tone="sage"><CalendarCheck size={11} />دارای پنل مدیریت اکسیر</Badge>}
             </div>
             <p className="mt-3 text-[13px] leading-6 text-ink2">{selectedPro.bio}</p>
             <div className="mt-3 flex items-center gap-4 text-xs text-ink3">
@@ -277,8 +335,17 @@ export default function FinderPage() {
               ))}
             </ul>
 
-            <Badge tone="amber" className="mt-4">رزرو مستقیم و ثبت‌نام رایگان متخصص به‌زودی فعال می‌شود</Badge>
-            <Button className="mt-3 w-full" disabled>رزرو نوبت (به‌زودی)</Button>
+            {selectedPro.onCrm ? (
+              <>
+                <Badge tone="sage" className="mt-4">این متخصص روی پنل مدیریت اکسیر است؛ نوبت شما مستقیم برای تأیید ارسال می‌شود</Badge>
+                <Link href={`/book?staff=${selectedPro.staffId}`} className="press mt-3 block rounded-[14px] bg-[image:var(--grad-rose)] py-3 text-center text-[13.5px] font-bold text-white">رزرو نوبت از {selectedPro.name.split(" ")[0]}</Link>
+              </>
+            ) : (
+              <>
+                <Badge tone="amber" className="mt-4">این متخصص هنوز به پنل مدیریت اکسیر متصل نیست؛ رزرو مستقیم و ثبت‌نام رایگان به‌زودی فعال می‌شود</Badge>
+                <Button className="mt-3 w-full" disabled>رزرو نوبت (به‌زودی)</Button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -53,6 +53,11 @@ export function nearestCity(lat: number, lng: number): CityGeo {
   return best;
 }
 
+/** نزدیک‌ترین مختصات شهر شناخته‌شده با نام دقیق (برای وصل کردن متخصص‌های واقعی CRM به نقشه). */
+export function findCity(name: string): CityGeo | undefined {
+  return CITIES.find((c) => c.name === name);
+}
+
 function hashStr(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
@@ -83,7 +88,7 @@ const REVIEW_TEXTS = [
 
 export type Review = { name: string; rating: number; text: string; daysAgo: number };
 
-function reviewsFor(id: string, rating: number): Review[] {
+export function reviewsFor(id: string, rating: number): Review[] {
   const base = hashStr(id);
   const n = 2 + (base % 3);
   const out: Review[] = [];
@@ -104,12 +109,12 @@ export type FinderPro = {
 };
 
 export const FINDER_PROS: FinderPro[] = [
-  { id: "f1", name: "مریم حسینی", salon: "سالن رُز آتلیه", city: "تهران", cats: ["مو"], rating: 4.9, reviews: 212, from: 1_800_000, bio: "متخصص رنگ و بالیاژ با ۱۲ سال سابقه", verified: true },
-  { id: "f2", name: "الهام رضایی", salon: "کلینیک پوست الهام", city: "تهران", cats: ["پوست", "لیزر"], rating: 4.8, reviews: 165, from: 1_100_000, bio: "فیشیال، پاکسازی و لیزر موهای زائد", verified: true },
-  { id: "f3", name: "سارا احمدی", salon: "استودیو ناخن سارا", city: "تهران", cats: ["ناخن"], rating: 4.7, reviews: 98, from: 450_000, bio: "کاشت و طراحی ناخن، ژل‌کاری", verified: false },
+  { id: "f1", name: "شبنم رادمنش", salon: "سالن رُز آتلیه", city: "تهران", cats: ["مو"], rating: 4.9, reviews: 212, from: 1_800_000, bio: "متخصص رنگ و بالیاژ با ۱۲ سال سابقه", verified: true },
+  { id: "f2", name: "نیوشا کامرانی", salon: "کلینیک پوست الهام", city: "تهران", cats: ["پوست", "لیزر"], rating: 4.8, reviews: 165, from: 1_100_000, bio: "فیشیال، پاکسازی و لیزر موهای زائد", verified: true },
+  { id: "f3", name: "یگانه شریفی", salon: "استودیو ناخن سارا", city: "تهران", cats: ["ناخن"], rating: 4.7, reviews: 98, from: 450_000, bio: "کاشت و طراحی ناخن، ژل‌کاری", verified: false },
   { id: "f4", name: "نگار محمودی", salon: "براو استودیو", city: "تهران", cats: ["ابرو و مژه", "آرایش"], rating: 4.9, reviews: 140, from: 650_000, bio: "میکروبلیدینگ ابرو و اکستنشن مژه", verified: true },
   { id: "f5", name: "بابک صفری", salon: "بربرشاپ باربد", city: "تهران", cats: ["اصلاح مردانه"], rating: 4.6, reviews: 76, from: 350_000, bio: "اصلاح مو و ریش مردانه", verified: false },
-  { id: "f6", name: "نازنین کریمی", salon: "سالن کراتینه", city: "کرج", cats: ["مو"], rating: 4.8, reviews: 88, from: 1_500_000, bio: "کراتین، اتو مغناطیسی و کوتاهی", verified: true },
+  { id: "f6", name: "رعنا اسدی", salon: "سالن کراتینه", city: "کرج", cats: ["مو"], rating: 4.8, reviews: 88, from: 1_500_000, bio: "کراتین، اتو مغناطیسی و کوتاهی", verified: true },
   { id: "f7", name: "پریسا نوری", salon: "پردیس بیوتی", city: "اصفهان", cats: ["مو", "آرایش"], rating: 4.9, reviews: 130, from: 1_200_000, bio: "رنگ مو و آرایش عروس", verified: true },
   { id: "f8", name: "مهسا کاظمی", salon: "کلینیک زیبایی مهسا", city: "اصفهان", cats: ["پوست"], rating: 4.7, reviews: 71, from: 900_000, bio: "فیشیال و مزوتراپی", verified: false },
   { id: "f9", name: "شیدا فرزین", salon: "شیراز بیوتی", city: "شیراز", cats: ["ناخن", "ابرو و مژه"], rating: 4.6, reviews: 54, from: 400_000, bio: "طراحی ناخن و لمینت ابرو", verified: false },
@@ -130,17 +135,25 @@ export const FINDER_PROS: FinderPro[] = [
   { id: "f24", name: "سحر امینی", salon: "کلینیک زنجان", city: "زنجان", cats: ["پوست", "لیزر"], rating: 4.5, reviews: 22, from: 900_000, bio: "لیزر و مراقبت پوست", verified: false },
 ];
 
-export type FinderProGeo = FinderPro & { x: number; y: number; lat: number; lng: number; tint: [string, string]; portfolio: number; reviewList: Review[] };
+export type FinderProGeo = FinderPro & {
+  x: number; y: number; lat: number; lng: number; tint: [string, string]; portfolio: number; reviewList: Review[];
+  /** آیا این متخصص روی پنل مدیریت اکسیر فعال است؛ فقط این‌ها امکان رزرو مستقیم دارند. */
+  onCrm: boolean; staffId?: string; photos?: string[];
+};
+
+export function tintFor(cats: FinderCat[]): [string, string] {
+  const dot = catStyle[cats[0]].dot;
+  return [`${dot}55`, "#f6ecd6"];
+}
 
 export function listFinderPros(): FinderProGeo[] {
   const byCity = new Map(CITIES.map((c) => [c.name, c]));
   return FINDER_PROS.map((p) => {
     const c = byCity.get(p.city);
     const [dx, dy] = jitter(p.id);
-    const dot = catStyle[p.cats[0]].dot;
     return {
       ...p, x: (c?.x ?? 291) + dx, y: (c?.y ?? 264) + dy, lat: c?.lat ?? 32.4, lng: c?.lng ?? 53.7,
-      tint: [`${dot}55`, "#f6ecd6"], portfolio: 3 + (hashStr(p.id) % 3), reviewList: reviewsFor(p.id, p.rating),
+      tint: tintFor(p.cats), portfolio: 3 + (hashStr(p.id) % 3), reviewList: reviewsFor(p.id, p.rating), onCrm: false,
     };
   });
 }
