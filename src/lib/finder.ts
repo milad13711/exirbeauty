@@ -53,13 +53,50 @@ export function nearestCity(lat: number, lng: number): CityGeo {
   return best;
 }
 
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 /** جابه‌جایی جزئی و ثابت (بر اساس id) تا چند پین در یک شهر روی هم نیفتند. */
 function jitter(id: string): [number, number] {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const h = hashStr(id);
   const a = ((h % 1000) / 1000) * Math.PI * 2;
   const r = 6 + (h % 7);
   return [Math.cos(a) * r, Math.sin(a) * r];
+}
+
+const REVIEW_NAMES = ["سارا", "نیلوفر", "مریم", "الناز", "پریسا", "مهسا", "ژاله", "دنیا", "هانیه", "سحر", "کیانا", "رویا", "لیلا", "فرزانه", "طاهره", "آرزو"];
+const REVIEW_TEXTS = [
+  "برخورد خیلی حرفه‌ای و دقیق داشت، نتیجه فوق‌العاده بود.",
+  "وقت‌شناس و مهربون بود، حتماً دوباره مراجعه می‌کنم.",
+  "کیفیت کار عالی بود، فقط کمی شلوغ بود.",
+  "دقیقاً همون چیزی که می‌خواستم رو گرفتم، پیشنهاد می‌کنم.",
+  "محیط تمیز و آرامش‌بخش، خدمات باکیفیت.",
+  "قیمت منصفانه و کار تمیز بود، راضی بودم.",
+  "قبل از شروع کامل توضیح داد، خیلی حرفه‌ای بود.",
+  "نتیجه فراتر از انتظارم بود!",
+  "کمی دیر شروع شد ولی نتیجه‌ی نهایی عالی بود.",
+  "مشاوره‌ی خوبی داد و دقیقاً مدل موردنظرم رو اجرا کرد.",
+];
+
+export type Review = { name: string; rating: number; text: string; daysAgo: number };
+
+function reviewsFor(id: string, rating: number): Review[] {
+  const base = hashStr(id);
+  const n = 2 + (base % 3);
+  const out: Review[] = [];
+  for (let i = 0; i < n; i++) {
+    const h = (base ^ Math.imul(i + 1, 2654435761)) >>> 0;
+    out.push({
+      name: REVIEW_NAMES[h % REVIEW_NAMES.length],
+      text: REVIEW_TEXTS[Math.floor(h / 97) % REVIEW_TEXTS.length],
+      rating: Math.max(3, Math.min(5, Math.round(rating) - (h % 5 === 0 ? 1 : 0))),
+      daysAgo: 2 + (h % 45),
+    });
+  }
+  return out;
 }
 
 export type FinderPro = {
@@ -93,13 +130,17 @@ export const FINDER_PROS: FinderPro[] = [
   { id: "f24", name: "سحر امینی", salon: "کلینیک زنجان", city: "زنجان", cats: ["پوست", "لیزر"], rating: 4.5, reviews: 22, from: 900_000, bio: "لیزر و مراقبت پوست", verified: false },
 ];
 
-export type FinderProGeo = FinderPro & { x: number; y: number; lat: number; lng: number };
+export type FinderProGeo = FinderPro & { x: number; y: number; lat: number; lng: number; tint: [string, string]; portfolio: number; reviewList: Review[] };
 
 export function listFinderPros(): FinderProGeo[] {
   const byCity = new Map(CITIES.map((c) => [c.name, c]));
   return FINDER_PROS.map((p) => {
     const c = byCity.get(p.city);
     const [dx, dy] = jitter(p.id);
-    return { ...p, x: (c?.x ?? 291) + dx, y: (c?.y ?? 264) + dy, lat: c?.lat ?? 32.4, lng: c?.lng ?? 53.7 };
+    const dot = catStyle[p.cats[0]].dot;
+    return {
+      ...p, x: (c?.x ?? 291) + dx, y: (c?.y ?? 264) + dy, lat: c?.lat ?? 32.4, lng: c?.lng ?? 53.7,
+      tint: [`${dot}55`, "#f6ecd6"], portfolio: 3 + (hashStr(p.id) % 3), reviewList: reviewsFor(p.id, p.rating),
+    };
   });
 }

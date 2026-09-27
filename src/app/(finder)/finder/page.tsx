@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { LocateFixed, Loader2, MapPin, Search, Star, X } from "lucide-react";
+import { LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Star, X } from "lucide-react";
 import { Badge, Button, Card, fieldCls } from "@/components/ui";
 import {
   CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, haversineKm, listFinderPros, nearestCity,
@@ -10,11 +10,76 @@ import {
 
 const VB_W = 582, VB_H = 528;
 const PROS = listFinderPros();
+const MIN_ZOOM = 1, MAX_ZOOM = 4;
 
 type MyLoc = { lat: number; lng: number; label: string; x: number; y: number };
 
 function CatChip({ c }: { c: FinderCat }) {
   return <span className={clsx("inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[11px] font-bold", catStyle[c].bg, catStyle[c].fg)}>{c}</span>;
+}
+
+function PortfolioTiles({ pro, count }: { pro: FinderProGeo; count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="aspect-square rounded-xl" style={{ background: `linear-gradient(${135 + i * 20}deg, ${pro.tint[0]}, ${pro.tint[1]})` }} />
+      ))}
+    </>
+  );
+}
+
+function relDate(daysAgo: number) {
+  if (daysAgo < 1) return "امروز";
+  if (daysAgo < 7) return `${daysAgo} روز پیش`;
+  if (daysAgo < 30) return `${Math.round(daysAgo / 7)} هفته پیش`;
+  return `${Math.round(daysAgo / 30)} ماه پیش`;
+}
+
+/** نقشه با زوم/پن — همه‌ی محتوا (استان‌ها + پین‌ها) داخل یک لایه‌ی transform مشترک قرار می‌گیرند. */
+function ZoomableMap({ children }: { children: React.ReactNode }) {
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
+
+  function clampPan(p: { x: number; y: number }, s: number) {
+    const bound = 130 * (s - 1);
+    return { x: Math.max(-bound - 40, Math.min(bound + 40, p.x)), y: Math.max(-bound - 40, Math.min(bound + 40, p.y)) };
+  }
+
+  function zoomBy(delta: number) {
+    setScale((s) => {
+      const n = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, +(s + delta).toFixed(2)));
+      if (n === MIN_ZOOM) setPan({ x: 0, y: 0 });
+      else setPan((p) => clampPan(p, n));
+      return n;
+    });
+  }
+  function reset() { setScale(1); setPan({ x: 0, y: 0 }); }
+
+  return (
+    <div
+      className={clsx("relative h-full w-full overflow-hidden touch-none", scale > 1 && "cursor-grab active:cursor-grabbing")}
+      onWheel={(e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? -0.3 : 0.3); }}
+      onPointerDown={(e) => { if (scale <= 1) return; (e.target as Element).setPointerCapture(e.pointerId); dragRef.current = { x: e.clientX, y: e.clientY }; }}
+      onPointerMove={(e) => {
+        if (!dragRef.current) return;
+        const dx = e.clientX - dragRef.current.x, dy = e.clientY - dragRef.current.y;
+        dragRef.current = { x: e.clientX, y: e.clientY };
+        setPan((p) => clampPan({ x: p.x + dx, y: p.y + dy }, scale));
+      }}
+      onPointerUp={() => { dragRef.current = null; }}
+      onDoubleClick={() => zoomBy(scale < MAX_ZOOM ? 1 : -MAX_ZOOM)}
+    >
+      <div className="h-full w-full transition-transform duration-150 ease-out" style={{ transform: `scale(${scale}) translate(${pan.x / scale}px, ${pan.y / scale}px)`, transformOrigin: "center" }}>
+        {children}
+      </div>
+      <div className="absolute bottom-3 left-3 z-20 flex flex-col gap-0.5 rounded-xl border border-line bg-surface/95 p-1 shadow-[var(--shadow-card)] backdrop-blur">
+        <button type="button" onClick={() => zoomBy(0.6)} className="grid size-8 place-items-center rounded-lg text-ink2 hover:bg-surface2" aria-label="بزرگ‌نمایی"><Plus size={16} /></button>
+        <button type="button" onClick={() => zoomBy(-0.6)} className="grid size-8 place-items-center rounded-lg text-ink2 hover:bg-surface2" aria-label="کوچک‌نمایی"><Minus size={16} /></button>
+        <button type="button" onClick={reset} className="grid size-8 place-items-center rounded-lg text-ink2 hover:bg-surface2" aria-label="بازنشانی زوم"><Maximize size={14} /></button>
+      </div>
+    </div>
+  );
 }
 
 export default function FinderPage() {
@@ -104,32 +169,34 @@ export default function FinderPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="overflow-hidden p-0 lg:col-span-3">
           <div className="relative w-full bg-surface2" style={{ aspectRatio: `${VB_W} / ${VB_H}` }}>
-            <svg viewBox={IRAN_MAP_VIEWBOX} className="absolute inset-0 h-full w-full">
-              {IRAN_PROVINCES.map((p) => (
-                <path key={p.name} d={p.d} className="fill-surface stroke-line" strokeWidth={1} />
-              ))}
-            </svg>
-            {results.map((p) => {
-              const active = hovered === p.id || selected === p.id;
-              return (
-                <button
-                  key={p.id}
-                  onMouseEnter={() => setHovered(p.id)}
-                  onMouseLeave={() => setHovered((h) => (h === p.id ? null : h))}
-                  onClick={() => setSelected(p.id)}
-                  style={{ left: `${(p.x / VB_W) * 100}%`, top: `${(p.y / VB_H) * 100}%` }}
-                  className={clsx("absolute -translate-x-1/2 -translate-y-full transition-transform", active && "z-10 scale-125")}
-                  title={p.name}
-                >
-                  <MapPin size={active ? 26 : 20} fill={catStyle[p.cats[0]].dot} className="drop-shadow-md" style={{ color: catStyle[p.cats[0]].dot }} />
-                </button>
-              );
-            })}
-            {myLoc && (
-              <div style={{ left: `${(myLoc.x / VB_W) * 100}%`, top: `${(myLoc.y / VB_H) * 100}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
-                <span className="block size-3.5 rounded-full bg-sky ring-4 ring-sky/25" />
-              </div>
-            )}
+            <ZoomableMap>
+              <svg viewBox={IRAN_MAP_VIEWBOX} className="absolute inset-0 h-full w-full">
+                {IRAN_PROVINCES.map((p) => (
+                  <path key={p.name} d={p.d} className="fill-surface stroke-line" strokeWidth={1} />
+                ))}
+              </svg>
+              {results.map((p) => {
+                const active = hovered === p.id || selected === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onMouseEnter={() => setHovered(p.id)}
+                    onMouseLeave={() => setHovered((h) => (h === p.id ? null : h))}
+                    onClick={() => setSelected(p.id)}
+                    style={{ left: `${(p.x / VB_W) * 100}%`, top: `${(p.y / VB_H) * 100}%` }}
+                    className={clsx("absolute -translate-x-1/2 -translate-y-full transition-transform", active && "z-10 scale-125")}
+                    title={p.name}
+                  >
+                    <MapPin size={active ? 26 : 20} fill={catStyle[p.cats[0]].dot} className="drop-shadow-md" style={{ color: catStyle[p.cats[0]].dot }} />
+                  </button>
+                );
+              })}
+              {myLoc && (
+                <div style={{ left: `${(myLoc.x / VB_W) * 100}%`, top: `${(myLoc.y / VB_H) * 100}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
+                  <span className="block size-3.5 rounded-full bg-sky ring-4 ring-sky/25" />
+                </div>
+              )}
+            </ZoomableMap>
           </div>
         </Card>
 
@@ -154,7 +221,10 @@ export default function FinderPage() {
                 {p.cats.map((c) => <CatChip key={c} c={c} />)}
                 {"dist" in p && p.dist !== undefined && <Badge tone="sky">{p.dist < 1 ? "کمتر از ۱ کیلومتر" : `${Math.round(p.dist)} کیلومتر`}</Badge>}
               </div>
-              <p className="mt-2 text-xs text-ink3">از {p.from.toLocaleString("fa-IR")} تومان</p>
+              <div className="mt-2.5 grid grid-cols-4 gap-1.5">
+                <PortfolioTiles pro={p} count={Math.min(4, p.portfolio)} />
+              </div>
+              <p className="mt-2.5 text-xs text-ink3">از {p.from.toLocaleString("fa-IR")} تومان · {p.reviews} نظر</p>
             </Card>
           ))}
         </div>
@@ -170,7 +240,7 @@ export default function FinderPage() {
 
       {selectedPro && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={() => setSelected(null)}>
-          <div className="w-full max-w-md rounded-t-[22px] bg-surface p-5 shadow-[var(--shadow-pop)] sm:rounded-[22px]" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-[22px] bg-surface p-5 shadow-[var(--shadow-pop)] sm:rounded-[22px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[16px] font-extrabold text-ink">{selectedPro.name}</p>
@@ -187,8 +257,28 @@ export default function FinderPage() {
               <span className="flex items-center gap-1 font-bold text-gold"><Star size={13} fill="currentColor" />{selectedPro.rating} ({selectedPro.reviews} نظر)</span>
               <span>از {selectedPro.from.toLocaleString("fa-IR")} تومان</span>
             </div>
-            <Badge tone="amber" className="mt-3">رزرو مستقیم و نمایش نظرات مشتریان به‌زودی فعال می‌شود</Badge>
-            <Button className="mt-4 w-full" disabled>رزرو نوبت (به‌زودی)</Button>
+
+            <p className="mb-2 mt-5 text-xs font-bold text-ink2">نمونه‌کارها</p>
+            <div className="grid grid-cols-4 gap-2">
+              <PortfolioTiles pro={selectedPro} count={selectedPro.portfolio} />
+            </div>
+
+            <p className="mb-2 mt-5 text-xs font-bold text-ink2">چند نظر اخیر مشتری‌ها</p>
+            <ul className="-mx-1 divide-y divide-line">
+              {selectedPro.reviewList.map((r, i) => (
+                <li key={i} className="px-1 py-2.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <b className="text-ink">{r.name}</b>
+                    <span className="flex items-center gap-1 text-xs text-ink3">{relDate(r.daysAgo)}</span>
+                  </div>
+                  <span className="text-gold text-xs">{"★".repeat(r.rating)}<span className="text-line">{"★".repeat(5 - r.rating)}</span></span>
+                  <p className="mt-0.5 text-[13px] leading-6 text-ink2">{r.text}</p>
+                </li>
+              ))}
+            </ul>
+
+            <Badge tone="amber" className="mt-4">رزرو مستقیم و ثبت‌نام رایگان متخصص به‌زودی فعال می‌شود</Badge>
+            <Button className="mt-3 w-full" disabled>رزرو نوبت (به‌زودی)</Button>
           </div>
         </div>
       )}
