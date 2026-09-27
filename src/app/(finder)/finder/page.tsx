@@ -1,0 +1,197 @@
+"use client";
+import { useMemo, useState } from "react";
+import clsx from "clsx";
+import { LocateFixed, Loader2, MapPin, Search, Star, X } from "lucide-react";
+import { Badge, Button, Card, fieldCls } from "@/components/ui";
+import {
+  CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, haversineKm, listFinderPros, nearestCity,
+  type FinderCat, type FinderProGeo,
+} from "@/lib/finder";
+
+const VB_W = 582, VB_H = 528;
+const PROS = listFinderPros();
+
+type MyLoc = { lat: number; lng: number; label: string; x: number; y: number };
+
+function CatChip({ c }: { c: FinderCat }) {
+  return <span className={clsx("inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[11px] font-bold", catStyle[c].bg, catStyle[c].fg)}>{c}</span>;
+}
+
+export default function FinderPage() {
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<FinderCat | "all">("all");
+  const [city, setCity] = useState<string>("all");
+  const [myLoc, setMyLoc] = useState<MyLoc | null>(null);
+  const [locState, setLocState] = useState<"idle" | "loading" | "denied">("idle");
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  function useMyLocation() {
+    if (!("geolocation" in navigator)) { setLocState("denied"); return; }
+    setLocState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const c = nearestCity(latitude, longitude);
+        setMyLoc({ lat: latitude, lng: longitude, label: `نزدیک ${c.name}`, x: c.x, y: c.y });
+        setCity("all");
+        setLocState("idle");
+      },
+      () => setLocState("denied"),
+      { timeout: 8000 },
+    );
+  }
+
+  function pickCity(name: string) {
+    setCity(name);
+    if (name === "all") { setMyLoc(null); return; }
+    const c = CITIES.find((x) => x.name === name);
+    if (c) setMyLoc({ lat: c.lat, lng: c.lng, label: c.name, x: c.x, y: c.y });
+  }
+
+  const results = useMemo(() => {
+    let list = PROS.filter((p) => {
+      if (cat !== "all" && !p.cats.includes(cat)) return false;
+      if (city !== "all" && p.city !== city) return false;
+      if (q.trim()) {
+        const t = q.trim();
+        if (!p.name.includes(t) && !p.salon.includes(t) && !p.bio.includes(t) && !p.cats.some((c) => c.includes(t))) return false;
+      }
+      return true;
+    });
+    if (myLoc) {
+      list = list.map((p) => ({ ...p, dist: haversineKm(myLoc, p) })).sort((a, b) => a.dist - b.dist);
+    } else {
+      list = [...list].sort((a, b) => b.rating - a.rating);
+    }
+    return list as (FinderProGeo & { dist?: number })[];
+  }, [q, cat, city, myLoc]);
+
+  const selectedPro = PROS.find((p) => p.id === selected) ?? null;
+
+  return (
+    <div className="page-in">
+      <div className="mb-5 max-w-2xl">
+        <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-ink md:text-2xl">نزدیک‌ترین متخصص زیبایی رو پیدا کن</h1>
+        <p className="mt-1.5 text-[13px] leading-6 text-ink2">جست‌وجوی متخصص‌های مو، پوست، ناخن، آرایش و... روی نقشه‌ی ایران — بر اساس لوکیشن یا نوع خدمت.</p>
+      </div>
+
+      <Card className="mb-5 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-ink3" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="نام متخصص، سالن یا خدمت..." className={clsx(fieldCls, "pr-10")} />
+          </div>
+          <select value={city} onChange={(e) => pickCity(e.target.value)} className={clsx(fieldCls, "lg:w-44")}>
+            <option value="all">همه شهرها</option>
+            {CITIES.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
+          <Button type="button" variant={myLoc && locState !== "loading" ? "soft" : "primary"} onClick={useMyLocation} disabled={locState === "loading"} className="shrink-0">
+            {locState === "loading" ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} />}
+            {locState === "loading" ? "در حال یافتن موقعیت..." : "نزدیک‌ترین به من"}
+          </Button>
+        </div>
+        {locState === "denied" && <p className="mt-2.5 text-xs text-danger">دسترسی به موقعیت مکانی رد شد؛ می‌تونی از لیست شهرها انتخاب کنی.</p>}
+        {myLoc && locState !== "denied" && <p className="mt-2.5 text-xs text-sage">فاصله‌ها نسبت به «{myLoc.label}» محاسبه شد.</p>}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <button onClick={() => setCat("all")} className={clsx("rounded-full px-3 py-1.5 text-xs font-bold transition-colors", cat === "all" ? "bg-[image:var(--grad-rose)] text-white" : "bg-surface2 text-ink2 hover:bg-surface2/70")}>همه خدمات</button>
+          {FINDER_CATS.map((c) => (
+            <button key={c} onClick={() => setCat(c)} className={clsx("rounded-full px-3 py-1.5 text-xs font-bold transition-colors", cat === c ? "bg-[image:var(--grad-rose)] text-white" : clsx(catStyle[c].bg, catStyle[c].fg))}>{c}</button>
+          ))}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Card className="overflow-hidden p-0 lg:col-span-3">
+          <div className="relative w-full bg-surface2" style={{ aspectRatio: `${VB_W} / ${VB_H}` }}>
+            <svg viewBox={IRAN_MAP_VIEWBOX} className="absolute inset-0 h-full w-full">
+              {IRAN_PROVINCES.map((p) => (
+                <path key={p.name} d={p.d} className="fill-surface stroke-line" strokeWidth={1} />
+              ))}
+            </svg>
+            {results.map((p) => {
+              const active = hovered === p.id || selected === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onMouseEnter={() => setHovered(p.id)}
+                  onMouseLeave={() => setHovered((h) => (h === p.id ? null : h))}
+                  onClick={() => setSelected(p.id)}
+                  style={{ left: `${(p.x / VB_W) * 100}%`, top: `${(p.y / VB_H) * 100}%` }}
+                  className={clsx("absolute -translate-x-1/2 -translate-y-full transition-transform", active && "z-10 scale-125")}
+                  title={p.name}
+                >
+                  <MapPin size={active ? 26 : 20} fill={catStyle[p.cats[0]].dot} className="drop-shadow-md" style={{ color: catStyle[p.cats[0]].dot }} />
+                </button>
+              );
+            })}
+            {myLoc && (
+              <div style={{ left: `${(myLoc.x / VB_W) * 100}%`, top: `${(myLoc.y / VB_H) * 100}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
+                <span className="block size-3.5 rounded-full bg-sky ring-4 ring-sky/25" />
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <div className="flex max-h-[560px] flex-col gap-2.5 overflow-y-auto lg:col-span-2">
+          {results.length === 0 && <Card className="p-6 text-center text-sm text-ink3">متخصصی با این فیلتر پیدا نشد.</Card>}
+          {results.map((p) => (
+            <Card
+              key={p.id}
+              className={clsx("cursor-pointer p-3.5 transition-shadow", (hovered === p.id || selected === p.id) && "shadow-[var(--shadow-pop)]")}
+              onMouseEnter={() => setHovered(p.id)}
+              onMouseLeave={() => setHovered((h) => (h === p.id ? null : h))}
+              onClick={() => setSelected(p.id)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-[13.5px] font-extrabold text-ink">{p.name}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink3">{p.salon} · {p.city}</p>
+                </div>
+                <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-gold"><Star size={13} fill="currentColor" />{p.rating}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {p.cats.map((c) => <CatChip key={c} c={c} />)}
+                {"dist" in p && p.dist !== undefined && <Badge tone="sky">{p.dist < 1 ? "کمتر از ۱ کیلومتر" : `${Math.round(p.dist)} کیلومتر`}</Badge>}
+              </div>
+              <p className="mt-2 text-xs text-ink3">از {p.from.toLocaleString("fa-IR")} تومان</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <Card className="mt-5 flex flex-col items-center justify-between gap-3 p-5 text-center sm:flex-row sm:text-right">
+        <div>
+          <p className="text-[14px] font-extrabold text-ink">متخصص زیبایی هستید؟</p>
+          <p className="mt-1 text-xs leading-6 text-ink3">ثبت رایگان روی نقشه، دریافت مشتری جدید و رزرو مستقیم — به‌زودی فعال می‌شود.</p>
+        </div>
+        <Button variant="soft" disabled>ثبت‌نام رایگان (به‌زودی)</Button>
+      </Card>
+
+      {selectedPro && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={() => setSelected(null)}>
+          <div className="w-full max-w-md rounded-t-[22px] bg-surface p-5 shadow-[var(--shadow-pop)] sm:rounded-[22px]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[16px] font-extrabold text-ink">{selectedPro.name}</p>
+                <p className="mt-0.5 text-xs text-ink3">{selectedPro.salon} · {selectedPro.city}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="grid size-8 shrink-0 place-items-center rounded-full text-ink3 hover:bg-surface2"><X size={16} /></button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {selectedPro.cats.map((c) => <CatChip key={c} c={c} />)}
+              {selectedPro.verified && <Badge tone="sage">تأیید شده</Badge>}
+            </div>
+            <p className="mt-3 text-[13px] leading-6 text-ink2">{selectedPro.bio}</p>
+            <div className="mt-3 flex items-center gap-4 text-xs text-ink3">
+              <span className="flex items-center gap-1 font-bold text-gold"><Star size={13} fill="currentColor" />{selectedPro.rating} ({selectedPro.reviews} نظر)</span>
+              <span>از {selectedPro.from.toLocaleString("fa-IR")} تومان</span>
+            </div>
+            <Badge tone="amber" className="mt-3">رزرو مستقیم و نمایش نظرات مشتریان به‌زودی فعال می‌شود</Badge>
+            <Button className="mt-4 w-full" disabled>رزرو نوبت (به‌زودی)</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

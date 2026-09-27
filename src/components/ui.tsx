@@ -2,9 +2,9 @@ import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
+export function Card({ className, children, ...p }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <section className={clsx("min-w-0 rounded-[22px] border border-line/80 bg-surface shadow-[var(--shadow-card)]", className)}>
+    <section {...p} className={clsx("min-w-0 rounded-[22px] border border-line/80 bg-surface shadow-[var(--shadow-card)]", className)}>
       {children}
     </section>
   );
