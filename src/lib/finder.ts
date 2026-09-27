@@ -53,6 +53,17 @@ export function nearestCity(lat: number, lng: number): CityGeo {
   return best;
 }
 
+/** نزدیک‌ترین شهر بر اساس مختصات x/y روی خودِ نقشه (برای حدس شهر وقتی کاربر مستقیم روی نقشه پین می‌زند). */
+export function nearestCityByXY(x: number, y: number): CityGeo {
+  let best = CITIES[0];
+  let bestD = Infinity;
+  for (const c of CITIES) {
+    const d = (c.x - x) ** 2 + (c.y - y) ** 2;
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return best;
+}
+
 /** نزدیک‌ترین مختصات شهر شناخته‌شده با نام دقیق (برای وصل کردن متخصص‌های واقعی CRM به نقشه). */
 export function findCity(name: string): CityGeo | undefined {
   return CITIES.find((c) => c.name === name);
@@ -139,6 +150,8 @@ export type FinderProGeo = FinderPro & {
   x: number; y: number; lat: number; lng: number; tint: [string, string]; portfolio: number; reviewList: Review[];
   /** آیا این متخصص روی پنل مدیریت اکسیر فعال است؛ فقط این‌ها امکان رزرو مستقیم دارند. */
   onCrm: boolean; staffId?: string; photos?: string[];
+  /** اگر از ثبت‌نام مستقل روی اکسیریاب آمده باشد: شناسه‌ی پروفایل، پلن، و شماره تماس برای هماهنگی/درخواست نوبت. */
+  listingId?: string; plan?: "free" | "artist" | "salon"; phone?: string;
 };
 
 export function tintFor(cats: FinderCat[]): [string, string] {

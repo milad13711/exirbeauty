@@ -2,13 +2,15 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { CalendarCheck, LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Star, X } from "lucide-react";
+import { CalendarCheck, LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Send, Sparkles, Star, X } from "lucide-react";
 import { Avatar, Badge, Button, Card, fieldCls } from "@/components/ui";
 import { useDB } from "@/lib/db";
 import {
   CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, findCity, haversineKm, listFinderPros, nearestCity, reviewsFor, tintFor,
   type FinderCat, type FinderProGeo, type Review,
 } from "@/lib/finder";
+import { finderListings, useFinderListings } from "@/lib/finderListings";
+import { digits } from "@/lib/validate";
 
 const VB_W = 582, VB_H = 528;
 const PROS = listFinderPros();
@@ -54,6 +56,40 @@ function relDate(daysAgo: number) {
   if (daysAgo < 7) return `${daysAgo} روز پیش`;
   if (daysAgo < 30) return `${Math.round(daysAgo / 7)} هفته پیش`;
   return `${Math.round(daysAgo / 30)} ماه پیش`;
+}
+
+/** فرم درخواست نوبت برای متخصص‌های ثبت‌نامی (پلن هنرمند/سالن) که هنوز به موتور رزرو CRM وصل نیستند. */
+function LeadForm({ listingId, name }: { listingId: string; name: string }) {
+  const [n, setN] = useState(""); const [phone, setPhone] = useState(""); const [note, setNote] = useState(""); const [sent, setSent] = useState(false);
+  if (sent) return <p role="status" className="mt-4 rounded-xl bg-sagesoft p-3 text-center text-sm text-sage">درخواست شما ثبت شد؛ {name.split(" ")[0]} برای هماهنگی با شما تماس می‌گیرد.</p>;
+  return (
+    <div className="mt-4 space-y-2.5 rounded-xl border border-line p-3.5">
+      <p className="text-xs font-bold text-ink2">درخواست نوبت از {name}</p>
+      <input value={n} onChange={(e) => setN(e.target.value)} placeholder="نام شما" className={fieldCls} />
+      <input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="09123456789" style={{ textAlign: "right" }} className={fieldCls} />
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="خدمت موردنظر یا توضیح (اختیاری)" className={fieldCls} />
+      <Button className="w-full" onClick={() => { if (n.trim().length < 2 || !/^09\d{9}$/.test(digits(phone).replace(/\s/g, ""))) return; finderListings.addLead(listingId, { name: n.trim(), phone, note: note.trim(), day: 0 }); setSent(true); }}><Send size={14} />ارسال درخواست نوبت</Button>
+    </div>
+  );
+}
+
+/** ثبت نظر واقعی مشتری برای پروفایل‌های ثبت‌نامی روی اکسیریاب. */
+function ReviewForm({ listingId }: { listingId: string }) {
+  const [n, setN] = useState(""); const [rating, setRating] = useState(5); const [text, setText] = useState(""); const [sent, setSent] = useState(false);
+  if (sent) return <p role="status" className="mt-3 rounded-xl bg-sagesoft p-2.5 text-center text-xs text-sage">ممنون از نظرت! پس از ثبت نمایش داده می‌شود.</p>;
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-line p-3">
+      <p className="text-xs font-bold text-ink2">شما هم نظر بدید</p>
+      <div className="flex items-center gap-2">
+        <input value={n} onChange={(e) => setN(e.target.value)} placeholder="نام شما" className={clsx(fieldCls, "flex-1")} />
+        <div className="flex shrink-0 gap-0.5">
+          {[1, 2, 3, 4, 5].map((s) => <button key={s} type="button" onClick={() => setRating(s)}><Star size={18} className={s <= rating ? "text-gold" : "text-line"} fill={s <= rating ? "currentColor" : "none"} /></button>)}
+        </div>
+      </div>
+      <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="تجربه‌تان را بنویسید" className={fieldCls} />
+      <Button variant="soft" className="w-full" onClick={() => { if (n.trim().length < 2 || text.trim().length < 3) return; finderListings.addReview(listingId, { name: n.trim(), rating, text: text.trim() }); setSent(true); }}>ثبت نظر</Button>
+    </div>
+  );
 }
 
 /** نقشه با زوم/پن — همه‌ی محتوا (استان‌ها + پین‌ها) داخل یک لایه‌ی transform مشترک قرار می‌گیرند. */
@@ -133,7 +169,31 @@ export default function FinderPage() {
     });
   }, [db]);
 
-  const allPros = useMemo(() => [...crmPros, ...PROS], [crmPros]);
+  /** پروفایل‌های ثبت‌نام‌شده‌ی خودِ متخصص‌ها روی اکسیریاب (پس از تأیید ادمین). پلن سالن هر متخصص را جدا پین می‌کند. */
+  const listings = useFinderListings();
+  const listingPros = useMemo<FinderProGeo[]>(() => {
+    const out: FinderProGeo[] = [];
+    for (const l of listings.filter((x) => x.status === "published")) {
+      const c = findCity(l.city) ?? CITIES[0];
+      const reviewList: Review[] = l.reviews.map((r) => ({ name: r.name, rating: r.rating, text: r.text, daysAgo: Math.max(0, Math.floor((Date.now() - r.at) / 86_400_000)) }));
+      const avgRating = reviewList.length ? +(reviewList.reduce((s, r) => s + r.rating, 0) / reviewList.length).toFixed(1) : 0;
+      const base = {
+        city: l.city, x: c.x, y: c.y, lat: c.lat, lng: c.lng, from: 0, verified: l.plan !== "free", rating: avgRating, reviews: reviewList.length,
+        reviewList, portfolio: 3, onCrm: false, listingId: l.id, plan: l.plan, phone: l.phone,
+      };
+      if (l.plan === "salon" && l.staff.length) {
+        l.staff.forEach((s, i) => {
+          const angle = (i / l.staff.length) * Math.PI * 2, r = 8;
+          out.push({ ...base, id: `listing-${l.id}-${i}`, name: s.name, salon: l.brand, cats: s.cats, bio: `متخصص در ${l.brand}`, tint: tintFor(s.cats), x: c.x + Math.cos(angle) * r, y: c.y + Math.sin(angle) * r });
+        });
+      } else {
+        out.push({ ...base, id: `listing-${l.id}`, name: l.plan === "salon" ? l.brand : l.name, salon: l.brand || l.name, cats: l.cats, bio: l.bio, tint: tintFor(l.cats) });
+      }
+    }
+    return out;
+  }, [listings]);
+
+  const allPros = useMemo(() => [...crmPros, ...listingPros, ...PROS], [crmPros, listingPros]);
 
   function useMyLocation() {
     if (!("geolocation" in navigator)) { setLocState("denied"); return; }
@@ -232,6 +292,7 @@ export default function FinderPage() {
                     title={p.name}
                   >
                     {p.onCrm && <span className="absolute -inset-1.5 -z-10 rounded-full bg-sage/25 ring-2 ring-sage" />}
+                    {!p.onCrm && p.listingId && p.plan !== "free" && <span className="absolute -inset-1.5 -z-10 rounded-full bg-sky/25 ring-2 ring-sky" />}
                     <MapPin size={active ? 26 : 20} fill={catStyle[p.cats[0]].dot} className="drop-shadow-md" style={{ color: catStyle[p.cats[0]].dot }} />
                   </button>
                 );
@@ -269,6 +330,8 @@ export default function FinderPage() {
                 {p.cats.map((c) => <CatChip key={c} c={c} />)}
                 {"dist" in p && p.dist !== undefined && <Badge tone="sky">{p.dist < 1 ? "کمتر از ۱ کیلومتر" : `${Math.round(p.dist)} کیلومتر`}</Badge>}
                 {p.onCrm && <Badge tone="sage"><CalendarCheck size={11} />رزرو مستقیم</Badge>}
+                {!p.onCrm && p.listingId && p.plan !== "free" && <Badge tone="sky">پلن {p.plan === "salon" ? "سالن" : "هنرمند"}</Badge>}
+                {p.listingId && p.plan === "free" && <Badge tone="neutral">عضو اکسیریاب</Badge>}
               </div>
               <div className="mt-2.5 grid grid-cols-4 gap-1.5">
                 <PortfolioTiles pro={p} count={Math.min(4, p.portfolio)} />
@@ -287,9 +350,12 @@ export default function FinderPage() {
       <Card className="mt-5 flex flex-col items-center justify-between gap-3 p-5 text-center sm:flex-row sm:text-right">
         <div>
           <p className="text-[14px] font-extrabold text-ink">متخصص زیبایی هستید؟</p>
-          <p className="mt-1 text-xs leading-6 text-ink3">ثبت رایگان روی نقشه، دریافت مشتری جدید و رزرو مستقیم — به‌زودی فعال می‌شود.</p>
+          <p className="mt-1 text-xs leading-6 text-ink3">لوکیشن دقیقت رو مثل گوگل‌مپ روی نقشه پین کن، پروفایل بساز و مشتری جدید پیدا کن.</p>
         </div>
-        <Button variant="soft" disabled>ثبت‌نام رایگان (به‌زودی)</Button>
+        <div className="flex shrink-0 gap-2">
+          <Link href="/finder/manage" className="press rounded-[14px] border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink2">ویرایش پروفایل من</Link>
+          <Link href="/finder/join" className="press flex items-center gap-1.5 rounded-[14px] bg-[image:var(--grad-rose)] px-4 py-2.5 text-[13px] font-bold text-white"><Sparkles size={15} />ثبت‌نام رایگان</Link>
+        </div>
       </Card>
 
       {selectedPro && (
@@ -309,6 +375,7 @@ export default function FinderPage() {
               {selectedPro.cats.map((c) => <CatChip key={c} c={c} />)}
               {selectedPro.verified && <Badge tone="sage">تأیید شده</Badge>}
               {selectedPro.onCrm && <Badge tone="sage"><CalendarCheck size={11} />دارای پنل مدیریت اکسیر</Badge>}
+              {selectedPro.listingId && selectedPro.plan && selectedPro.plan !== "free" && <Badge tone="sky">پلن {selectedPro.plan === "salon" ? "سالن" : "هنرمند"}</Badge>}
             </div>
             <p className="mt-3 text-[13px] leading-6 text-ink2">{selectedPro.bio}</p>
             <div className="mt-3 flex items-center gap-4 text-xs text-ink3">
@@ -322,27 +389,37 @@ export default function FinderPage() {
             </div>
 
             <p className="mb-2 mt-5 text-xs font-bold text-ink2">چند نظر اخیر مشتری‌ها</p>
-            <ul className="-mx-1 divide-y divide-line">
-              {selectedPro.reviewList.map((r, i) => (
-                <li key={i} className="px-1 py-2.5 text-sm">
-                  <div className="flex items-center justify-between">
-                    <b className="text-ink">{r.name}</b>
-                    <span className="flex items-center gap-1 text-xs text-ink3">{relDate(r.daysAgo)}</span>
-                  </div>
-                  <span className="text-gold text-xs">{"★".repeat(r.rating)}<span className="text-line">{"★".repeat(5 - r.rating)}</span></span>
-                  <p className="mt-0.5 text-[13px] leading-6 text-ink2">{r.text}</p>
-                </li>
-              ))}
-            </ul>
+            {selectedPro.reviewList.length ? (
+              <ul className="-mx-1 divide-y divide-line">
+                {selectedPro.reviewList.map((r, i) => (
+                  <li key={i} className="px-1 py-2.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <b className="text-ink">{r.name}</b>
+                      <span className="flex items-center gap-1 text-xs text-ink3">{relDate(r.daysAgo)}</span>
+                    </div>
+                    <span className="text-gold text-xs">{"★".repeat(r.rating)}<span className="text-line">{"★".repeat(5 - r.rating)}</span></span>
+                    <p className="mt-0.5 text-[13px] leading-6 text-ink2">{r.text}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-xs text-ink3">هنوز نظری برای این پروفایل ثبت نشده است.</p>}
+            {selectedPro.listingId && <ReviewForm listingId={selectedPro.listingId} />}
 
             {selectedPro.onCrm ? (
               <>
                 <Badge tone="sage" className="mt-4">این متخصص روی پنل مدیریت اکسیر است؛ نوبت شما مستقیم برای تأیید ارسال می‌شود</Badge>
                 <Link href={`/book?staff=${selectedPro.staffId}`} className="press mt-3 block rounded-[14px] bg-[image:var(--grad-rose)] py-3 text-center text-[13.5px] font-bold text-white">رزرو نوبت از {selectedPro.name.split(" ")[0]}</Link>
               </>
+            ) : selectedPro.listingId && selectedPro.plan !== "free" ? (
+              <LeadForm listingId={selectedPro.listingId} name={selectedPro.name} />
+            ) : selectedPro.listingId ? (
+              <>
+                <Badge tone="sky" className="mt-4">این پروفایل رایگان است و رزرو مستقیم ندارد؛ برای هماهنگی مستقیم تماس بگیرید</Badge>
+                <a href={`tel:${digits(selectedPro.phone ?? "")}`} className="press mt-3 block rounded-[14px] border border-line bg-surface py-3 text-center text-[13.5px] font-bold text-ink"><bdi dir="ltr">{selectedPro.phone}</bdi></a>
+              </>
             ) : (
               <>
-                <Badge tone="amber" className="mt-4">این متخصص هنوز به پنل مدیریت اکسیر متصل نیست؛ رزرو مستقیم و ثبت‌نام رایگان به‌زودی فعال می‌شود</Badge>
+                <Badge tone="amber" className="mt-4">این متخصص هنوز به پنل مدیریت اکسیر متصل نیست؛ رزرو مستقیم به‌زودی فعال می‌شود</Badge>
                 <Button className="mt-3 w-full" disabled>رزرو نوبت (به‌زودی)</Button>
               </>
             )}
