@@ -6,9 +6,9 @@ import { compile, dispatch } from "./router";
 import type { Route } from "./types";
 
 const routes: Route[] = [
-  { method: "GET", path: "/t/cashier", auth: "user", module: "cashier", handler: async () => "ok" },
+  { method: "GET", path: "/t/academy", auth: "user", module: "academy", handler: async () => "ok" },
   { method: "GET", path: "/t/ai", auth: "user", module: "ai", handler: async () => "ok" },
-  { method: "GET", path: "/t/needs-tenant", auth: "user", module: "cashier", handler: async () => "ok" },
+  { method: "GET", path: "/t/needs-tenant", auth: "user", module: "academy", handler: async () => "ok" },
 ];
 const table = compile(routes);
 
@@ -25,7 +25,7 @@ beforeAll(async () => {
 
 describe("module entitlement guard (real DB, demo tenant on the salon plan)", () => {
   it("lets a tenant user into a module their plan includes", async () => {
-    expect((await call("/t/cashier", { role: "OWNER", tenantId })).status).toBe(200);
+    expect((await call("/t/academy", { role: "OWNER", tenantId })).status).toBe(200);
   });
 
   it("blocks a module that is add-on only and tells the client how to get it", async () => {
@@ -38,9 +38,9 @@ describe("module entitlement guard (real DB, demo tenant on the salon plan)", ()
     const other = await prisma.tenant.create({ data: { name: "other", slug: `other-${Date.now()}` } });
     try {
       // header is ignored for non-admins: still resolves to their own (entitled) tenant
-      expect((await call("/t/cashier", { role: "OWNER", tenantId }, { "x-tenant-id": other.id })).status).toBe(200);
+      expect((await call("/t/academy", { role: "OWNER", tenantId }, { "x-tenant-id": other.id })).status).toBe(200);
       // an admin naming a tenant with no subscription is refused
-      const r = await call("/t/cashier", { role: "SUPER_ADMIN", tenantId: null }, { "x-tenant-id": other.id });
+      const r = await call("/t/academy", { role: "SUPER_ADMIN", tenantId: null }, { "x-tenant-id": other.id });
       expect(r.status).toBe(403);
       expect(r.body.error.code).toBe("SUBSCRIPTION_INACTIVE");
     } finally {
@@ -55,14 +55,14 @@ describe("module entitlement guard (real DB, demo tenant on the salon plan)", ()
   });
 
   it("a globally disabled module is blocked for everyone, and comes back when re-enabled", async () => {
-    await prisma.module.update({ where: { id: "cashier" }, data: { enabled: false } });
+    await prisma.module.update({ where: { id: "academy" }, data: { enabled: false } });
     try {
-      const r = await call("/t/cashier", { role: "OWNER", tenantId });
+      const r = await call("/t/academy", { role: "OWNER", tenantId });
       expect(r.status).toBe(403);
       expect(r.body.error.details.reason).toBe("DISABLED");
     } finally {
-      await prisma.module.update({ where: { id: "cashier" }, data: { enabled: true } });
+      await prisma.module.update({ where: { id: "academy" }, data: { enabled: true } });
     }
-    expect((await call("/t/cashier", { role: "OWNER", tenantId })).status).toBe(200);
+    expect((await call("/t/academy", { role: "OWNER", tenantId })).status).toBe(200);
   });
 });

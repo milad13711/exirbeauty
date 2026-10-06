@@ -320,6 +320,8 @@ model Customer {
 
   visits       CustomerVisit[]
   appointments Appointment[]
+  sales        Sale[]
+  debtPayments DebtPayment[]
 
   @@unique([tenantId, phone])
   @@index([tenantId, archivedAt, createdAt])
@@ -468,6 +470,7 @@ model Appointment {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   staff    Staff    @relation(fields: [staffId], references: [id], onDelete: Restrict)
   service  Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  sales    Sale[]
 
   @@index([tenantId, date, staffId])
   @@index([tenantId, customerId, date])
@@ -498,4 +501,129 @@ model CalendarSettings {
   leadHours     Int     @default(2) // minimum notice for online bookings
   cancelHours   Int     @default(12)
   stepMin       Int     @default(30) // slot grid
+}
+
+// ───────── Module: cashier (tenant-scoped; amounts are whole toman) ─────────
+
+enum SaleStatus {
+  PAID
+  DEBT
+  VOID
+}
+
+enum LineKind {
+  SERVICE
+  PRODUCT
+  OTHER
+}
+
+enum PayMethod {
+  CASH
+  CARD
+  ONLINE
+}
+
+model Sale {
+  id           String     @id @default(cuid())
+  tenantId     String
+  number       Int // per-salon invoice number (atomic counter)
+  date         DateTime   @db.Date // salon-local day the invoice belongs to
+  customerId   String?
+  customerName String     @default("")
+  apptId       String?
+  subtotal     Int
+  discountPct  Int        @default(0)
+  discount     Int        @default(0)
+  total        Int
+  paid         Int // received at the till when the invoice was issued
+  debt         Int        @default(0) // still owed; later payments reduce it
+  status       SaleStatus
+  note         String     @default("")
+  voidReason   String?
+  voidedAt     DateTime?
+  createdById  String?
+  createdAt    DateTime   @default(now())
+
+  customer Customer?       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  appt     Appointment?    @relation(fields: [apptId], references: [id], onDelete: SetNull)
+  lines    SaleLine[]
+  payments SalePayment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, date])
+  @@index([tenantId, customerId, status])
+}
+
+model SaleLine {
+  id            String   @id @default(cuid())
+  saleId        String
+  kind          LineKind
+  refId         String? // service id for SERVICE lines
+  name          String
+  qty           Int
+  price         Int
+  staffId       String? // who performed it (commission)
+  commissionPct Int      @default(0)
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+}
+
+model SalePayment {
+  id     String    @id @default(cuid())
+  saleId String
+  method PayMethod
+  amount Int
+  ref    String    @default("")
+  sale   Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+}
+
+model Expense {
+  id        String    @id @default(cuid())
+  tenantId  String
+  date      DateTime  @db.Date
+  title     String
+  amount    Int
+  method    PayMethod // CASH or CARD only (enforced by the API)
+  category  String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, date])
+}
+
+model DebtPayment {
+  id         String    @id @default(cuid())
+  tenantId   String
+  customerId String
+  date       DateTime  @db.Date
+  amount     Int
+  method     PayMethod
+  createdAt  DateTime  @default(now())
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, date])
+}
+
+// A closed day is locked: no new invoices, voids, expenses or debt payments dated that day until it is reopened.
+model DayClosing {
+  tenantId     String
+  date         DateTime @db.Date
+  expectedCash Int
+  countedCash  Int
+  note         String   @default("")
+  closedById   String?
+  closedAt     DateTime @default(now())
+
+  @@id([tenantId, date])
+}
+
+// Atomic per-tenant counters (invoice numbers).
+model Sequence {
+  tenantId String
+  key      String
+  value    Int      @default(0)
+
+  @@id([tenantId, key])
 }
