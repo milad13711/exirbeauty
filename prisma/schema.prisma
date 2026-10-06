@@ -288,3 +288,55 @@ model Payment {
 
   @@index([tenantId, createdAt])
 }
+
+// ───────── Module: customers (tenant-scoped) ─────────
+
+enum Gender {
+  FEMALE
+  MALE
+  OTHER
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  phone       String
+  gender      Gender    @default(FEMALE)
+  birthDate   DateTime? @db.Date // Gregorian; the UI converts to/from Jalali
+  note        String    @default("")
+  tags        String[]  @default([])
+  allergies   String[]  @default([])
+  occasions   String[]  @default([])
+  // Beauty profile: { hair: {...}, skin: {...}, nail: {...} } — shape validated in the module, flexible on purpose.
+  beauty      Json      @default("{}")
+  source      String    @default("") // how they found the salon (walk-in, online booking, referral…)
+  referredById String?
+  // Archived customers disappear from lists but keep their history (other modules reference them).
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  visits CustomerVisit[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, archivedAt, createdAt])
+  @@index([tenantId, name])
+}
+
+// Service history shown on the customer profile (the calendar/cashier modules will write these automatically).
+model CustomerVisit {
+  id         String   @id @default(cuid())
+  tenantId   String
+  customerId String
+  at         DateTime
+  service    String
+  category   String   @default("")
+  staffName  String   @default("")
+  price      Int      @default(0)
+  note       String   @default("")
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, customerId, at])
+}
