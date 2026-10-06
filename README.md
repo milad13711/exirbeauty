@@ -66,6 +66,9 @@ Whole-toman money; every rule is checked twice — in code (`modules/cashier/mon
 - **Rewards**: wallet rewards credit instantly; "free service/product" rewards spend points and are honoured by the cashier. Owners can adjust points/wallet manually with a reason (audited). Points/wallet can't go negative (DB CHECK).
 - Not built yet: wallet top-up by cash/card (it would need to feed the daily cash report), gift cards, birthday/referral/review points.
 
+### Dashboard (reports module)
+`GET /reports/dashboard` (owner-level) rolls up today's sales vs the same weekday last week, appointments, how full the day is (bookable minutes minus breaks vs booked), new/returning customers, a 7-day revenue series, service share + margin (30 days), top staff and the day's opportunities (inactive customers, unconfirmed appointments, unpaid debt). The home page and the top-bar SMS credit chip now read real data. Excel export and period reports are still to come.
+
 ### Finder listing → real salon
 
 A published artist/salon listing can pay for its plan (`POST /finder/listings/:id/activate`, edit-code protected, Zarinpal). When the verified payment lands, `modules/finder/provision.ts` creates — in one transaction — the salon (tenant with the plan's modules and a paid-through date), an OWNER login on the listing's phone (OTP), and bookable staff (the listed people on the salon plan, otherwise the owner). Replays are no-ops; a phone that already has an account is refused *before* charging. From then on the dashboard is the source of truth: the map shows the salon's live staff with deep links to its booking page (`/s/<slug>?staff=<id>`, salon plan only — artist plan keeps request/lead forms), and finder edits no longer touch staff.

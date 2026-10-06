@@ -60,6 +60,17 @@ export type LoyaltyTxKind = "EARN" | "EARN_REVERSE" | "REDEEM" | "ADJUST" | "CAS
 export type LoyaltyState = { customerId: string; name: string; points: number; lifetime: number; wallet: number; tier: string; off: number; next: { left: number; label: string }; log: { id: string; kind: LoyaltyTxKind; points: number; wallet: number; note: string; createdAt: string }[] };
 export type LoyaltyMember = { customerId: string; name: string; phone?: string; tier: string; points: number; lifetime: number; wallet: number };
 export type LoyaltyOverview = { members: number; points: number; walletTotal: number; tiers: Record<string, number>; top: LoyaltyMember[] };
+export type Dashboard = {
+  date: string; revenue: number; invoices: number; products: number; commission: number; deltaVsLastWeek: number | null;
+  appointments: { total: number; done: number; pending: number };
+  load: { capacity: number; booked: number; pct: number; freeHours: number };
+  customers: { new: number; returning: number };
+  week: { date: string; revenue: number }[];
+  services: { name: string; share: number; margin: number }[];
+  topStaff: { staffId: string; name: string; revenue: number; commission: number }[];
+  month: { revenue: number; net: number };
+  opportunities: { inactiveCustomers: number; pendingAppointments: number; debt: number };
+};
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -127,6 +138,9 @@ export const crm = {
   day: (date: string) => api<DayStatus>("GET", `/cashier/days/${date}`),
   closeDay: (date: string, countedCash: number, note = "") => api<DayStatus>("POST", `/cashier/days/${date}/close`, { countedCash, note }),
   reopenDay: (date: string) => api<DayStatus>("DELETE", `/cashier/days/${date}/close`),
+
+  // dashboard
+  dashboard: () => api<Dashboard>("GET", "/reports/dashboard"),
 
   // sms
   smsAccount: () => api<SmsAccount>("GET", "/sms/account"),

@@ -6,7 +6,7 @@ import { planLimits } from "../../platform/limits";
 import { assertModuleActive } from "../../platform/modules/service";
 import { addVisit, findOrCreateByPhone } from "../customers/service";
 import {
-  ACTIVE, DEFAULT_HOURS, addDays, canTransition, earliestFor, fits, freeStarts, instantOf, isMovable, tehranNow, weekdayOf, workWindow,
+  ACTIVE, DEFAULT_HOURS, addDays, canTransition, earliestFor, fits, freeStarts, instantOf, isMovable, loadOf, tehranNow, weekdayOf, workWindow,
   type DayHours, type Interval, type Now, type Status,
 } from "./availability";
 
@@ -58,6 +58,15 @@ async function dayContext(tenantId: string, staffIds: string[], date: string, se
     breaks: breaksOf(s),
     busy: appts.filter((a) => a.staffId === s.id).map((a) => ({ s: a.startMin, e: a.startMin + a.durationMin })),
   }));
+}
+
+/** How full the day is: bookable minutes across active staff vs minutes already booked. */
+export async function dayLoad(tenantId: string, date: string) {
+  const settings = await getSettings(tenantId);
+  const ids = (await prisma.staff.findMany({ where: { tenantId, active: true }, select: { id: true } })).map((s) => s.id);
+  const ctx = await dayContext(tenantId, ids, date, settings);
+  const t = ctx.reduce((a, c) => { const l = loadOf(c.window, c.breaks, c.busy); return { capacity: a.capacity + l.capacity, booked: a.booked + l.booked }; }, { capacity: 0, booked: 0 });
+  return { ...t, pct: t.capacity ? Math.round((t.booked / t.capacity) * 100) : 0 };
 }
 
 export async function availability(tenantId: string, q: { serviceId: string; date: string; staffId?: string }, opts: { leadMin: number; now?: Now }) {

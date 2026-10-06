@@ -104,3 +104,11 @@ describe("status machine", () => {
     expect(isMovable("DONE")).toBe(false);
   });
 });
+
+import { loadOf } from "./availability";
+describe("loadOf", () => {
+  it("counts capacity minus breaks and clips bookings to the window", () => {
+    expect(loadOf({ s: 540, e: 1080 }, [{ s: 780, e: 840 }], [{ s: 540, e: 600 }, { s: 1050, e: 1140 }])).toEqual({ capacity: 480, booked: 90 });
+    expect(loadOf(null, [], [{ s: 0, e: 60 }])).toEqual({ capacity: 0, booked: 0 });
+  });
+});

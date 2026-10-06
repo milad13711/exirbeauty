@@ -87,3 +87,11 @@ export const canTransition = (from: Status, to: Status) => NEXT[from].includes(t
 export const isMovable = (s: Status) => s === "PENDING" || s === "CONFIRMED";
 /** Statuses that hold the staff member's time (kept in sync with the database exclusion constraint). */
 export const ACTIVE: Status[] = ["PENDING", "CONFIRMED", "IN_SERVICE"];
+
+/** Minutes a staff member can take appointments in on a day (window minus breaks), and how many of them are booked. */
+export function loadOf(window: Interval | null, breaks: Interval[], busy: Interval[]) {
+  if (!window) return { capacity: 0, booked: 0 };
+  const clip = (x: Interval) => Math.max(0, Math.min(x.e, window.e) - Math.max(x.s, window.s));
+  const capacity = Math.max(0, window.e - window.s - breaks.reduce((a, b) => a + clip(b), 0));
+  return { capacity, booked: Math.min(capacity, busy.reduce((a, b) => a + clip(b), 0)) };
+}

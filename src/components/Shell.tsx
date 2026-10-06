@@ -13,7 +13,8 @@ import { TODAY } from "@/lib/mock";
 import { actions, useDB } from "@/lib/db";
 import { ops } from "@/lib/ops";
 import { fa } from "@/lib/fa";
-import { myAccount, smsActive, usage } from "@/lib/sms";
+import { crm } from "@/lib/crmApi";
+import { useQuery } from "@/lib/useQuery";
 import { MessageSquareText } from "lucide-react";
 import { dayInfo } from "@/lib/dates";
 
@@ -26,10 +27,11 @@ export function Shell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
   const [bell, setBell] = useState(false);
   const moreCount = MODULES.filter((m) => moduleAvailable(db, m.id) && !db.modules.installed.includes(m.id)).length;
-  const smsOn = smsActive(db);
-  const acc = myAccount(db);
-  const low = smsOn && acc.balance <= acc.autoRecharge.threshold;
-  const blocked7 = db.smsLog.filter((m) => m.status === "مسدود" && m.day >= -6);
+  // Real SMS credit; null when signed out or the salon has no SMS module (the chip then simply doesn't show).
+  const sms = useQuery(() => crm.smsAccount().catch(() => null), []).data;
+  const smsOn = !!sms;
+  const acc = { balance: sms?.balance ?? 0 };
+  const low = !!sms?.low;
   const notifs = db.notifications.filter((n) => n.audience === "salon");
   const unread = notifs.filter((n) => !n.read).length;
   useEffect(() => { if (db.session?.role === "staff") router.replace("/my"); }, [db.session, router]);
@@ -173,8 +175,8 @@ export function Shell({ children }: { children: ReactNode }) {
           {low && !path.startsWith("/sms") && (
             <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber/40 bg-ambersoft px-5 py-3.5 text-sm">
               <MessageSquareText className="text-amber" size={20} />
-              <p className="min-w-0 flex-1 basis-56">{acc.balance <= 0 ? "اعتبار پیامک شما تمام شده است" : `اعتبار پیامک شما فقط ${fa(acc.balance)} است`}؛ یادآوری نوبت و پیام‌های خودکار متوقف می‌شوند.{blocked7.length > 0 && <> <b>{fa(blocked7.length)} پیام</b> در ۷ روز اخیر ارسال نشد.</>}</p>
-              <Link href={`/sms?tab=charge&pkg=${usage(db).recommended.id}`} className="rounded-xl bg-[image:var(--grad-rose)] px-4 py-2 text-[13px] font-bold text-white press">شارژ سریع</Link>
+              <p className="min-w-0 flex-1 basis-56">{acc.balance <= 0 ? "اعتبار پیامک شما تمام شده است" : `اعتبار پیامک شما فقط ${fa(acc.balance)} است`}؛ یادآوری نوبت و پیام‌های خودکار متوقف می‌شوند.</p>
+              <Link href="/sms" className="rounded-xl bg-[image:var(--grad-rose)] px-4 py-2 text-[13px] font-bold text-white press">شارژ سریع</Link>
             </div>
           )}
           {!db.onboarded && (
