@@ -6,7 +6,7 @@ import { Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from "lucide-rea
 import { Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { MapPinPicker } from "@/components/finder/MapPinPicker";
 import { FINDER_CATS, catStyle, type FinderCat } from "@/lib/finder";
-import { finderListings, PLAN_INFO, type FinderListing, type FinderPlan, type ListingStaff } from "@/lib/finderListings";
+import { PLAN_INFO, errorText, finderApi, type FinderPlan, type ListingStaff } from "@/lib/finderApi";
 
 const steps = ["پلن", "اطلاعات", "موقعیت روی نقشه", "بازبینی"] as const;
 
@@ -21,9 +21,10 @@ export default function JoinFinderPage() {
   const [pin, setPin] = useState<{ x: number; y: number; city: string } | null>(null);
   const [staff, setStaff] = useState<ListingStaff[]>([]);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<FinderListing | null>(null);
+  const [done, setDone] = useState<{ id: string; editCode: string; plan: FinderPlan } | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const needsSteps = plan ? (plan === "salon" ? [...steps, "متخصص‌ها"] : steps) : steps;
+  const needsSteps: readonly string[] = plan === "salon" ? ["پلن", "اطلاعات", "موقعیت روی نقشه", "متخصص‌ها", "بازبینی"] : steps;
   const isSalon = plan === "salon";
 
   function toggleCat(c: FinderCat) { setCats((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c])); }
@@ -43,13 +44,20 @@ export default function JoinFinderPage() {
     setStep((s) => s + 1);
   }
 
-  function submit() {
-    if (!plan || !pin) return;
-    const rec = finderListings.create({
-      plan, name: name.trim(), brand: isSalon ? brand.trim() : name.trim(), phone, city: pin.city, x: pin.x, y: pin.y, cats, bio: bio.trim(),
-      staff: isSalon ? staff.filter((s) => s.name.trim() && s.cats.length) : [],
-    });
-    setDone(rec);
+  async function submit() {
+    if (!plan || !pin || busy) return;
+    setBusy(true); setErr("");
+    try {
+      const rec = await finderApi.create({
+        plan, name: name.trim(), brand: isSalon ? brand.trim() : undefined, phone, city: pin.city, x: pin.x, y: pin.y, cats, bio: bio.trim(),
+        staff: isSalon ? staff.filter((s) => s.name.trim() && s.cats.length) : [],
+      });
+      setDone({ id: rec.id, editCode: rec.editCode, plan });
+    } catch (e) {
+      setErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (done) {
@@ -83,7 +91,7 @@ export default function JoinFinderPage() {
         <p className="mt-1.5 text-[13px] leading-6 text-ink2">پروفایل بساز، لوکیشن دقیقت رو روی نقشه پین کن، و مشتری‌های نزدیک خودت رو پیدا کن.</p>
       </div>
 
-      <ol className="mb-5 grid grid-cols-4 gap-1.5" aria-label="مراحل ثبت‌نام">
+      <ol className="mb-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${needsSteps.length}, minmax(0, 1fr))` }} aria-label="مراحل ثبت‌نام">
         {needsSteps.map((s, i) => (
           <li key={s} className={clsx("truncate rounded-xl px-1 py-2 text-center text-[11.5px] font-semibold", i === step ? "bg-rose text-white" : i < step ? "bg-rosesoft text-rosedeep" : "bg-surface2 text-ink3")}>{s}</li>
         ))}
@@ -185,7 +193,7 @@ export default function JoinFinderPage() {
           {step < needsSteps.length - 1 ? (
             <Button disabled={step === 0 && !plan} onClick={next}>بعدی<ChevronLeft size={14} /></Button>
           ) : (
-            <Button onClick={submit}><Check size={14} />ارسال برای تأیید</Button>
+            <Button onClick={submit} disabled={busy}><Check size={14} />{busy ? "در حال ارسال…" : "ارسال برای تأیید"}</Button>
           )}
         </div>
       </Card>

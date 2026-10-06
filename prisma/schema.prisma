@@ -70,9 +70,29 @@ model Module {
   requires         String[]    @default([])
   price            Int         @default(0) // add-on price (toman); admin-editable
   addonPurchasable Boolean     @default(true)
+  // Global kill switch (admin): a disabled module is unavailable to every tenant regardless of plan.
+  enabled          Boolean     @default(true)
+  // Latest released version (semver) — mirrors the manifest; history lives in ModuleVersion.
+  version          String      @default("1.0.0")
 
-  plans   PlanModule[]
-  tenants TenantModule[]
+  plans    PlanModule[]
+  tenants  TenantModule[]
+  versions ModuleVersion[]
+}
+
+// Append-only release history. A new row is written whenever a module's code (checksum) changes,
+// and the sync refuses to proceed if the code changed without a version bump.
+model ModuleVersion {
+  id         String   @id @default(cuid())
+  moduleId   String
+  version    String
+  checksum   String
+  changelog  String   @default("")
+  releasedAt DateTime @default(now())
+  module     Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([moduleId, version])
+  @@index([moduleId, releasedAt])
 }
 
 model PlanModule {
@@ -116,9 +136,10 @@ model Subscription {
 model TenantModule {
   tenantId   String
   moduleId   String
-  installed  Boolean   @default(true)
-  addon      Boolean   @default(false)
-  addonUntil DateTime?
+  installed        Boolean   @default(true)
+  installedVersion String? // module version at install time (informational; tenants run the current code)
+  addon            Boolean   @default(false)
+  addonUntil       DateTime?
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)

@@ -7,7 +7,7 @@ import { prisma } from "../db";
 import { audit } from "./audit";
 import { DUMMY_HASH, verifyPassword } from "./auth/password";
 import { clearedSessionCookie, sessionCookie, signSession } from "./auth/session";
-import { changePlan, getTenantEntitlements, installModule, purchaseAddon, setPlanModules, uninstallModule } from "./modules/service";
+import { adminEditModule, adminListModules, changePlan, moduleVersions, getTenantEntitlements, installModule, purchaseAddon, setPlanModules, uninstallModule } from "./modules/service";
 import { createTenant } from "./tenants";
 
 const ADMIN = { roles: ["ADMIN", "SUPER_ADMIN"] } as const;
@@ -80,6 +80,17 @@ export const platformRoutes: Route[] = [
       await setPlanModules(c.params.code, moduleIds);
       await audit(c.session, "plan.modules.set", "Plan", c.params.code, { moduleIds });
       return { ok: true };
+    },
+  },
+  { method: "GET", path: "/admin/modules", auth: ADMIN, handler: async () => adminListModules() },
+  { method: "GET", path: "/admin/modules/:id/versions", auth: ADMIN, handler: async (c) => moduleVersions(c.params.id) },
+  {
+    method: "PATCH", path: "/admin/modules/:id", auth: ADMIN,
+    handler: async (c) => {
+      const patch = parse(z.object({ price: z.number().int().min(0).max(100_000_000).optional(), addonPurchasable: z.boolean().optional(), enabled: z.boolean().optional() }).strict(), await c.body());
+      const r = await adminEditModule(c.params.id, patch);
+      await audit(c.session, "module.edit", "Module", c.params.id, patch);
+      return { id: r.id, price: r.price, addonPurchasable: r.addonPurchasable, enabled: r.enabled, version: r.version };
     },
   },
   {

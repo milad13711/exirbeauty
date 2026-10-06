@@ -53,4 +53,16 @@ describe("module entitlement guard (real DB, demo tenant on the salon plan)", ()
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("TENANT_REQUIRED");
   });
+
+  it("a globally disabled module is blocked for everyone, and comes back when re-enabled", async () => {
+    await prisma.module.update({ where: { id: "cashier" }, data: { enabled: false } });
+    try {
+      const r = await call("/t/cashier", { role: "OWNER", tenantId });
+      expect(r.status).toBe(403);
+      expect(r.body.error.details.reason).toBe("DISABLED");
+    } finally {
+      await prisma.module.update({ where: { id: "cashier" }, data: { enabled: true } });
+    }
+    expect((await call("/t/cashier", { role: "OWNER", tenantId })).status).toBe(200);
+  });
 });

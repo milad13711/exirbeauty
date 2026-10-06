@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { CalendarCheck, LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Send, Sparkles, Star, X } from "lucide-react";
 import { Avatar, Badge, Button, Card, fieldCls } from "@/components/ui";
@@ -9,7 +9,7 @@ import {
   CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, findCity, haversineKm, listFinderPros, nearestCity, reviewsFor, tintFor,
   type FinderCat, type FinderProGeo, type Review,
 } from "@/lib/finder";
-import { finderListings, useFinderListings } from "@/lib/finderListings";
+import { errorText, finderApi, type PublicDetail, type PublicListing } from "@/lib/finderApi";
 import { digits } from "@/lib/validate";
 
 const VB_W = 582, VB_H = 528;
@@ -60,23 +60,36 @@ function relDate(daysAgo: number) {
 
 /** فرم درخواست نوبت برای متخصص‌های ثبت‌نامی (پلن هنرمند/سالن) که هنوز به موتور رزرو CRM وصل نیستند. */
 function LeadForm({ listingId, name }: { listingId: string; name: string }) {
-  const [n, setN] = useState(""); const [phone, setPhone] = useState(""); const [note, setNote] = useState(""); const [sent, setSent] = useState(false);
+  const [n, setN] = useState(""); const [phone, setPhone] = useState(""); const [note, setNote] = useState("");
+  const [sent, setSent] = useState(false); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (sent) return <p role="status" className="mt-4 rounded-xl bg-sagesoft p-3 text-center text-sm text-sage">درخواست شما ثبت شد؛ {name.split(" ")[0]} برای هماهنگی با شما تماس می‌گیرد.</p>;
+  async function send() {
+    if (n.trim().length < 2 || !/^09\d{9}$/.test(digits(phone).replace(/\s/g, ""))) return setErr("نام و شماره موبایل معتبر را وارد کنید.");
+    setBusy(true); setErr("");
+    try { await finderApi.lead(listingId, { name: n.trim(), phone, note: note.trim() }); setSent(true); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
+  }
   return (
     <div className="mt-4 space-y-2.5 rounded-xl border border-line p-3.5">
       <p className="text-xs font-bold text-ink2">درخواست نوبت از {name}</p>
       <input value={n} onChange={(e) => setN(e.target.value)} placeholder="نام شما" className={fieldCls} />
       <input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="09123456789" style={{ textAlign: "right" }} className={fieldCls} />
       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="خدمت موردنظر یا توضیح (اختیاری)" className={fieldCls} />
-      <Button className="w-full" onClick={() => { if (n.trim().length < 2 || !/^09\d{9}$/.test(digits(phone).replace(/\s/g, ""))) return; finderListings.addLead(listingId, { name: n.trim(), phone, note: note.trim(), day: 0 }); setSent(true); }}><Send size={14} />ارسال درخواست نوبت</Button>
+      {err && <p role="alert" className="text-xs text-danger">{err}</p>}
+      <Button className="w-full" onClick={send} disabled={busy}><Send size={14} />ارسال درخواست نوبت</Button>
     </div>
   );
 }
 
 /** ثبت نظر واقعی مشتری برای پروفایل‌های ثبت‌نامی روی اکسیریاب. */
-function ReviewForm({ listingId }: { listingId: string }) {
-  const [n, setN] = useState(""); const [rating, setRating] = useState(5); const [text, setText] = useState(""); const [sent, setSent] = useState(false);
-  if (sent) return <p role="status" className="mt-3 rounded-xl bg-sagesoft p-2.5 text-center text-xs text-sage">ممنون از نظرت! پس از ثبت نمایش داده می‌شود.</p>;
+function ReviewForm({ listingId, onAdded }: { listingId: string; onAdded: () => void }) {
+  const [n, setN] = useState(""); const [rating, setRating] = useState(5); const [text, setText] = useState("");
+  const [sent, setSent] = useState(false); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (sent) return <p role="status" className="mt-3 rounded-xl bg-sagesoft p-2.5 text-center text-xs text-sage">ممنون از نظرت! ثبت شد.</p>;
+  async function send() {
+    if (n.trim().length < 2 || text.trim().length < 3) return setErr("نام و متن نظر را کامل وارد کنید.");
+    setBusy(true); setErr("");
+    try { await finderApi.review(listingId, { name: n.trim(), rating, text: text.trim() }); setSent(true); onAdded(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
+  }
   return (
     <div className="mt-3 space-y-2 rounded-xl border border-line p-3">
       <p className="text-xs font-bold text-ink2">شما هم نظر بدید</p>
@@ -87,7 +100,8 @@ function ReviewForm({ listingId }: { listingId: string }) {
         </div>
       </div>
       <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="تجربه‌تان را بنویسید" className={fieldCls} />
-      <Button variant="soft" className="w-full" onClick={() => { if (n.trim().length < 2 || text.trim().length < 3) return; finderListings.addReview(listingId, { name: n.trim(), rating, text: text.trim() }); setSent(true); }}>ثبت نظر</Button>
+      {err && <p role="alert" className="text-xs text-danger">{err}</p>}
+      <Button variant="soft" className="w-full" onClick={send} disabled={busy}>ثبت نظر</Button>
     </div>
   );
 }
@@ -169,29 +183,33 @@ export default function FinderPage() {
     });
   }, [db]);
 
-  /** پروفایل‌های ثبت‌نام‌شده‌ی خودِ متخصص‌ها روی اکسیریاب (پس از تأیید ادمین). پلن سالن هر متخصص را جدا پین می‌کند. */
-  const listings = useFinderListings();
+  /** پروفایل‌های ثبت‌نام‌شده‌ی خودِ متخصص‌ها روی اکسیریاب (فقط منتشرشده‌ها، از API). پلن سالن هر متخصص را جدا پین می‌کند. */
+  const [apiListings, setApiListings] = useState<PublicListing[]>([]);
+  const [details, setDetails] = useState<Record<string, PublicDetail>>({});
+  const [loadErr, setLoadErr] = useState(false);
+  const [now] = useState(() => Date.now());
+  useEffect(() => { finderApi.list().then(setApiListings).catch(() => setLoadErr(true)); }, []);
+
   const listingPros = useMemo<FinderProGeo[]>(() => {
     const out: FinderProGeo[] = [];
-    for (const l of listings.filter((x) => x.status === "published")) {
+    for (const l of apiListings) {
       const c = findCity(l.city) ?? CITIES[0];
-      const reviewList: Review[] = l.reviews.map((r) => ({ name: r.name, rating: r.rating, text: r.text, daysAgo: Math.max(0, Math.floor((Date.now() - r.at) / 86_400_000)) }));
-      const avgRating = reviewList.length ? +(reviewList.reduce((s, r) => s + r.rating, 0) / reviewList.length).toFixed(1) : 0;
+      const reviewList: Review[] = (details[l.id]?.reviews ?? []).map((r) => ({ name: r.name, rating: r.rating, text: r.text, daysAgo: Math.max(0, Math.floor((now - new Date(r.createdAt).getTime()) / 86_400_000)) }));
       const base = {
-        city: l.city, x: c.x, y: c.y, lat: c.lat, lng: c.lng, from: 0, verified: l.plan !== "free", rating: avgRating, reviews: reviewList.length,
+        city: l.city, x: l.x, y: l.y, lat: c.lat, lng: c.lng, from: 0, verified: l.plan !== "free", rating: l.rating, reviews: l.reviewCount,
         reviewList, portfolio: 3, onCrm: false, listingId: l.id, plan: l.plan, phone: l.phone,
       };
       if (l.plan === "salon" && l.staff.length) {
         l.staff.forEach((s, i) => {
           const angle = (i / l.staff.length) * Math.PI * 2, r = 8;
-          out.push({ ...base, id: `listing-${l.id}-${i}`, name: s.name, salon: l.brand, cats: s.cats, bio: `متخصص در ${l.brand}`, tint: tintFor(s.cats), x: c.x + Math.cos(angle) * r, y: c.y + Math.sin(angle) * r });
+          out.push({ ...base, id: `listing-${l.id}-${i}`, name: s.name, salon: l.brand, cats: s.cats, bio: `متخصص در ${l.brand}`, tint: tintFor(s.cats), x: l.x + Math.cos(angle) * r, y: l.y + Math.sin(angle) * r });
         });
       } else {
         out.push({ ...base, id: `listing-${l.id}`, name: l.plan === "salon" ? l.brand : l.name, salon: l.brand || l.name, cats: l.cats, bio: l.bio, tint: tintFor(l.cats) });
       }
     }
     return out;
-  }, [listings]);
+  }, [apiListings, details, now]);
 
   const allPros = useMemo(() => [...crmPros, ...listingPros, ...PROS], [crmPros, listingPros]);
 
@@ -237,6 +255,10 @@ export default function FinderPage() {
   }, [allPros, q, cat, city, myLoc]);
 
   const selectedPro = allPros.find((p) => p.id === selected) ?? null;
+  const selectedListingId = selectedPro?.listingId;
+  const loadDetail = (id: string) => finderApi.detail(id).then((d) => setDetails((m) => ({ ...m, [id]: d }))).catch(() => {});
+  // Reviews are fetched on demand (the list endpoint only carries the rating summary).
+  useEffect(() => { if (selectedListingId) loadDetail(selectedListingId); }, [selectedListingId]);
 
   return (
     <div className="page-in">
@@ -261,6 +283,7 @@ export default function FinderPage() {
           </Button>
         </div>
         {locState === "denied" && <p className="mt-2.5 text-xs text-danger">دسترسی به موقعیت مکانی رد شد؛ می‌تونی از لیست شهرها انتخاب کنی.</p>}
+        {loadErr && <p className="mt-2.5 text-xs text-danger">دریافت پروفایل‌های ثبت‌نامی ممکن نشد؛ فقط فهرست پایه نمایش داده می‌شود.</p>}
         {myLoc && locState !== "denied" && <p className="mt-2.5 text-xs text-sage">فاصله‌ها نسبت به «{myLoc.label}» محاسبه شد.</p>}
         <div className="mt-3 flex flex-wrap gap-1.5">
           <button onClick={() => setCat("all")} className={clsx("rounded-full px-3 py-1.5 text-xs font-bold transition-colors", cat === "all" ? "bg-[image:var(--grad-rose)] text-white" : "bg-surface2 text-ink2 hover:bg-surface2/70")}>همه خدمات</button>
@@ -403,7 +426,7 @@ export default function FinderPage() {
                 ))}
               </ul>
             ) : <p className="text-xs text-ink3">هنوز نظری برای این پروفایل ثبت نشده است.</p>}
-            {selectedPro.listingId && <ReviewForm listingId={selectedPro.listingId} />}
+            {selectedPro.listingId && <ReviewForm listingId={selectedPro.listingId} onAdded={() => loadDetail(selectedPro.listingId!)} />}
 
             {selectedPro.onCrm ? (
               <>

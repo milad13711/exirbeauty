@@ -8,11 +8,12 @@ export async function createTenant(input: { name: string; slug: string; city: st
   if (!plan || !plan.active) throw notFound("پلن پیدا نشد");
   if (await prisma.tenant.findUnique({ where: { slug: input.slug } })) throw conflict("این نشانی قبلاً گرفته شده", "SLUG_TAKEN");
   const installed = afterPlanChange({ oldPlanModuleIds: [], newPlanModuleIds: plan.modules.map((m) => m.moduleId), addonIds: [], installedIds: [] }).installedIds;
+  const versions = new Map((await prisma.module.findMany({ where: { id: { in: installed } }, select: { id: true, version: true } })).map((m) => [m.id, m.version]));
   return prisma.tenant.create({
     data: {
       name: input.name, slug: input.slug, city: input.city,
       subscription: { create: { planId: plan.id, status: "ACTIVE" } },
-      modules: { create: installed.map((moduleId) => ({ moduleId, installed: true })) },
+      modules: { create: installed.map((moduleId) => ({ moduleId, installed: true, installedVersion: versions.get(moduleId) })) },
     },
     select: { id: true, slug: true },
   });

@@ -1,6 +1,6 @@
 // Pure entitlement logic (no DB) so it can be unit-tested and reused by the UI later.
 
-export type CatalogEntry = { id: string; requires: string[]; core: boolean };
+export type CatalogEntry = { id: string; requires: string[]; core: boolean; /** global kill switch; defaults to true */ enabled?: boolean };
 
 export type EntitlementInput = {
   catalog: CatalogEntry[];
@@ -27,7 +27,8 @@ export function resolveEntitlements(i: EntitlementInput): Map<string, ModuleStat
   const installedSet = new Set(i.installedIds);
   const memo = new Map<string, boolean>();
 
-  const available = (id: string) => plan.has(id) || addons.has(id);
+  const enabled = (id: string) => byId.get(id)?.enabled !== false;
+  const available = (id: string) => enabled(id) && (plan.has(id) || addons.has(id));
   const installed = (id: string) => available(id) && (byId.get(id)?.core === true || installedSet.has(id));
 
   const isActive = (id: string, trail: Set<string>): boolean => {
@@ -49,7 +50,7 @@ export function resolveEntitlements(i: EntitlementInput): Map<string, ModuleStat
     out.set(c.id, {
       id: c.id,
       available: av,
-      source: plan.has(c.id) ? "plan" : addons.has(c.id) ? "addon" : null,
+      source: !enabled(c.id) ? null : plan.has(c.id) ? "plan" : addons.has(c.id) ? "addon" : null,
       installed: inst,
       active,
       blockedBy: av && inst ? c.requires.filter((r) => !isActive(r, new Set([c.id]))) : [],

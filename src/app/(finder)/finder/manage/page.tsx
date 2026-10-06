@@ -1,31 +1,29 @@
 "use client";
-import { useState } from "react";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { MapPinPicker } from "@/components/finder/MapPinPicker";
 import { FINDER_CATS, catStyle, type FinderCat } from "@/lib/finder";
-import { finderListings, PLAN_INFO, type FinderListing, type ListingStaff } from "@/lib/finderListings";
+import { PLAN_INFO, errorText, finderApi, type ListingInput, type ListingStaff, type OwnerView } from "@/lib/finderApi";
 
 const statusInfo = {
-  pending: { tone: "amber" as const, label: "در انتظار تأیید" },
-  published: { tone: "sage" as const, label: "منتشرشده" },
-  rejected: { tone: "danger" as const, label: "رد شده" },
+  PENDING: { tone: "amber" as const, label: "در انتظار تأیید" },
+  PUBLISHED: { tone: "sage" as const, label: "منتشرشده" },
+  REJECTED: { tone: "danger" as const, label: "رد شده" },
 };
 
-function LookupForm({ onFound }: { onFound: (l: FinderListing) => void }) {
+function LookupForm({ onFound }: { onFound: (l: OwnerView, code: string) => void }) {
   const sp = useSearchParams();
   const [id, setId] = useState(sp.get("id") ?? "");
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function lookup() {
-    const l = finderListings.findByCode(id.trim(), code.trim());
-    if (!l) return setErr("شناسه یا کد ویرایش درست نیست.");
-    setErr("");
-    onFound(l);
+  async function lookup() {
+    setBusy(true); setErr("");
+    try { onFound(await finderApi.manage(id.trim(), code), code); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   }
 
   return (
@@ -36,36 +34,49 @@ function LookupForm({ onFound }: { onFound: (l: FinderListing) => void }) {
         <Field label="شناسه‌ی پروفایل"><input value={id} onChange={(e) => setId(e.target.value)} dir="ltr" style={{ textAlign: "right" }} className={fieldCls} /></Field>
         <Field label="کد ویرایش"><input value={code} onChange={(e) => setCode(e.target.value)} dir="ltr" style={{ textAlign: "right" }} className={clsx(fieldCls, "font-mono tracking-widest")} /></Field>
         {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
-        <Button className="w-full" onClick={lookup}>ورود به ویرایش</Button>
+        <Button className="w-full" onClick={lookup} disabled={busy || !id.trim() || !code.trim()}>{busy ? "در حال بررسی…" : "ورود به ویرایش"}</Button>
       </div>
     </Card>
   );
 }
 
-function EditForm({ listing }: { listing: FinderListing }) {
-  const [name, setName] = useState(listing.name);
-  const [brand, setBrand] = useState(listing.brand);
-  const [phone, setPhone] = useState(listing.phone);
-  const [bio, setBio] = useState(listing.bio);
-  const [cats, setCats] = useState<FinderCat[]>(listing.cats);
-  const [pin, setPin] = useState({ x: listing.x, y: listing.y, city: listing.city });
-  const [staff, setStaff] = useState<ListingStaff[]>(listing.staff);
-  const [saved, setSaved] = useState(false);
+function EditForm({ listing, code }: { listing: OwnerView; code: string }) {
+  // A previously submitted change that is still waiting for approval is what the owner expects to see.
+  const base: ListingInput = listing.pendingEdit ?? listing;
+  const [name, setName] = useState(base.name);
+  const [brand, setBrand] = useState(base.brand ?? base.name);
+  const [phone, setPhone] = useState(base.phone);
+  const [bio, setBio] = useState(base.bio);
+  const [cats, setCats] = useState<FinderCat[]>(base.cats);
+  const [pin, setPin] = useState({ x: base.x, y: base.y, city: base.city });
+  const [staff, setStaff] = useState<ListingStaff[]>(base.staff ?? []);
+  const [result, setResult] = useState<{ pendingEdit: boolean } | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const isSalon = listing.plan === "salon";
+  const maxStaff = listing.planLimits.staff ?? 1;
 
   function toggleCat(c: FinderCat) { setCats((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c])); }
 
-  function save() {
-    finderListings.update(listing.id, { name: name.trim(), brand: isSalon ? brand.trim() : name.trim(), phone, bio: bio.trim(), cats, x: pin.x, y: pin.y, city: pin.city, staff: isSalon ? staff.filter((s) => s.name.trim() && s.cats.length) : [] });
-    setSaved(true);
+  async function save() {
+    setBusy(true); setErr("");
+    try {
+      const r = await finderApi.edit(listing.id, code, {
+        name: name.trim(), brand: isSalon ? brand.trim() : undefined, phone, bio: bio.trim(), cats, x: pin.x, y: pin.y, city: pin.city,
+        staff: isSalon ? staff.filter((s) => s.name.trim() && s.cats.length) : [],
+      });
+      setResult(r);
+    } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   }
 
-  if (saved) {
+  if (result) {
     return (
       <Card className="mx-auto max-w-md p-7 text-center">
         <span className="mx-auto grid size-14 place-items-center rounded-full bg-sagesoft text-sage"><Check size={28} /></span>
         <h2 className="mt-4 text-lg font-extrabold text-ink">تغییرات ثبت شد</h2>
-        <p className="mt-2 text-sm leading-7 text-ink2">پروفایل شما دوباره برای بررسی تیم اکسیر ارسال شد و تا تأیید مجدد، نسخه‌ی قبلی روی نقشه باقی می‌ماند.</p>
+        <p className="mt-2 text-sm leading-7 text-ink2">
+          {result.pendingEdit ? "تغییرات برای بررسی تیم اکسیر ارسال شد؛ تا تأیید، نسخه‌ی فعلی روی نقشه باقی می‌ماند." : "پروفایل شما برای بررسی تیم اکسیر ارسال شد و پس از تأیید منتشر می‌شود."}
+        </p>
       </Card>
     );
   }
@@ -78,10 +89,29 @@ function EditForm({ listing }: { listing: FinderListing }) {
             <p className="text-xs text-ink3">پلن</p>
             <p className="font-extrabold text-ink">{PLAN_INFO[listing.plan].title}</p>
           </div>
-          <Badge tone={statusInfo[listing.status].tone}>{statusInfo[listing.status].label}</Badge>
+          <div className="flex items-center gap-1.5">
+            {listing.pendingEdit && <Badge tone="amber">تغییر در انتظار تأیید</Badge>}
+            <Badge tone={statusInfo[listing.status].tone}>{statusInfo[listing.status].label}</Badge>
+          </div>
         </div>
-        {listing.status === "rejected" && listing.rejectReason && <p className="mt-3 rounded-xl bg-dangersoft p-2.5 text-xs text-danger">دلیل رد: {listing.rejectReason}</p>}
+        {listing.status === "REJECTED" && listing.rejectReason && <p className="mt-3 rounded-xl bg-dangersoft p-2.5 text-xs text-danger">دلیل رد: {listing.rejectReason}</p>}
       </Card>
+
+      {listing.planLimits.leads && (
+        <Card className="p-5">
+          <h3 className="mb-3 text-sm font-bold text-ink">درخواست‌های نوبت دریافتی ({listing.leads.length})</h3>
+          {listing.leads.length === 0 ? <p className="text-xs text-ink3">هنوز درخواستی نرسیده است.</p> : (
+            <ul className="divide-y divide-line">
+              {listing.leads.map((l) => (
+                <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                  <span><b>{l.name}</b>{l.note && <span className="mr-2 text-xs text-ink3">{l.note}</span>}</span>
+                  <a href={`tel:${l.phone}`} className="text-xs font-bold text-rosedeep"><bdi dir="ltr">{l.phone}</bdi></a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <Card className="space-y-4 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -121,21 +151,22 @@ function EditForm({ listing }: { listing: FinderListing }) {
               <button type="button" onClick={() => setStaff((list) => list.filter((_, j) => j !== i))} className="grid size-8 shrink-0 place-items-center rounded-lg text-danger hover:bg-dangersoft"><Trash2 size={15} /></button>
             </div>
           ))}
-          {staff.length < 10 && <Button variant="ghost" onClick={() => setStaff((list) => [...list, { name: "", cats: [] }])}><Plus size={14} />افزودن متخصص</Button>}
+          {staff.length < maxStaff && <Button variant="ghost" onClick={() => setStaff((list) => [...list, { name: "", cats: [] }])}><Plus size={14} />افزودن متخصص</Button>}
         </Card>
       )}
 
-      <Button className="w-full" onClick={save}>ذخیره و ارسال برای تأیید مجدد</Button>
+      {err && <p role="alert" className="rounded-xl bg-dangersoft p-3 text-sm text-danger">{err}</p>}
+      <Button className="w-full" onClick={save} disabled={busy}>{busy ? "در حال ارسال…" : "ذخیره و ارسال برای تأیید"}</Button>
     </div>
   );
 }
 
 export default function ManageFinderPage() {
-  const [found, setFound] = useState<FinderListing | null>(null);
+  const [found, setFound] = useState<{ listing: OwnerView; code: string } | null>(null);
   return (
     <div className="page-in">
       <Suspense fallback={null}>
-        {found ? <EditForm listing={found} /> : <LookupForm onFound={setFound} />}
+        {found ? <EditForm listing={found.listing} code={found.code} /> : <LookupForm onFound={(listing, code) => setFound({ listing, code })} />}
       </Suspense>
     </div>
   );
