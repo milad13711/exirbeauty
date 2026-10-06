@@ -49,6 +49,14 @@ describe("customers module", () => {
     expect(g.body.data.birthDate).toContain("2000-12-05");
   });
 
+  it("a partial update changes only what was sent (no defaults leak back in)", async () => {
+    const id = (await call(A, "POST", "/customers", mk("پروفایل کامل", "09121119999", { gender: "MALE", tags: ["VIP", "وفادار"], allergies: ["PPD"], occasions: ["تولد"], note: "عصرها", source: "معرفی", beauty: { hair: { current: "مشکی" } } }))).body.data.id;
+    expect((await call(A, "PATCH", `/customers/${id}`, { note: "صبح‌ها" })).status).toBe(200);
+    const c = (await call(A, "GET", `/customers/${id}`)).body.data;
+    expect(c).toMatchObject({ note: "صبح‌ها", gender: "MALE", tags: ["VIP", "وفادار"], allergies: ["PPD"], occasions: ["تولد"], source: "معرفی", beauty: { hair: { current: "مشکی" } } });
+    await call(A, "DELETE", `/customers/${id}`);
+  });
+
   it("rejects bad input", async () => {
     expect((await call(A, "POST", "/customers", mk("x", "09121111111"))).status).toBe(422); // name too short
     expect((await call(A, "POST", "/customers", mk("نام خوب", "123"))).status).toBe(422);

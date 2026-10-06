@@ -10,22 +10,28 @@ const skin = z.object({ type: text(60), used: text(200), allergies: text(200), f
 const nail = z.object({ services: text(120), colors: text(120), allergies: text(120) }).partial();
 export const beautyProfile = z.object({ hair, skin, nail }).partial();
 
-export const customerBody = z.object({
+// The field definitions carry no defaults, so a PATCH built from them can never reset what the client didn't send.
+const customerFields = z.object({
   name: text(80).min(2),
   phone,
-  gender: z.enum(["FEMALE", "MALE", "OTHER"]).default("FEMALE"),
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ باید YYYY-MM-DD باشد").nullable().optional(),
-  note: text(1000).default(""),
-  tags: list().default([]),
-  allergies: list().default([]),
-  occasions: list().default([]),
-  beauty: beautyProfile.default({}),
-  source: text(60).default(""),
-  referredById: z.string().min(1).nullable().optional(),
+  gender: z.enum(["FEMALE", "MALE", "OTHER"]),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ باید YYYY-MM-DD باشد").nullable(),
+  note: text(1000),
+  tags: list(),
+  allergies: list(),
+  occasions: list(),
+  beauty: beautyProfile,
+  source: text(60),
+  referredById: z.string().min(1).nullable(),
 });
+
+/** Create: only name + phone are required; everything else falls back to a default. */
+export const customerBody = customerFields.partial().required({ name: true, phone: true }).transform((v) => ({
+  gender: "FEMALE" as const, note: "", tags: [] as string[], allergies: [] as string[], occasions: [] as string[], beauty: {} as z.infer<typeof beautyProfile>, source: "", ...v,
+}));
 export type CustomerBody = z.infer<typeof customerBody>;
 
-export const customerPatch = customerBody.partial();
+export const customerPatch = customerFields.partial();
 
 export const listQuery = z.object({
   q: z.string().trim().max(60).optional(),
@@ -43,4 +49,4 @@ export const visitBody = z.object({
   note: text(500).default(""),
 });
 
-export const importBody = z.object({ rows: z.array(customerBody.pick({ name: true, phone: true, gender: true, note: true, tags: true, birthDate: true }).partial({ gender: true, note: true, tags: true, birthDate: true })).min(1).max(500) });
+export const importBody = z.object({ rows: z.array(customerFields.pick({ name: true, phone: true, gender: true, note: true, tags: true, birthDate: true }).partial().required({ name: true, phone: true })).min(1).max(500) });
