@@ -6,8 +6,10 @@ const id = z.string().min(1).max(40);
 const money = z.number().int().min(0).max(1_000_000_000);
 export const dateStr = z.string().refine(isRealDate, "تاریخ باید یک روز معتبر به شکل YYYY-MM-DD باشد");
 
-// Wallet and gift-card payments belong to the loyalty / gift-card modules, which aren't on the backend yet.
-const method = z.enum(["CASH", "CARD", "ONLINE", "WALLET", "GIFT"]).refine((m) => m === "CASH" || m === "CARD" || m === "ONLINE", "پرداخت با کیف پول و کارت هدیه هنوز فعال نیست");
+// Debts, expenses and day closing only involve real money; invoices can also be paid from the club wallet (loyalty module).
+// Gift cards belong to a module that isn't on the backend yet.
+const method = z.enum(["CASH", "CARD", "ONLINE"]);
+const saleMethod = z.enum(["CASH", "CARD", "ONLINE", "WALLET", "GIFT"]).refine((m) => m !== "GIFT", "پرداخت با کارت هدیه هنوز فعال نیست");
 
 export const line = z.object({
   kind: z.enum(["SERVICE", "PRODUCT", "OTHER"]),
@@ -25,7 +27,7 @@ export const saleBody = z.object({
   apptId: id.nullish(),
   lines: z.array(line).max(50).default([]),
   discountPct: z.number().int().min(0).max(100).default(0),
-  payments: z.array(z.object({ method, amount: z.number().int().min(1).max(1_000_000_000), ref: text(60).default("") })).max(6).default([]),
+  payments: z.array(z.object({ method: saleMethod, amount: z.number().int().min(1).max(1_000_000_000), ref: text(60).default("") })).max(6).default([]),
   note: text(300).default(""),
 });
 export type SaleBody = z.infer<typeof saleBody>;

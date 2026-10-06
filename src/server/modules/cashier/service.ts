@@ -2,10 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { badRequest, conflict, notFound } from "../../http/errors";
 import type { Session } from "../../http/types";
+import { emit } from "../../platform/events";
 import { assertModuleActive } from "../../platform/modules/service";
 import { tehranNow } from "../calendar/availability";
 import { transition } from "../calendar/service";
 import { addVisit } from "../customers/service";
+import { refundWallet, spendWallet } from "../loyalty/service";
 import { allocateDebt, commissions, netOf, summarize, totals } from "./money";
 import type { SaleBody } from "./schemas";
 
@@ -74,21 +76,29 @@ export async function createSale(tenantId: string, actor: Session, b: SaleBody) 
   if (paid > total) throw conflict("مبلغ دریافتی از جمع فاکتور بیشتر است", "OVERPAID", { total, paid });
   const debt = total - paid;
   if (debt > 0 && !customer) throw conflict("برای فاکتور بدهکار باید مشتری انتخاب شود", "DEBT_NEEDS_CUSTOMER");
+  const walletPaid = b.payments.filter((p) => p.method === "WALLET").reduce((a, p) => a + p.amount, 0);
+  if (walletPaid > 0) {
+    if (!customer) throw conflict("برای پرداخت از کیف پول باید مشتری انتخاب شود", "WALLET_NEEDS_CUSTOMER");
+    await assertModuleActive(tenantId, "loyalty");
+  }
   if (total === 0 && b.discountPct < 100 && lines.every((l) => l.price === 0)) throw badRequest("جمع فاکتور صفر است");
 
   let sale: SaleFull;
   try {
     sale = await prisma.$transaction(async (tx) => {
       const number = await nextNumber(tx, tenantId);
-      return tx.sale.create({
+      const created = await tx.sale.create({
         data: {
           tenantId, number, date: day(date), customerId: customer?.id ?? null, customerName: customer?.name ?? b.customerName, apptId: appt?.id ?? null,
           subtotal, discountPct: b.discountPct, discount, total, paid, debt, status: debt > 0 ? "DEBT" : "PAID", note: b.note, createdById: actor.userId,
           lines: { create: lines.map((l) => ({ kind: l.kind, refId: l.refId ?? null, name: l.name, qty: l.qty, price: l.price, staffId: l.staffId ?? null, commissionPct: commissionOf(l) })) },
-          payments: { create: b.payments.map((p) => ({ method: p.method as "CASH" | "CARD" | "ONLINE", amount: p.amount, ref: p.ref })) },
+          payments: { create: b.payments.map((p) => ({ method: p.method as "CASH" | "CARD" | "ONLINE" | "WALLET", amount: p.amount, ref: p.ref })) },
         },
         include: saleInclude,
       });
+      // Same transaction as the invoice: if the wallet can't cover it, nothing is created.
+      if (walletPaid > 0) await spendWallet(tx, tenantId, customer!.id, walletPaid, created.id, `F-${number}`);
+      return created;
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw conflict("برای این نوبت قبلاً فاکتور صادر شده است", "APPOINTMENT_ALREADY_INVOICED");
@@ -105,6 +115,7 @@ export async function createSale(tenantId: string, actor: Session, b: SaleBody) 
         .catch((e) => console.error("[cashier] visit history failed", e));
     }
   }
+  await emit("sale.created", tenantId, { id: sale.id });
   return view(sale);
 }
 
@@ -132,8 +143,14 @@ export async function voidSale(tenantId: string, id: string, reason: string) {
   await assertOpen(tenantId, ymd(s.date));
   // Debt payments already applied to this invoice would have to be refunded by hand — don't silently lose that money.
   if (s.paid + s.debt < s.total) throw conflict("برای این فاکتور بدهی دریافت شده؛ ابتدا باید مبلغ برگردانده شود", "HAS_DEBT_PAYMENTS");
-  const r = await prisma.sale.updateMany({ where: { id, tenantId, status: { not: "VOID" } }, data: { status: "VOID", voidReason: reason, voidedAt: new Date(), debt: 0 } });
-  if (r.count !== 1) throw conflict("این فاکتور همین الان باطل شد", "ALREADY_VOID");
+  const walletPaid = (await prisma.salePayment.findMany({ where: { saleId: id, method: "WALLET" } })).reduce((a, p) => a + p.amount, 0);
+  await prisma.$transaction(async (tx) => {
+    const r = await tx.sale.updateMany({ where: { id, tenantId, status: { not: "VOID" } }, data: { status: "VOID", voidReason: reason, voidedAt: new Date(), debt: 0 } });
+    if (r.count !== 1) throw conflict("این فاکتور همین الان باطل شد", "ALREADY_VOID");
+    // Money paid from the wallet goes back to it in the same step, so a void can never lose it.
+    if (walletPaid > 0 && s.customerId) await refundWallet(tx, tenantId, s.customerId, walletPaid, id, `F-${s.number}`);
+  });
+  await emit("sale.voided", tenantId, { id });
   return getSale(tenantId, id);
 }
 

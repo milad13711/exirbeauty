@@ -27,22 +27,22 @@ export function allocateDebt(owed: Owed[], amount: number) {
   return { allocations: out, unplaced: left };
 }
 
-export type SaleRow = { total: number; paid: number; discountPct: number; discount: number; lines: Line[]; payments: { method: "CASH" | "CARD" | "ONLINE"; amount: number }[] };
-export type ExpenseRow = { amount: number; method: "CASH" | "CARD" | "ONLINE" };
-export type DebtPayRow = { amount: number; method: "CASH" | "CARD" | "ONLINE" };
+export type SaleRow = { total: number; paid: number; discountPct: number; discount: number; lines: Line[]; payments: { method: "CASH" | "CARD" | "ONLINE" | "WALLET"; amount: number }[] };
+export type ExpenseRow = { amount: number; method: "CASH" | "CARD" | "ONLINE" | "WALLET" };
+export type DebtPayRow = { amount: number; method: "CASH" | "CARD" | "ONLINE" | "WALLET" };
 
 /** Totals for non-void invoices plus expenses and debt collections over a period. */
 export function summarize(sales: SaleRow[], expenses: ExpenseRow[], debtPays: DebtPayRow[]) {
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   const gross = (kinds: Line["kind"][]) => sum(sales.flatMap((s) => s.lines.filter((l) => kinds.includes(l.kind)).map((l) => l.price * l.qty)));
-  const byMethod = (m: "CASH" | "CARD" | "ONLINE") => sum(sales.flatMap((s) => s.payments.filter((p) => p.method === m).map((p) => p.amount)));
-  const debtBy = (m: "CASH" | "CARD" | "ONLINE") => sum(debtPays.filter((p) => p.method === m).map((p) => p.amount));
-  const expBy = (m: "CASH" | "CARD" | "ONLINE") => sum(expenses.filter((e) => e.method === m).map((e) => e.amount));
+  const byMethod = (m: "CASH" | "CARD" | "ONLINE" | "WALLET") => sum(sales.flatMap((s) => s.payments.filter((p) => p.method === m).map((p) => p.amount)));
+  const debtBy = (m: "CASH" | "CARD" | "ONLINE" | "WALLET") => sum(debtPays.filter((p) => p.method === m).map((p) => p.amount));
+  const expBy = (m: "CASH" | "CARD" | "ONLINE" | "WALLET") => sum(expenses.filter((e) => e.method === m).map((e) => e.amount));
   const revenue = sum(sales.map((s) => s.total));
   const totalExpenses = sum(expenses.map((e) => e.amount));
   return {
     count: sales.length, revenue, services: gross(["SERVICE"]), products: gross(["PRODUCT", "OTHER"]), discounts: sum(sales.map((s) => s.discount)),
-    cash: byMethod("CASH"), card: byMethod("CARD"), online: byMethod("ONLINE"),
+    cash: byMethod("CASH"), card: byMethod("CARD"), online: byMethod("ONLINE"), wallet: byMethod("WALLET"),
     newDebt: sum(sales.map((s) => s.total - s.paid)), debtCollected: sum(debtPays.map((p) => p.amount)),
     expenses: totalExpenses, net: revenue - totalExpenses,
     cashExpected: byMethod("CASH") + debtBy("CASH") - expBy("CASH"),

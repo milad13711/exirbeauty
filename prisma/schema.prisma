@@ -330,6 +330,8 @@ model Customer {
   visits       CustomerVisit[]
   appointments Appointment[]
   sales        Sale[]
+  loyalty      LoyaltyAccount[]
+  loyaltyTxs   LoyaltyTx[]
   debtPayments DebtPayment[]
 
   @@unique([tenantId, phone])
@@ -530,6 +532,7 @@ enum PayMethod {
   CASH
   CARD
   ONLINE
+  WALLET // paid from the customer's club wallet (loyalty module); not cash in the till
 }
 
 model Sale {
@@ -729,4 +732,60 @@ model SmsScenario {
   template String
 
   @@id([tenantId, kind])
+}
+
+// ───────── Module: loyalty (customer club; points + wallet in whole toman) ─────────
+
+enum LoyaltyTxKind {
+  EARN // points for an invoice
+  EARN_REVERSE // invoice voided
+  REDEEM // points spent on a reward
+  ADJUST // manual correction by the owner
+  CASHBACK // wallet credit for an invoice
+  CASHBACK_REVERSE
+  REWARD_CREDIT // wallet credit from a reward
+  WALLET_SPEND // wallet used as a payment method
+  WALLET_REFUND // invoice voided
+  WALLET_ADJUST
+}
+
+model LoyaltyConfig {
+  tenantId  String   @id
+  tiers     Json
+  earn      Json
+  rewards   Json
+  cashback  Json
+  updatedAt DateTime @updatedAt
+}
+
+model LoyaltyAccount {
+  tenantId   String
+  customerId String
+  points     Int      @default(0) // spendable
+  lifetime   Int      @default(0) // ever earned — drives the tier, which never drops
+  tier       String   @default("")
+  wallet     Int      @default(0) // toman
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, customerId])
+}
+
+model LoyaltyTx {
+  id          String        @id @default(cuid())
+  tenantId    String
+  customerId  String
+  kind        LoyaltyTxKind
+  points      Int           @default(0)
+  wallet      Int           @default(0)
+  pointsAfter Int
+  walletAfter Int
+  ref         String? // sale id / reward id
+  note        String        @default("")
+  createdAt   DateTime      @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, customerId, createdAt])
 }
