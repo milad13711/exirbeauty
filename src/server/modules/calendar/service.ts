@@ -1,6 +1,7 @@
 import { Prisma, type Appointment } from "@prisma/client";
 import { prisma } from "../../db";
 import { badRequest, conflict, forbidden, notFound, tooMany } from "../../http/errors";
+import { emit } from "../../platform/events";
 import { planLimits } from "../../platform/limits";
 import { assertModuleActive } from "../../platform/modules/service";
 import { addVisit, findOrCreateByPhone } from "../customers/service";
@@ -116,6 +117,7 @@ async function insertAppointment(tenantId: string, a: NewAppt, opts: { grid: boo
       data: { tenantId, customerId: a.customerId, staffId: a.staffId, serviceId: svc.id, serviceName: svc.name, category: svc.category, price: svc.price, date: day(a.date), startMin: a.startMin, durationMin: svc.durationMin, status: a.status, source: a.source, note: a.note },
       include,
     });
+    await emit("appointment.created", tenantId, { id: created.id });
     return view(created);
   } catch (e) { return slotTaken(e); }
 }
@@ -156,6 +158,7 @@ export async function transition(tenantId: string, id: string, to: Status, reaso
     // Service history on the customer profile (only reached once, thanks to the claim above).
     await addVisit(tenantId, a.customerId, { at: instantOf(ymd(a.date), a.startMin).toISOString(), service: a.serviceName, category: a.category, staffName: a.staff.name, price: a.price, note: a.note });
   }
+  await emit("appointment.status", tenantId, { id, to });
   return view(await own(tenantId, id));
 }
 
@@ -168,9 +171,12 @@ export async function move(tenantId: string, id: string, to: { date: string; sta
     if (!svc) throw badRequest("این متخصص این خدمت را انجام نمی‌دهد");
   }
   await placeCheck(tenantId, { staffId, serviceId: a.serviceId ?? "", date: to.date, startMin: to.startMin, durationMin: a.durationMin }, { grid: opts.grid ?? false, leadMin: opts.leadMin ?? -120, ignoreApptId: id });
+  let moved;
   try {
-    return view(await prisma.appointment.update({ where: { id }, data: { date: day(to.date), startMin: to.startMin, staffId }, include }));
+    moved = await prisma.appointment.update({ where: { id }, data: { date: day(to.date), startMin: to.startMin, staffId }, include });
   } catch (e) { return slotTaken(e); }
+  await emit("appointment.moved", tenantId, { id });
+  return view(moved);
 }
 
 // ───────── waitlist ─────────

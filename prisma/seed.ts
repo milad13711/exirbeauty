@@ -25,6 +25,15 @@ async function main() {
     console.log("super admin ready:", email);
   } else console.log("SEED_ADMIN_EMAIL/PASSWORD not set — no admin created");
 
+  // Starter SMS credit packages (admins edit them afterwards in the admin panel); only when none exist.
+  if (!(await prisma.smsPackage.count())) {
+    await prisma.smsPackage.createMany({ data: [
+      { name: "شروع", price: 100_000, bonusPct: 0, sortOrder: 1 },
+      { name: "رشد", price: 500_000, bonusPct: 10, sortOrder: 2 },
+      { name: "حرفه‌ای", price: 2_000_000, bonusPct: 20, sortOrder: 3 },
+    ] });
+  }
+
   if (process.env.NODE_ENV !== "production" && !(await prisma.tenant.findUnique({ where: { slug: "demo-salon" } }))) {
     const t = await createTenant({ name: "سالن رُز (دمو)", slug: "demo-salon", city: "تهران", planCode: "salon" });
     console.log("demo tenant:", t.id);

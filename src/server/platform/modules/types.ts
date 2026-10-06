@@ -1,4 +1,5 @@
 import type { Route } from "../../http/types";
+import type { EventMap } from "../events";
 
 export type ModuleManifest = {
   /** Stable id, also the DB primary key (e.g. "cashier") */
@@ -29,6 +30,8 @@ export type ModuleManifest = {
   onUninstall?: (tenantId: string) => Promise<void>;
   /** HTTP routes mounted under /api/v1. Tenant-scoped modules get the entitlement guard automatically. */
   routes?: Route[];
+  /** Reactions to events other modules emit (see platform/events.ts); run only while this module is active for the tenant. */
+  events?: EventMap;
 };
 
 export const defineModule = (m: ModuleManifest): ModuleManifest => m;

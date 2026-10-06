@@ -266,6 +266,7 @@ enum PaymentKind {
   PLAN
   ADDON
   LISTING_PLAN // a finder listing paying for its plan; the salon (tenant) is created when it succeeds
+  SMS_TOPUP // buying SMS credit (packageId = SmsPackage id)
 }
 
 enum PaymentStatus {
@@ -283,6 +284,7 @@ model Payment {
   kind        PaymentKind
   planCode    String?
   moduleId    String?
+  packageId   String? // SmsPackage id for SMS_TOPUP
   months      Int           @default(1)
   amount      Int // toman, computed server-side from the plan / module price
   description String
@@ -633,4 +635,98 @@ model Sequence {
   value    Int      @default(0)
 
   @@id([tenantId, key])
+}
+
+// ───────── Platform settings (admin-editable key/value) ─────────
+
+model PlatformSetting {
+  key   String @id
+  value Json
+}
+
+// ───────── Module: sms (tenant-scoped; credit is whole toman) ─────────
+
+enum SmsKind {
+  MANUAL
+  CONFIRM
+  MOVED
+  CANCEL
+  REMINDER_24
+  REMINDER_2
+  THANKS
+  BIRTHDAY
+}
+
+enum SmsStatus {
+  QUEUED
+  SENT
+  FAILED
+  BLOCKED // not enough credit — nothing was sent or charged
+}
+
+enum SmsTxKind {
+  TOPUP
+  BONUS
+  SEND
+  REFUND
+  ADJUST
+}
+
+model SmsAccount {
+  tenantId     String   @id
+  balance      Int      @default(0)
+  lowThreshold Int      @default(20000)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SmsMessage {
+  id          String    @id @default(cuid())
+  tenantId    String
+  customerId  String?
+  phone       String
+  text        String
+  parts       Int
+  cost        Int // toman charged (0 when BLOCKED)
+  kind        SmsKind
+  status      SmsStatus
+  reason      String?
+  providerRef String?
+  // appointment id (or customer:year for birthdays): an automatic message is sent at most once per (kind, relatedId)
+  relatedId   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status, createdAt])
+}
+
+model SmsTx {
+  id           String    @id @default(cuid())
+  tenantId     String
+  delta        Int
+  balanceAfter Int
+  kind         SmsTxKind
+  ref          String?
+  note         String    @default("")
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+model SmsPackage {
+  id        String  @id @default(cuid())
+  name      String
+  price     Int // toman the salon pays
+  bonusPct  Int     @default(0) // extra credit on top of the price
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+}
+
+model SmsScenario {
+  tenantId String
+  kind     SmsKind
+  enabled  Boolean
+  template String
+
+  @@id([tenantId, kind])
 }
