@@ -32,7 +32,7 @@ sold as add-ons, or switched off per tenant without touching module code.
 
 Screens on the real API (`src/lib/api.ts`, `crmApi.ts`, `finderApi.ts`): finder (map, join, manage, admin moderation), **login (OTP / admin)**, **customers** (list, new, profile with beauty profile + history, import), **services**, **staff**, **calendar** (day view, create/move/confirm/cancel, waitlist, settings, “issue invoice” from an appointment), **cashier** (invoices with split payments, debts, expenses, report, day closing) and the public booking page **`/s/<salon-slug>`**. They sit behind `LiveGate` (real session required, redirects to `/login?next=…`).
 
-Everything else (dashboard, loyalty, SMS, …) still runs on the localStorage prototype (`src/lib/db.ts`) — so those screens don't see the real customers/appointments yet; they move over as their backend modules are built. For local OTP login without spending SMS credit run the server with `SMS_DRIVER=console` and read the code from its log (set `SEED_OWNER_PHONE` + `npm run db:seed` first).
+Everything else (dashboard, loyalty, campaigns, …) still runs on the localStorage prototype (`src/lib/db.ts`) — so those screens don't see the real customers/appointments yet; they move over as their backend modules are built. For local OTP login without spending SMS credit run the server with `SMS_DRIVER=console` and read the code from its log (set `SEED_OWNER_PHONE` + `npm run db:seed` first).
 
 ### Calendar & booking
 
@@ -50,6 +50,13 @@ Whole-toman money; every rule is checked twice — in code (`modules/cashier/mon
 - **From an appointment:** `POST /cashier/sales {apptId}` derives the line, marks the appointment done (which writes the customer's history once) and a unique index allows one active invoice per appointment; voiding frees it for a corrected one. Walk-ins with a customer write their service lines to the history instead.
 - Debt collection settles the customer's oldest invoices first under a row lock (parallel payments can't spend the same debt); an invoice that already received debt payments can't be voided.
 - **Day closing:** the server computes expected cash (cash sales + cash debt collections − cash expenses); a closed day locks invoices, voids, expenses and debt payments dated that day until an owner reopens it. Report and per-staff commission: `GET /cashier/summary`. Staff may invoice; voids, expenses, totals and closing are owner-level.
+
+### SMS
+- **Credit** is prepaid whole toman per salon (`SmsAccount`, never negative — also a DB CHECK). A message costs `parts × sell price` (platform setting `sms.pricing`, default 190; 70 chars for part one, 67 each after). Salons buy **packages** (price + bonus %) through Zarinpal (`POST /sms/topup`, payment kind `SMS_TOPUP`); admins manage pricing/packages and can adjust credit (`/admin/sms/*`, audited).
+- **Sending** reserves a `SmsMessage` row, debits atomically, calls the gateway, and refunds on failure — a failure never costs the salon and concurrent sends never overdraw. Without credit the message is `BLOCKED` (nothing sent or charged).
+- **Scenarios** (confirm, moved, cancel, 24h/2h reminder, thanks, birthday) are editable templates per salon. They react to **domain events** (`platform/events.ts`: `appointment.created|status|moved`, delivered only to modules active for that tenant; a failing listener never breaks the booking). A partial unique index guarantees each automatic message goes out once per (kind, appointment).
+- **Reminders & birthdays** are time-based: have a scheduler call `POST /api/v1/sms/cron/run` with header `x-cron-secret: $CRON_SECRET` every ~10 minutes (idempotent; closed when `CRON_SECRET` is unset).
+- Not built yet: customer opt-out, dedicated sender lines, campaigns.
 
 ### Finder listing → real salon
 

@@ -1,6 +1,6 @@
-import { SmsHub } from "@/components/sms/SmsHub";
+import { LiveSms } from "@/components/live/LiveSms";
 
-export default async function SmsPage({ searchParams }: { searchParams: Promise<{ tab?: string; pkg?: string }> }) {
-  const { tab, pkg } = await searchParams;
-  return <SmsHub initialTab={tab} pkg={pkg} />;
+export default async function SmsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
+  return <LiveSms initialTab={tab} />;
 }

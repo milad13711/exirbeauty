@@ -46,6 +46,13 @@ export type SaleView = {
 export type ExpenseView = { id: string; date: string; title: string; amount: number; method: PayMethod; category: string };
 export type DebtRow = { customerId: string; name: string; phone: string; debt: number; invoices: number; since: string | null };
 export type Summary = { from: string; to: string; count: number; revenue: number; services: number; products: number; discounts: number; cash: number; card: number; online: number; newDebt: number; debtCollected: number; expenses: number; net: number; cashExpected: number; byStaff: { staffId: string; name: string; revenue: number; commission: number }[] };
+export type SmsKind = "MANUAL" | "CONFIRM" | "MOVED" | "CANCEL" | "REMINDER_24" | "REMINDER_2" | "THANKS" | "BIRTHDAY";
+export type SmsAccount = { balance: number; lowThreshold: number; low: boolean; pricing: { sell: number } };
+export type SmsPackage = { id: string; name: string; price: number; bonusPct: number; active: boolean };
+export type SmsScenario = { kind: Exclude<SmsKind, "MANUAL">; title: string; vars: string[]; enabled: boolean; template: string; custom: boolean };
+export type SmsMessage = { id: string; customerId: string | null; phone: string; text: string; parts: number; cost: number; kind: SmsKind; status: "QUEUED" | "SENT" | "FAILED" | "BLOCKED"; reason: string | null; createdAt: string };
+export type SmsTxRow = { id: string; delta: number; balanceAfter: number; kind: "TOPUP" | "BONUS" | "SEND" | "REFUND" | "ADJUST"; note: string; createdAt: string };
+export type SmsStats = { days: number; sent: number; failed: number; blocked: number; parts: number; spend: number; byKind: Record<string, number> };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -113,6 +120,18 @@ export const crm = {
   day: (date: string) => api<DayStatus>("GET", `/cashier/days/${date}`),
   closeDay: (date: string, countedCash: number, note = "") => api<DayStatus>("POST", `/cashier/days/${date}/close`, { countedCash, note }),
   reopenDay: (date: string) => api<DayStatus>("DELETE", `/cashier/days/${date}/close`),
+
+  // sms
+  smsAccount: () => api<SmsAccount>("GET", "/sms/account"),
+  smsSetThreshold: (lowThreshold: number) => api<SmsAccount>("PATCH", "/sms/account", { lowThreshold }),
+  smsPackages: () => api<SmsPackage[]>("GET", "/sms/packages"),
+  smsTopup: (packageId: string) => api<{ paymentId: string; amount: number; paymentUrl: string }>("POST", "/sms/topup", { packageId }),
+  smsSend: (b: { customerId?: string | null; phone?: string; text: string }) => api<{ status: string }>("POST", "/sms/send", b),
+  smsMessages: (q: { status?: string; limit?: number } = {}) => api<SmsMessage[]>("GET", `/sms/messages${qs(q)}`),
+  smsTransactions: () => api<SmsTxRow[]>("GET", "/sms/transactions"),
+  smsStats: (days = 30) => api<SmsStats>("GET", `/sms/stats${qs({ days })}`),
+  smsScenarios: () => api<SmsScenario[]>("GET", "/sms/scenarios"),
+  smsPutScenario: (kind: string, p: { enabled?: boolean; template?: string }) => api<SmsScenario>("PUT", `/sms/scenarios/${kind.toLowerCase()}`, p),
 
   // public booking (no login)
   publicSalon: (slug: string) => api<PublicSalon>("GET", `/public/salons/${encodeURIComponent(slug)}`),
