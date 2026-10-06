@@ -66,6 +66,9 @@ Whole-toman money; every rule is checked twice — in code (`modules/cashier/mon
 - **Rewards**: wallet rewards credit instantly; "free service/product" rewards spend points and are honoured by the cashier. Owners can adjust points/wallet manually with a reason (audited). Points/wallet can't go negative (DB CHECK).
 - Not built yet: wallet top-up by cash/card (it would need to feed the daily cash report), gift cards, birthday/referral/review points.
 
+### Navigation & modules in the UI
+The sidebar, the "locked module" screen and `/modules` read the signed-in salon's real entitlements (`GET /tenant/modules`: plan ∪ add-ons, installed, dependencies) through `EntitlementsProvider`. Locked screens offer install, add-on purchase through Zarinpal, or plan upgrade; `/modules` shows real versions and installs/uninstalls through the API. Without a session the UI falls back to the prototype's local state, so the demo still works.
+
 ### Dashboard (reports module)
 `GET /reports/dashboard` (owner-level) rolls up today's sales vs the same weekday last week, appointments, how full the day is (bookable minutes minus breaks vs booked), new/returning customers, a 7-day revenue series, service share + margin (30 days), top staff and the day's opportunities (inactive customers, unconfirmed appointments, unpaid debt). The home page and the top-bar SMS credit chip now read real data. Excel export and period reports are still to come.
 

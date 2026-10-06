@@ -14,6 +14,7 @@ import { actions, useDB } from "@/lib/db";
 import { ops } from "@/lib/ops";
 import { fa } from "@/lib/fa";
 import { crm } from "@/lib/crmApi";
+import { useEntitlements } from "@/lib/entitlements";
 import { useQuery } from "@/lib/useQuery";
 import { MessageSquareText } from "lucide-react";
 import { dayInfo } from "@/lib/dates";
@@ -26,7 +27,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const [find, setFind] = useState(false);
   const [menu, setMenu] = useState(false);
   const [bell, setBell] = useState(false);
-  const moreCount = MODULES.filter((m) => moduleAvailable(db, m.id) && !db.modules.installed.includes(m.id)).length;
+  const ent = useEntitlements();
+  // Real entitlements when signed in to a salon; the prototype's local state otherwise.
+  const modActive = (id: string) => (ent.live ? ent.isActive(id) || !ent.get(id) : moduleActive(db, id));
+  const moreCount = ent.live ? ent.data!.modules.filter((m) => m.available && !m.installed).length : MODULES.filter((m) => moduleAvailable(db, m.id) && !db.modules.installed.includes(m.id)).length;
   // Real SMS credit; null when signed out or the salon has no SMS module (the chip then simply doesn't show).
   const sms = useQuery(() => crm.smsAccount().catch(() => null), []).data;
   const smsOn = !!sms;
@@ -47,7 +51,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </div>
       <div className="scroll-thin flex-1 overflow-y-auto px-3 pb-6">
-        {navGroups.map((g) => ({ ...g, items: g.items.filter((it) => { const m = moduleForPath(it.href); return !m || moduleActive(db, m.id); }) })).filter((g) => g.items.length).map((g) => (
+        {navGroups.map((g) => ({ ...g, items: g.items.filter((it) => { const m = moduleForPath(it.href); return !m || modActive(m.id); }) })).filter((g) => g.items.length).map((g) => (
           <div key={g.title} className="mb-4">
             <p className="px-3 pb-1.5 text-[11px] font-semibold text-ink3">{g.title}</p>
             {g.items.map((it) => {
@@ -93,7 +97,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <button aria-label="بستن" className="grid size-10 cursor-pointer place-items-center rounded-full bg-surface2" onClick={() => setOpen(false)}><X size={18} /></button>
             </div>
             <div className="scroll-thin flex-1 overflow-y-auto px-4 pb-6">
-              {navGroups.map((g) => ({ ...g, items: g.items.filter((it) => { const m = moduleForPath(it.href); return !m || moduleActive(db, m.id); }) })).filter((g) => g.items.length).map((g) => (
+              {navGroups.map((g) => ({ ...g, items: g.items.filter((it) => { const m = moduleForPath(it.href); return !m || modActive(m.id); }) })).filter((g) => g.items.length).map((g) => (
                 <div key={g.title} className="mt-4">
                   <p className="px-1 pb-2 text-[11.5px] font-bold text-ink3">{g.title}</p>
                   <div className="grid grid-cols-4 gap-2">

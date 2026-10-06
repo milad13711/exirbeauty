@@ -71,6 +71,8 @@ export type Dashboard = {
   month: { revenue: number; net: number };
   opportunities: { inactiveCustomers: number; pendingAppointments: number; debt: number };
 };
+export type ModuleEnt = { id: string; name: string; category: string; scope: string; price: number; addonPurchasable: boolean; version: string; enabled: boolean; minPlan: string | null; available: boolean; source: "plan" | "addon" | null; installed: boolean; active: boolean; blockedBy: string[] };
+export type Entitlements = { tenantId: string; plan: { code: string; title: string } | null; subscriptionActive: boolean; modules: ModuleEnt[] };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -138,6 +140,12 @@ export const crm = {
   day: (date: string) => api<DayStatus>("GET", `/cashier/days/${date}`),
   closeDay: (date: string, countedCash: number, note = "") => api<DayStatus>("POST", `/cashier/days/${date}/close`, { countedCash, note }),
   reopenDay: (date: string) => api<DayStatus>("DELETE", `/cashier/days/${date}/close`),
+
+  // modules
+  entitlements: () => api<Entitlements>("GET", "/tenant/modules"),
+  installModule: (id: string) => api<{ ok: true }>("POST", `/tenant/modules/${id}/install`, {}),
+  uninstallModule: (id: string) => api<{ ok: true }>("POST", `/tenant/modules/${id}/uninstall`, {}),
+  payAddon: (moduleId: string, months = 1) => api<{ paymentUrl: string }>("POST", "/tenant/payments", { kind: "addon", moduleId, months }),
 
   // dashboard
   dashboard: () => api<Dashboard>("GET", "/reports/dashboard"),

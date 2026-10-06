@@ -8,8 +8,11 @@ import { useDB } from "@/lib/db";
 import { CORE_NAMES, MODULES, minPlanFor, moduleActive, moduleAvailable, moduleById, modulePrice, planLabel } from "@/lib/modules";
 import { moduleActions } from "@/lib/moduleActions";
 import { fa, short, toman } from "@/lib/fa";
+import { useEntitlements } from "@/lib/entitlements";
+import { LiveModules } from "@/components/live/LiveModules";
+import { LiveGate } from "@/components/live/LiveGate";
 
-export default function ModulesPage() {
+function PrototypeModules() {
   const db = useDB();
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -63,4 +66,9 @@ export default function ModulesPage() {
       ))}
     </>
   );
+}
+
+export default function ModulesPage() {
+  const ent = useEntitlements();
+  return ent.live ? <LiveGate><LiveModules /></LiveGate> : <PrototypeModules />;
 }
