@@ -32,7 +32,7 @@ sold as add-ons, or switched off per tenant without touching module code.
 
 Screens on the real API (`src/lib/api.ts`, `crmApi.ts`, `finderApi.ts`): finder (map, join, manage, admin moderation), **login (OTP / admin)**, **customers** (list, new, profile with beauty profile + history, import), **services**, **staff**, **calendar** (day view, create/move/confirm/cancel, waitlist, settings, “issue invoice” from an appointment), **cashier** (invoices with split payments, debts, expenses, report, day closing) and the public booking page **`/s/<salon-slug>`**. They sit behind `LiveGate` (real session required, redirects to `/login?next=…`).
 
-Everything else (dashboard, loyalty, campaigns, …) still runs on the localStorage prototype (`src/lib/db.ts`) — so those screens don't see the real customers/appointments yet; they move over as their backend modules are built. For local OTP login without spending SMS credit run the server with `SMS_DRIVER=console` and read the code from its log (set `SEED_OWNER_PHONE` + `npm run db:seed` first).
+Everything else (dashboard, campaigns, reviews, …) still runs on the localStorage prototype (`src/lib/db.ts`) — so those screens don't see the real customers/appointments yet; they move over as their backend modules are built. For local OTP login without spending SMS credit run the server with `SMS_DRIVER=console` and read the code from its log (set `SEED_OWNER_PHONE` + `npm run db:seed` first).
 
 ### Calendar & booking
 
@@ -57,6 +57,14 @@ Whole-toman money; every rule is checked twice — in code (`modules/cashier/mon
 - **Scenarios** (confirm, moved, cancel, 24h/2h reminder, thanks, birthday) are editable templates per salon. They react to **domain events** (`platform/events.ts`: `appointment.created|status|moved`, delivered only to modules active for that tenant; a failing listener never breaks the booking). A partial unique index guarantees each automatic message goes out once per (kind, appointment).
 - **Reminders & birthdays** are time-based: have a scheduler call `POST /api/v1/sms/cron/run` with header `x-cron-secret: $CRON_SECRET` every ~10 minutes (idempotent; closed when `CRON_SECRET` is unset).
 - Not built yet: customer opt-out, dedicated sender lines, campaigns.
+
+### Customer club (loyalty)
+- Per-salon config (tiers, earn rules, rewards, cashback) with defaults until the owner edits it; changes apply to later invoices only.
+- **Earning** reacts to the cashier's `sale.created` event: visit bonus + points per amount spent (on values after the invoice discount) and capped cashback (% of what was paid outside the wallet) credited to the customer's **wallet**. `sale.voided` reverses both (clamped at zero if already spent). A unique index makes each invoice earn/reverse at most once, so replays are harmless.
+- **Tier** comes from lifetime earned points and never drops. The cashier offers the tier's discount with one click.
+- **Wallet** is a cashier payment method (`WALLET`): it is debited under a row lock in the *same transaction* as the invoice (insufficient balance → nothing is created), refunded in the same step on void, and reported separately in the cashier summary (never counted as cash in the drawer).
+- **Rewards**: wallet rewards credit instantly; "free service/product" rewards spend points and are honoured by the cashier. Owners can adjust points/wallet manually with a reason (audited). Points/wallet can't go negative (DB CHECK).
+- Not built yet: wallet top-up by cash/card (it would need to feed the daily cash report), gift cards, birthday/referral/review points.
 
 ### Finder listing → real salon
 

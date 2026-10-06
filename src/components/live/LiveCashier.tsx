@@ -4,13 +4,14 @@ import { Ban, Plus, Receipt, Trash2 } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, Stat, fieldCls, type Tone } from "@/components/ui";
 import { LiveGate, canManage, useMe } from "./LiveGate";
 import { Chip, ErrorNote, Modal, Spinner } from "./ui";
-import { crm, type Appt, type CustomerRow, type DebtRow, type PayMethod, type SaleLineIn, type SaleView, type Service, type Staff } from "@/lib/crmApi";
+import { crm, type Appt, type CustomerRow, type DebtRow, type PayMethod, type RealMethod, type SaleLineIn, type SaleView, type Service, type Staff } from "@/lib/crmApi";
 import { errorText } from "@/lib/api";
 import { faDate, faNum, shortToman, todayLocal, toman } from "@/lib/fmt";
 import { totals } from "@/server/modules/cashier/money"; // pure arithmetic, shared so the preview rounds exactly like the server
 import { useQuery } from "@/lib/useQuery";
 
-const METHOD: Record<PayMethod, string> = { CASH: "نقدی", CARD: "کارت", ONLINE: "آنلاین" };
+const METHOD: Record<PayMethod, string> = { CASH: "نقدی", CARD: "کارت", ONLINE: "آنلاین", WALLET: "کیف پول" };
+const REAL: RealMethod[] = ["CASH", "CARD", "ONLINE"];
 const STATUS: Record<SaleView["status"], { label: string; tone: Tone }> = { PAID: { label: "پرداخت‌شده", tone: "sage" }, DEBT: { label: "بدهکار", tone: "amber" }, VOID: { label: "باطل", tone: "danger" } };
 const num = (s: string) => Math.max(0, Math.round(Number(s.replace(/[^\d.]/g, "")) || 0));
 
@@ -27,6 +28,11 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
   const [note, setNote] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const found = useQuery(() => (q.trim().length >= 2 && !customer ? crm.customers({ q: q.trim(), limit: 6 }) : Promise.resolve(null)), [q, customer]);
+
+  // Club wallet (loyalty module): only offered when the chosen customer has a balance; a salon without the module just gets no option.
+  const club = useQuery(() => (customer ? crm.loyaltyCustomer(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
+  const walletBal = club.data?.wallet ?? 0;
+  const methods: PayMethod[] = walletBal > 0 ? [...REAL, "WALLET"] : REAL;
 
   const pct = Math.min(100, num(discount));
   const t = useMemo(() => totals(rows, pct), [rows, pct]);
@@ -92,7 +98,10 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="تخفیف (٪)"><input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" dir="ltr" style={{ textAlign: "right" }} className={fieldCls} /></Field>
+          <Field label="تخفیف (٪)">
+            <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" dir="ltr" style={{ textAlign: "right" }} className={fieldCls} />
+            {club.data && club.data.off > 0 && pct !== club.data.off && <button type="button" onClick={() => setDiscount(String(club.data!.off))} className="mt-1 cursor-pointer text-xs font-bold text-rose">اعمال تخفیف سطح {club.data.tier} ({faNum(club.data.off)}٪)</button>}
+          </Field>
           <Field label="یادداشت"><input value={note} onChange={(e) => setNote(e.target.value)} className={fieldCls} /></Field>
         </div>
 
@@ -101,7 +110,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
           <div className="space-y-2">
             {pays.map((p) => (
               <div key={p.key} className="flex items-center gap-2">
-                <select aria-label="روش" value={p.method} onChange={(e) => setPays((l) => l.map((x) => (x.key === p.key ? { ...x, method: e.target.value as PayMethod } : x)))} className="rounded-xl border border-line bg-surface px-2.5 py-2 text-sm">{(Object.keys(METHOD) as PayMethod[]).map((m) => <option key={m} value={m}>{METHOD[m]}</option>)}</select>
+                <select aria-label="روش" value={p.method} onChange={(e) => setPays((l) => l.map((x) => (x.key === p.key ? { ...x, method: e.target.value as PayMethod } : x)))} className="rounded-xl border border-line bg-surface px-2.5 py-2 text-sm">{methods.map((m) => <option key={m} value={m}>{m === "WALLET" ? `${METHOD[m]} (${toman(walletBal)})` : METHOD[m]}</option>)}</select>
                 <input aria-label="مبلغ" value={p.amount} onChange={(e) => setPays((l) => l.map((x) => (x.key === p.key ? { ...x, amount: e.target.value } : x)))} inputMode="numeric" dir="ltr" placeholder="مبلغ (تومان)" className={`${fieldCls} !min-h-10`} />
                 <button aria-label="حذف پرداخت" onClick={() => setPays((l) => l.filter((x) => x.key !== p.key))} className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink3 hover:text-danger"><Trash2 size={14} /></button>
               </div>
@@ -212,7 +221,7 @@ function SalesTab({ owner, services, staff, preAppt }: { owner: boolean; service
 function DebtsTab() {
   const q = useQuery(() => crm.debts(), []);
   const [pay, setPay] = useState<DebtRow | null>(null);
-  const [amount, setAmount] = useState(""); const [method, setMethod] = useState<PayMethod>("CASH");
+  const [amount, setAmount] = useState(""); const [method, setMethod] = useState<RealMethod>("CASH");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const rows = q.data ?? [];
   async function go() {
@@ -235,7 +244,7 @@ function DebtsTab() {
           <div className="space-y-3">
             <p className="text-sm text-ink2">کل بدهی: <b>{toman(pay.debt)}</b> — قدیمی‌ترین فاکتورها اول تسویه می‌شوند.</p>
             <Field label="مبلغ (تومان)"><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" dir="ltr" style={{ textAlign: "right" }} className={fieldCls} /></Field>
-            <div className="flex gap-1.5">{(Object.keys(METHOD) as PayMethod[]).map((m) => <Chip key={m} active={method === m} onClick={() => setMethod(m)}>{METHOD[m]}</Chip>)}</div>
+            <div className="flex gap-1.5">{REAL.map((m) => <Chip key={m} active={method === m} onClick={() => setMethod(m)}>{METHOD[m]}</Chip>)}</div>
             {err && <ErrorNote message={err} />}
             <div className="flex gap-2"><Button onClick={go} disabled={busy || num(amount) < 1}>ثبت دریافت</Button><Button variant="ghost" onClick={() => setPay(null)}>انصراف</Button></div>
           </div>
@@ -303,7 +312,7 @@ function ReportTab() {
             <Card>
               <CardHead title="تفکیک دریافت‌ها" />
               <dl className="space-y-2 px-5 pb-5 text-sm">
-                {([["نقدی", s.cash], ["کارت", s.card], ["آنلاین", s.online]] as const).map(([l, v]) => <div key={l} className="flex justify-between"><dt className="text-ink3">{l}</dt><dd className="font-semibold">{toman(v)}</dd></div>)}
+                {([["نقدی", s.cash], ["کارت", s.card], ["آنلاین", s.online], ...(s.wallet ? [["کیف پول", s.wallet] as const] : [])] as const).map(([l, v]) => <div key={l} className="flex justify-between"><dt className="text-ink3">{l}</dt><dd className="font-semibold">{toman(v)}</dd></div>)}
                 <div className="flex justify-between border-t border-line pt-2"><dt className="text-ink3">خدمات / محصولات</dt><dd>{shortToman(s.services)} / {shortToman(s.products)}</dd></div>
                 <div className="flex justify-between"><dt className="text-ink3">تخفیف‌ها</dt><dd>{toman(s.discounts)}</dd></div>
               </dl>

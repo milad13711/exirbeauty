@@ -35,7 +35,8 @@ export type WaitEntry = { id: string; name: string; phone: string; serviceId: st
 export type PublicSalon = { name: string; city: string; services: { id: string; category: string; name: string; price: number; durationMin: number; staffIds: string[] }[]; staff: { id: string; name: string; title: string; color: string; bio: string }[] };
 export type Receipt = { id: string; status: ApptStatus; date: string; startMin: number; serviceName: string; staffName: string };
 
-export type PayMethod = "CASH" | "CARD" | "ONLINE";
+export type RealMethod = "CASH" | "CARD" | "ONLINE";
+export type PayMethod = RealMethod | "WALLET";
 export type SaleStatus = "PAID" | "DEBT" | "VOID";
 export type SaleLineIn = { kind: "SERVICE" | "PRODUCT" | "OTHER"; refId?: string | null; name: string; qty: number; price: number; staffId?: string | null; commissionPct?: number };
 export type SaleView = {
@@ -43,9 +44,9 @@ export type SaleView = {
   subtotal: number; discountPct: number; discount: number; total: number; paid: number; debt: number; status: SaleStatus; note: string; voidReason: string | null; createdAt: string;
   lines: (SaleLineIn & { id: string })[]; payments: { method: PayMethod; amount: number; ref: string }[];
 };
-export type ExpenseView = { id: string; date: string; title: string; amount: number; method: PayMethod; category: string };
+export type ExpenseView = { id: string; date: string; title: string; amount: number; method: RealMethod; category: string };
 export type DebtRow = { customerId: string; name: string; phone: string; debt: number; invoices: number; since: string | null };
-export type Summary = { from: string; to: string; count: number; revenue: number; services: number; products: number; discounts: number; cash: number; card: number; online: number; newDebt: number; debtCollected: number; expenses: number; net: number; cashExpected: number; byStaff: { staffId: string; name: string; revenue: number; commission: number }[] };
+export type Summary = { from: string; to: string; count: number; revenue: number; services: number; products: number; discounts: number; cash: number; card: number; online: number; wallet: number; newDebt: number; debtCollected: number; expenses: number; net: number; cashExpected: number; byStaff: { staffId: string; name: string; revenue: number; commission: number }[] };
 export type SmsKind = "MANUAL" | "CONFIRM" | "MOVED" | "CANCEL" | "REMINDER_24" | "REMINDER_2" | "THANKS" | "BIRTHDAY";
 export type SmsAccount = { balance: number; lowThreshold: number; low: boolean; pricing: { sell: number } };
 export type SmsPackage = { id: string; name: string; price: number; bonusPct: number; active: boolean };
@@ -53,6 +54,12 @@ export type SmsScenario = { kind: Exclude<SmsKind, "MANUAL">; title: string; var
 export type SmsMessage = { id: string; customerId: string | null; phone: string; text: string; parts: number; cost: number; kind: SmsKind; status: "QUEUED" | "SENT" | "FAILED" | "BLOCKED"; reason: string | null; createdAt: string };
 export type SmsTxRow = { id: string; delta: number; balanceAfter: number; kind: "TOPUP" | "BONUS" | "SEND" | "REFUND" | "ADJUST"; note: string; createdAt: string };
 export type SmsStats = { days: number; sent: number; failed: number; blocked: number; parts: number; spend: number; byKind: Record<string, number> };
+import type { Config as LoyaltyConfig } from "@/server/modules/loyalty/rules";
+export type { LoyaltyConfig };
+export type LoyaltyTxKind = "EARN" | "EARN_REVERSE" | "REDEEM" | "ADJUST" | "CASHBACK" | "CASHBACK_REVERSE" | "REWARD_CREDIT" | "WALLET_SPEND" | "WALLET_REFUND" | "WALLET_ADJUST";
+export type LoyaltyState = { customerId: string; name: string; points: number; lifetime: number; wallet: number; tier: string; off: number; next: { left: number; label: string }; log: { id: string; kind: LoyaltyTxKind; points: number; wallet: number; note: string; createdAt: string }[] };
+export type LoyaltyMember = { customerId: string; name: string; phone?: string; tier: string; points: number; lifetime: number; wallet: number };
+export type LoyaltyOverview = { members: number; points: number; walletTotal: number; tiers: Record<string, number>; top: LoyaltyMember[] };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -115,7 +122,7 @@ export const crm = {
   addExpense: (e: { title: string; amount: number; method: "CASH" | "CARD"; category?: string; date?: string }) => api<ExpenseView>("POST", "/cashier/expenses", e),
   deleteExpense: (id: string) => api<{ ok: true }>("DELETE", `/cashier/expenses/${id}`),
   debts: () => api<DebtRow[]>("GET", "/cashier/debts"),
-  payDebt: (b: { customerId: string; amount: number; method: PayMethod }) => api<{ remainingDebt: number; settledInvoices: number }>("POST", "/cashier/debts/pay", b),
+  payDebt: (b: { customerId: string; amount: number; method: RealMethod }) => api<{ remainingDebt: number; settledInvoices: number }>("POST", "/cashier/debts/pay", b),
   summary: (from: string, to?: string) => api<Summary>("GET", `/cashier/summary${qs({ from, to })}`),
   day: (date: string) => api<DayStatus>("GET", `/cashier/days/${date}`),
   closeDay: (date: string, countedCash: number, note = "") => api<DayStatus>("POST", `/cashier/days/${date}/close`, { countedCash, note }),
@@ -132,6 +139,15 @@ export const crm = {
   smsStats: (days = 30) => api<SmsStats>("GET", `/sms/stats${qs({ days })}`),
   smsScenarios: () => api<SmsScenario[]>("GET", "/sms/scenarios"),
   smsPutScenario: (kind: string, p: { enabled?: boolean; template?: string }) => api<SmsScenario>("PUT", `/sms/scenarios/${kind.toLowerCase()}`, p),
+
+  // loyalty
+  loyaltyConfig: () => api<LoyaltyConfig>("GET", "/loyalty/config"),
+  loyaltyPutConfig: (c: LoyaltyConfig) => api<LoyaltyConfig>("PUT", "/loyalty/config", c),
+  loyaltyOverview: () => api<LoyaltyOverview>("GET", "/loyalty/overview"),
+  loyaltyMembers: (sort: "points" | "wallet" | "lifetime" = "points") => api<LoyaltyMember[]>("GET", `/loyalty/members${qs({ sort, limit: 100 })}`),
+  loyaltyCustomer: (id: string) => api<LoyaltyState>("GET", `/loyalty/customers/${id}`),
+  loyaltyRedeem: (id: string, rewardId: string) => api<{ state: LoyaltyState }>("POST", `/loyalty/customers/${id}/redeem`, { rewardId }),
+  loyaltyAdjust: (id: string, b: { points?: number; wallet?: number; note: string }) => api<LoyaltyState>("POST", `/loyalty/customers/${id}/adjust`, b),
 
   // public booking (no login)
   publicSalon: (slug: string) => api<PublicSalon>("GET", `/public/salons/${encodeURIComponent(slug)}`),
