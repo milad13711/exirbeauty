@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Exir Beauty
 
-## Getting Started
+Salon CRM + public beauty-pro finder (Next.js 16, React 19, Tailwind 4, Persian/RTL).
 
-First, run the development server:
+## Backend
+
+Lives in this repo (`src/server`, API at `/api/v1`), PostgreSQL + Prisma, one database with `tenantId` on tenant rows.
 
 ```bash
+cp .env.example .env        # fill DATABASE_URL, AUTH_SECRET, SEED_ADMIN_PASSWORD
+npm run db:migrate          # create/upgrade tables
+npm run db:seed             # plans, module catalog + plan matrix, super-admin, demo tenant
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm test                    # unit tests · npm run test:int needs the seeded DB
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Modular architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Every feature is a **module**: a manifest + its routes + its services in `src/server/modules/<id>/`.
+Plans don't contain code; they are rows in a plan → module matrix, so features can be moved between plans,
+sold as add-ons, or switched off per tenant without touching module code.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `src/server/modules/index.ts` — the registry. **To add a feature:** create `modules/<id>/manifest.ts` with `defineModule({...})`, list it here, `npm run db:seed`. Routes mount automatically under `/api/v1`; no new route files.
+- `scope: "TENANT"` modules get an entitlement guard for free (plan ∪ add-on, installed, dependencies active); handlers never check plans themselves. `scope: "PLATFORM"` modules (e.g. `finder`) are public/cross-tenant.
+- `src/server/platform/modules/entitlements.ts` — pure resolution logic (unit-tested). `service.ts` — install/uninstall/add-on/plan change. Plan limits & flags (staff count, leads, …) live in `Plan.limits`.
+- Code owns module identity; admins own price and the plan matrix (seeding never overwrites their edits).
+- Modules listed in `modules/_catalog.ts` already take part in plans/add-ons but have no backend routes yet; move each to its own folder when it gets some (`modules/finder` is the reference).
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Not built yet: payment gateway (add-on purchase only records the entitlement), OTP login for owners/staff, switching the frontend from the localStorage mock (`src/lib/db.ts`, `finderListings.ts`) to this API.

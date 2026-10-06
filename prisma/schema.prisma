@@ -1,0 +1,220 @@
+// Exir Beauty — single shared database; tenant-scoped rows carry tenantId.
+// Platform-level data (plans, module catalog, finder directory) has no tenantId.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  OWNER
+  STAFF
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum ModuleScope {
+  PLATFORM
+  TENANT
+}
+
+enum ListingStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+// ───────── Plans & module catalog ─────────
+
+model Plan {
+  id           String   @id @default(cuid())
+  code         String   @unique // free | artist | salon
+  title        String
+  tagline      String   @default("")
+  priceMonthly Int      @default(0) // toman
+  // quantitative limits + capability flags, e.g. { "staff": 10, "dashboard": true, "leads": true, "directBooking": true }
+  limits       Json     @default("{}")
+  sortOrder    Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  modules       PlanModule[]
+  subscriptions Subscription[]
+  listings      FinderListing[]
+}
+
+// Mirrors code manifests (src/server/modules); synced by `syncCatalog()`.
+model Module {
+  id               String      @id // manifest id, e.g. "cashier"
+  name             String
+  description      String      @default("")
+  category         String
+  scope            ModuleScope @default(TENANT)
+  core             Boolean     @default(false) // cannot be uninstalled
+  requires         String[]    @default([])
+  price            Int         @default(0) // add-on price (toman); admin-editable
+  addonPurchasable Boolean     @default(true)
+
+  plans   PlanModule[]
+  tenants TenantModule[]
+}
+
+model PlanModule {
+  planId   String
+  moduleId String
+  plan     Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@id([planId, moduleId])
+}
+
+// ───────── Tenants & access ─────────
+
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  city      String       @default("")
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+
+  subscription Subscription?
+  modules      TenantModule[]
+  users        User[]
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  tenantId  String             @unique
+  planId    String
+  status    SubscriptionStatus @default(ACTIVE)
+  startedAt DateTime           @default(now())
+  expiresAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+}
+
+// Per-tenant module state. "Available" is computed (plan modules ∪ active add-ons);
+// this row records installation and add-on purchases.
+model TenantModule {
+  tenantId   String
+  moduleId   String
+  installed  Boolean   @default(true)
+  addon      Boolean   @default(false)
+  addonUntil DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, moduleId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  role         Role
+  name         String
+  email        String?  @unique
+  phone        String?  @unique
+  passwordHash String?
+  tenantId     String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  actorId   String?
+  actorRole String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+
+  @@index([entity, entityId])
+  @@index([at])
+}
+
+// ───────── Module: finder (platform-scoped public directory) ─────────
+
+model FinderListing {
+  id            String        @id @default(cuid())
+  editCodeHash  String
+  planId        String
+  status        ListingStatus @default(PENDING)
+  name          String
+  brand         String
+  phone         String
+  city          String
+  x             Float
+  y             Float
+  cats          String[]
+  bio           String        @default("")
+  rejectReason  String?
+  // Edits to an already-published listing wait here; the live version stays public until approved.
+  pendingEdit   Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  plan    Plan           @relation(fields: [planId], references: [id])
+  staff   FinderStaff[]
+  reviews FinderReview[]
+  leads   FinderLead[]
+
+  @@index([status, city])
+}
+
+model FinderStaff {
+  id        String        @id @default(cuid())
+  listingId String
+  name      String
+  cats      String[]
+  listing   FinderListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+model FinderReview {
+  id        String        @id @default(cuid())
+  listingId String
+  name      String
+  rating    Int
+  text      String
+  createdAt DateTime      @default(now())
+  listing   FinderListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, createdAt])
+}
+
+model FinderLead {
+  id        String        @id @default(cuid())
+  listingId String
+  name      String
+  phone     String
+  note      String        @default("")
+  createdAt DateTime      @default(now())
+  listing   FinderListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, createdAt])
+}

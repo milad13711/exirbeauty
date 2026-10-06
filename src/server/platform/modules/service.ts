@@ -1,0 +1,137 @@
+import { prisma } from "../../db";
+import { conflict, forbidden, notFound } from "../../http/errors";
+import { afterPlanChange, minPlanFor, resolveEntitlements, type CatalogEntry, type ModuleState } from "./entitlements";
+
+type PlanRow = { id: string; code: string; title: string; sortOrder: number; modules: { moduleId: string }[] };
+
+async function catalog(): Promise<(CatalogEntry & { name: string; category: string; scope: string; price: number; addonPurchasable: boolean })[]> {
+  const rows = await prisma.module.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] });
+  return rows.map((m) => ({ id: m.id, requires: m.requires, core: m.core, name: m.name, category: m.category, scope: m.scope, price: m.price, addonPurchasable: m.addonPurchasable }));
+}
+
+async function loadTenant(tenantId: string) {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    include: { subscription: { include: { plan: { include: { modules: true } } } }, modules: true },
+  });
+  if (!tenant) throw notFound("سالن پیدا نشد");
+  return tenant;
+}
+
+function subscriptionActive(sub: { status: string; expiresAt: Date | null } | null | undefined): boolean {
+  if (!sub) return false;
+  if (sub.status !== "ACTIVE" && sub.status !== "TRIAL") return false;
+  return !sub.expiresAt || sub.expiresAt.getTime() > Date.now();
+}
+
+export type TenantEntitlements = {
+  tenantId: string;
+  plan: { code: string; title: string; limits: unknown } | null;
+  subscriptionActive: boolean;
+  modules: (ModuleState & { name: string; category: string; scope: string; price: number; addonPurchasable: boolean; minPlan: string | null })[];
+};
+
+export async function getTenantEntitlements(tenantId: string): Promise<TenantEntitlements> {
+  const [tenant, cat, plans] = await Promise.all([loadTenant(tenantId), catalog(), allPlans()]);
+  const active = subscriptionActive(tenant.subscription);
+  const now = Date.now();
+  const states = resolveEntitlements({
+    catalog: cat,
+    planModuleIds: active ? (tenant.subscription?.plan.modules.map((m) => m.moduleId) ?? []) : [],
+    addonIds: active ? tenant.modules.filter((m) => m.addon && (!m.addonUntil || m.addonUntil.getTime() > now)).map((m) => m.moduleId) : [],
+    installedIds: tenant.modules.filter((m) => m.installed).map((m) => m.moduleId),
+  });
+  const planMods = plans.map((p) => ({ code: p.code, sortOrder: p.sortOrder, moduleIds: p.modules.map((m) => m.moduleId) }));
+  return {
+    tenantId,
+    plan: tenant.subscription ? { code: tenant.subscription.plan.code, title: tenant.subscription.plan.title, limits: tenant.subscription.plan.limits } : null,
+    subscriptionActive: active,
+    modules: cat.map((c) => ({ ...states.get(c.id)!, name: c.name, category: c.category, scope: c.scope, price: c.price, addonPurchasable: c.addonPurchasable, minPlan: minPlanFor(c.id, planMods) })),
+  };
+}
+
+/** Throws a 403 with an upgrade hint when the tenant can't use the module. */
+export async function assertModuleActive(tenantId: string, moduleId: string): Promise<void> {
+  const e = await getTenantEntitlements(tenantId);
+  if (!e.subscriptionActive) throw forbidden("اشتراک سالن فعال نیست", "SUBSCRIPTION_INACTIVE");
+  const m = e.modules.find((x) => x.id === moduleId);
+  if (!m) throw notFound("ماژول پیدا نشد");
+  if (m.active) return;
+  const reason = !m.available ? "NOT_IN_PLAN" : !m.installed ? "NOT_INSTALLED" : "DEPENDENCY_INACTIVE";
+  throw forbidden("این بخش در دسترس سالن شما نیست", "MODULE_NOT_ACTIVE", { moduleId, reason, minPlan: m.minPlan, addonPrice: m.addonPurchasable ? m.price : null, blockedBy: m.blockedBy });
+}
+
+export async function allPlans(): Promise<PlanRow[]> {
+  return prisma.plan.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, include: { modules: true } });
+}
+
+export async function installModule(tenantId: string, moduleId: string): Promise<void> {
+  const e = await getTenantEntitlements(tenantId);
+  const m = e.modules.find((x) => x.id === moduleId);
+  if (!m) throw notFound("ماژول پیدا نشد");
+  if (!m.available) throw forbidden("این ماژول در پلن شما نیست", "NOT_IN_PLAN", { minPlan: m.minPlan, addonPrice: m.addonPurchasable ? m.price : null });
+  await prisma.tenantModule.upsert({ where: { tenantId_moduleId: { tenantId, moduleId } }, create: { tenantId, moduleId, installed: true }, update: { installed: true } });
+}
+
+export async function uninstallModule(tenantId: string, moduleId: string): Promise<void> {
+  const e = await getTenantEntitlements(tenantId);
+  const m = e.modules.find((x) => x.id === moduleId);
+  if (!m) throw notFound("ماژول پیدا نشد");
+  if (!m.installed) return;
+  const cat = await catalog();
+  if (cat.find((c) => c.id === moduleId)?.core) throw conflict("ماژول‌های هسته قابل حذف نیستند", "CORE_MODULE");
+  const dependents = cat.filter((c) => c.requires.includes(moduleId) && e.modules.find((x) => x.id === c.id)?.installed).map((c) => c.id);
+  if (dependents.length) throw conflict("ابتدا ماژول‌های وابسته را حذف کنید", "HAS_DEPENDENTS", { dependents });
+  await prisma.tenantModule.update({ where: { tenantId_moduleId: { tenantId, moduleId } }, data: { installed: false } });
+}
+
+/** Records an add-on purchase. Payment capture is the integration point for the payment gateway (not built yet). */
+export async function purchaseAddon(tenantId: string, moduleId: string, months = 1): Promise<void> {
+  const e = await getTenantEntitlements(tenantId);
+  const m = e.modules.find((x) => x.id === moduleId);
+  if (!m) throw notFound("ماژول پیدا نشد");
+  if (!m.addonPurchasable) throw conflict("این ماژول خرید تکی ندارد", "NOT_PURCHASABLE");
+  if (m.source === "plan") throw conflict("این ماژول از قبل در پلن شما هست", "ALREADY_IN_PLAN");
+  const until = new Date(Date.now() + months * 30 * 86_400_000);
+  await prisma.tenantModule.upsert({
+    where: { tenantId_moduleId: { tenantId, moduleId } },
+    create: { tenantId, moduleId, installed: true, addon: true, addonUntil: until },
+    update: { installed: true, addon: true, addonUntil: until },
+  });
+}
+
+export async function changePlan(tenantId: string, planCode: string): Promise<void> {
+  const [tenant, newPlan] = await Promise.all([loadTenant(tenantId), prisma.plan.findUnique({ where: { code: planCode }, include: { modules: true } })]);
+  if (!newPlan || !newPlan.active) throw notFound("پلن پیدا نشد");
+  const old = tenant.subscription?.plan.modules.map((m) => m.moduleId) ?? [];
+  const result = afterPlanChange({
+    oldPlanModuleIds: old,
+    newPlanModuleIds: newPlan.modules.map((m) => m.moduleId),
+    addonIds: tenant.modules.filter((m) => m.addon).map((m) => m.moduleId),
+    installedIds: tenant.modules.filter((m) => m.installed).map((m) => m.moduleId),
+  });
+  await prisma.$transaction([
+    prisma.subscription.upsert({ where: { tenantId }, create: { tenantId, planId: newPlan.id, status: "ACTIVE" }, update: { planId: newPlan.id, status: "ACTIVE" } }),
+    prisma.tenantModule.deleteMany({ where: { tenantId } }),
+    prisma.tenantModule.createMany({
+      data: [...new Set([...result.installedIds, ...result.addonIds])].map((moduleId) => ({
+        tenantId, moduleId, installed: result.installedIds.includes(moduleId), addon: result.addonIds.includes(moduleId),
+        addonUntil: tenant.modules.find((m) => m.moduleId === moduleId)?.addonUntil ?? null,
+      })),
+    }),
+  ]);
+}
+
+/** Replaces which modules a plan includes (admin). */
+export async function setPlanModules(planCode: string, moduleIds: string[]): Promise<void> {
+  const plan = await prisma.plan.findUnique({ where: { code: planCode } });
+  if (!plan) throw notFound("پلن پیدا نشد");
+  const known = new Set((await prisma.module.findMany({ select: { id: true } })).map((m) => m.id));
+  const unknown = moduleIds.filter((m) => !known.has(m));
+  if (unknown.length) throw conflict("ماژول ناشناخته", "UNKNOWN_MODULE", { unknown });
+  const ids = [...new Set(moduleIds)];
+  await prisma.$transaction([
+    prisma.planModule.deleteMany({ where: { planId: plan.id } }),
+    prisma.planModule.createMany({ data: ids.map((moduleId) => ({ planId: plan.id, moduleId })) }),
+  ]);
+}
