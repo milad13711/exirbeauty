@@ -10,13 +10,15 @@ import { SalonUsers } from "@/components/UsersManager";
 import { actions, useDB, type DayHours, type SalonSettings } from "@/lib/db";
 import { durationDiscount, plans } from "@/lib/mock4";
 import { fa, short, toman } from "@/lib/fa";
+import { useEntitlements } from "@/lib/entitlements";
+import { LiveSettings } from "@/components/live/LiveSettings";
 
 const tabs = ["پروفایل سالن", "پروفایل من", "برند و ظاهر", "ساعت کاری", "رزرو آنلاین", "اعلان‌ها", "کاربران و نقش‌ها", "اشتراک"] as const;
 type Tab = (typeof tabs)[number];
 
 function Saved({ on }: { on: boolean }) { return on ? <span className="inline-flex items-center gap-1 text-xs font-bold text-sage"><Check size={14} />ذخیره شد</span> : null; }
 
-export default function SettingsPage() {
+function PrototypeSettings() {
   const db = useDB();
   const [tab, setTab] = useState<Tab>(() => { const t = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null; return (tabs as readonly string[]).includes(t ?? "") ? (t as Tab) : "پروفایل سالن"; });
   const [saved, setSaved] = useState(false);
@@ -124,4 +126,10 @@ export default function SettingsPage() {
       )}
     </>
   );
+}
+
+export default function SettingsPage() {
+  const ent = useEntitlements();
+  if (ent.loading) return null;
+  return ent.live ? <LiveSettings /> : <PrototypeSettings />;
 }

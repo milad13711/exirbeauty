@@ -66,3 +66,16 @@ describe("dashboard", () => {
     expect(d.services).toEqual([]);
   });
 });
+
+describe("tenant profile", () => {
+  it("shows own profile + subscription and lets the owner (only) edit name and city", async () => {
+    const p = (await call(A, "GET", "/tenant")).body.data;
+    expect(p).toMatchObject({ id: T.a, subscription: { planCode: "salon", status: "ACTIVE" } });
+    expect((await call(AS, "PATCH", "/tenant", { city: "شیراز" })).status).toBe(403);
+    expect((await call(A, "PATCH", "/tenant", { name: "سالن نو", city: "شیراز" })).body.data).toMatchObject({ name: "سالن نو", city: "شیراز" });
+    expect((await call(A, "PATCH", "/tenant", {})).status).toBe(422);
+    expect((await call(A, "PATCH", "/tenant", { name: "x" })).status).toBe(422);
+    expect((await call(B, "GET", "/tenant")).body.data.name).toBe("rep-b"); // another salon is untouched
+    expect((await call(null, "GET", "/tenant")).status).toBe(401);
+  });
+});

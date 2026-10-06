@@ -5,6 +5,7 @@ import { dispatch } from "../../http/router";
 import { resetRateLimits } from "../../http/ratelimit";
 import { routeTable } from "../../routes";
 import { signSession } from "../../platform/auth/session";
+import { tehranNow } from "../calendar/availability";
 import { DEFAULT_CONFIG } from "./rules";
 import { onSaleCreated } from "./service";
 
@@ -144,7 +145,7 @@ describe("wallet as a payment method", () => {
     expect(await state(A, c2)).toMatchObject({ points: before.points, wallet: before.wallet });
   });
   it("cashier summary reports wallet separately and keeps it out of the cash drawer", async () => {
-    const day = new Date().toISOString().slice(0, 10);
+    const day = tehranNow().date; // the cashier works in salon-local (Tehran) days, not UTC
     const s = (await call(A, "GET", `/cashier/summary?from=${day}`)).body.data;
     expect(s.wallet).toBeGreaterThan(0);
     expect(s.revenue).toBeGreaterThan(s.cash + s.card + s.online - 1);

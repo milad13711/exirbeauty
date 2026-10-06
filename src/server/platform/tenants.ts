@@ -23,3 +23,19 @@ export async function createTenant(input: { name: string; slug: string; city: st
     select: { id: true, slug: true },
   });
 }
+
+/** The salon's own record plus its subscription, for the settings screen. */
+export async function tenantProfile(tenantId: string) {
+  const t = await prisma.tenant.findUnique({ where: { id: tenantId }, include: { subscription: { include: { plan: { select: { code: true, title: true, priceMonthly: true } } } } } });
+  if (!t) throw notFound("سالن پیدا نشد");
+  const sub = t.subscription;
+  return {
+    id: t.id, name: t.name, slug: t.slug, city: t.city,
+    subscription: sub && { planCode: sub.plan.code, planTitle: sub.plan.title, priceMonthly: sub.plan.priceMonthly, status: sub.status, startedAt: sub.startedAt, expiresAt: sub.expiresAt },
+  };
+}
+
+export async function updateTenantProfile(tenantId: string, p: { name?: string; city?: string }) {
+  await prisma.tenant.update({ where: { id: tenantId }, data: { ...(p.name !== undefined ? { name: p.name } : {}), ...(p.city !== undefined ? { city: p.city } : {}) } });
+  return tenantProfile(tenantId);
+}

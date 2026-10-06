@@ -233,7 +233,7 @@ describe("public online booking", () => {
     const now = tehranNow();
     const today = (await pub("GET", `/availability?serviceId=${svc60}&date=${now.date}`)).body.data.staff;
     for (const s of today) expect(s.starts.every((m: number) => m >= now.minute + 120)).toBe(true);
-    const tooSoon = await pub("POST", "/appointments", { serviceId: svc60, staffId: s1, date: now.date, startMin: Math.max(540, now.minute), name: "خیلی زود", phone: "09131110005" });
+    const tooSoon = await pub("POST", "/appointments", { serviceId: svc60, staffId: s1, date: now.date, startMin: now.minute + 30, name: "خیلی زود", phone: "09131110005" });
     expect([409, 400]).toContain(tooSoon.status);
     expect((await pub("POST", "/appointments", { serviceId: svc60, date: addDays(now.date, 200), startMin: 600, name: "خیلی دور", phone: "09131110005" })).status).toBe(400);
   });

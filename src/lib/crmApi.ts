@@ -73,6 +73,9 @@ export type Dashboard = {
 };
 export type ModuleEnt = { id: string; name: string; category: string; scope: string; price: number; addonPurchasable: boolean; version: string; enabled: boolean; minPlan: string | null; available: boolean; source: "plan" | "addon" | null; installed: boolean; active: boolean; blockedBy: string[] };
 export type Entitlements = { tenantId: string; plan: { code: string; title: string } | null; subscriptionActive: boolean; modules: ModuleEnt[] };
+export type TenantProfile = { id: string; name: string; slug: string; city: string; subscription: { planCode: string; planTitle: string; priceMonthly: number; status: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELED"; startedAt: string; expiresAt: string | null } | null };
+export type PlanInfo = { code: string; title: string; tagline: string; priceMonthly: number; limits: Record<string, number | boolean>; moduleIds: string[] };
+export type PaymentRow = { id: string; kind: string; planCode: string | null; moduleId: string | null; months: number; amount: number; status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; refId: string | null; description: string; createdAt: string; paidAt: string | null };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -140,6 +143,13 @@ export const crm = {
   day: (date: string) => api<DayStatus>("GET", `/cashier/days/${date}`),
   closeDay: (date: string, countedCash: number, note = "") => api<DayStatus>("POST", `/cashier/days/${date}/close`, { countedCash, note }),
   reopenDay: (date: string) => api<DayStatus>("DELETE", `/cashier/days/${date}/close`),
+
+  // salon profile & subscription
+  tenant: () => api<TenantProfile>("GET", "/tenant"),
+  patchTenant: (b: { name?: string; city?: string }) => api<TenantProfile>("PATCH", "/tenant", b),
+  plans: () => api<PlanInfo[]>("GET", "/platform/plans"),
+  payPlan: (planCode: string, months: number) => api<{ paymentUrl: string }>("POST", "/tenant/payments", { kind: "plan", planCode, months }),
+  payments: () => api<PaymentRow[]>("GET", "/tenant/payments"),
 
   // modules
   entitlements: () => api<Entitlements>("GET", "/tenant/modules"),

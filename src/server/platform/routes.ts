@@ -8,7 +8,7 @@ import { audit } from "./audit";
 import { DUMMY_HASH, verifyPassword } from "./auth/password";
 import { clearedSessionCookie, sessionCookie, signSession } from "./auth/session";
 import { adminEditModule, adminListModules, changePlan, moduleVersions, getTenantEntitlements, installModule, purchaseAddon, setPlanModules, uninstallModule } from "./modules/service";
-import { createTenant } from "./tenants";
+import { createTenant, tenantProfile, updateTenantProfile } from "./tenants";
 import { paymentRoutes } from "./payments/routes";
 import { requestOtp, verifyOtp } from "./auth/otp";
 import { digits } from "@/lib/validate";
@@ -76,6 +76,18 @@ export const platformRoutes: Route[] = [
   {
     method: "GET", path: "/platform/modules",
     handler: async () => prisma.module.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }], select: { id: true, name: true, description: true, category: true, scope: true, core: true, requires: true, price: true, addonPurchasable: true } }),
+  },
+
+  // ── the salon's own profile & subscription
+  { method: "GET", path: "/tenant", auth: "user", handler: async (c) => tenantProfile(needTenant(c.tenantId)) },
+  {
+    method: "PATCH", path: "/tenant", auth: TENANT_MANAGER,
+    handler: async (c) => {
+      const b = parse(z.object({ name: z.string().trim().min(2).max(80), city: z.string().trim().max(60) }).partial().refine((x) => x.name !== undefined || x.city !== undefined, "چیزی برای تغییر ارسال نشده"), await c.body());
+      const r = await updateTenantProfile(needTenant(c.tenantId), b);
+      await audit(c.session, "tenant.update", "Tenant", c.tenantId!, b);
+      return r;
+    },
   },
 
   // ── tenant entitlements
