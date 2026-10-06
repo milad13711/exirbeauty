@@ -239,3 +239,52 @@ model FinderLead {
 
   @@index([listingId, createdAt])
 }
+
+// ───────── OTP login ─────────
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ───────── Payments (Zarinpal) ─────────
+
+enum PaymentKind {
+  PLAN
+  ADDON
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  tenantId    String
+  userId      String?
+  kind        PaymentKind
+  planCode    String?
+  moduleId    String?
+  months      Int           @default(1)
+  amount      Int // toman, computed server-side from the plan / module price
+  description String
+  authority   String?       @unique
+  status      PaymentStatus @default(PENDING)
+  refId       String? // Zarinpal reference id after a successful verify
+  cardPan     String?
+  failReason  String?
+  createdAt   DateTime      @default(now())
+  paidAt      DateTime?
+
+  @@index([tenantId, createdAt])
+}

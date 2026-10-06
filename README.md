@@ -30,4 +30,9 @@ sold as add-ons, or switched off per tenant without touching module code.
 
 Frontend: the finder (map, join, manage, admin moderation) already talks to this API (`src/lib/finderApi.ts`). Everything else in the app still runs on the localStorage prototype (`src/lib/db.ts`).
 
-Not built yet: payment gateway (add-on purchase only records the entitlement), OTP login for owners/staff, and backend routes for the other modules.
+### Login & payments
+
+- **OTP login** (`POST /auth/otp/request` → `/auth/otp/verify`): 6-digit code by SMS via Limo SMS (`SMS_DRIVER=limosms`; use `console` in dev to print the code in the server log instead of spending credit). Only active users with that phone get an SMS; the response is identical for unknown numbers. Codes live 2 min, are single-use, lock after 5 wrong guesses, resend cooldown 60 s. Admins create owners/staff with `POST /admin/users`; `SEED_OWNER_PHONE` seeds a demo owner.
+- **Payments** (Zarinpal, sandbox by default): `POST /tenant/payments` starts a plan purchase/renewal or add-on purchase — the amount is computed from DB prices, never sent by the client. The gateway returns to `/api/v1/payments/zarinpal/callback`, which verifies with Zarinpal, then grants the plan/add-on exactly once (replays are no-ops) and redirects to `/payment/result`. Payment rows are kept for reconciliation (`APPLY_FAILED` marks paid-but-not-applied).
+
+Not built yet: backend routes for the other modules, refunds, and tying finder listing plans (artist/salon) to payment (admins still approve them manually).

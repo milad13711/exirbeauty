@@ -29,6 +29,15 @@ async function main() {
     const t = await createTenant({ name: "سالن رُز (دمو)", slug: "demo-salon", city: "تهران", planCode: "salon" });
     console.log("demo tenant:", t.id);
   }
+
+  // Optional: an owner for the demo tenant so OTP login can be tried with a real phone.
+  const ownerPhone = process.env.SEED_OWNER_PHONE;
+  const demo = await prisma.tenant.findUnique({ where: { slug: "demo-salon" } });
+  if (ownerPhone && demo) {
+    if (!/^09\d{9}$/.test(ownerPhone)) throw new Error("SEED_OWNER_PHONE must look like 09xxxxxxxxx");
+    await prisma.user.upsert({ where: { phone: ownerPhone }, create: { phone: ownerPhone, name: "مالک دمو", role: "OWNER", tenantId: demo.id }, update: {} });
+    console.log("demo owner ready:", ownerPhone);
+  }
 }
 
 main().then(() => prisma.$disconnect()).catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });

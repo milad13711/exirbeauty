@@ -104,10 +104,14 @@ export async function purchaseAddon(tenantId: string, moduleId: string, months =
   });
 }
 
-export async function changePlan(tenantId: string, planCode: string): Promise<void> {
+/** `months` (paid change/renewal): sets/extends the subscription end. Renewing the same plan stacks on the remaining time. */
+export async function changePlan(tenantId: string, planCode: string, months?: number): Promise<void> {
   const [tenant, newPlan] = await Promise.all([loadTenant(tenantId), prisma.plan.findUnique({ where: { code: planCode }, include: { modules: true } })]);
   if (!newPlan || !newPlan.active) throw notFound("پلن پیدا نشد");
   const old = tenant.subscription?.plan.modules.map((m) => m.moduleId) ?? [];
+  const sub = tenant.subscription;
+  const base = sub && sub.planId === newPlan.id && sub.expiresAt && sub.expiresAt.getTime() > Date.now() ? sub.expiresAt.getTime() : Date.now();
+  const expiresAt = months ? new Date(base + months * 30 * 86_400_000) : undefined;
   const result = afterPlanChange({
     oldPlanModuleIds: old,
     newPlanModuleIds: newPlan.modules.map((m) => m.moduleId),
@@ -115,7 +119,7 @@ export async function changePlan(tenantId: string, planCode: string): Promise<vo
     installedIds: tenant.modules.filter((m) => m.installed).map((m) => m.moduleId),
   });
   await prisma.$transaction([
-    prisma.subscription.upsert({ where: { tenantId }, create: { tenantId, planId: newPlan.id, status: "ACTIVE" }, update: { planId: newPlan.id, status: "ACTIVE" } }),
+    prisma.subscription.upsert({ where: { tenantId }, create: { tenantId, planId: newPlan.id, status: "ACTIVE", expiresAt }, update: { planId: newPlan.id, status: "ACTIVE", ...(expiresAt ? { expiresAt } : {}) } }),
     prisma.tenantModule.deleteMany({ where: { tenantId } }),
     prisma.tenantModule.createMany({
       data: [...new Set([...result.installedIds, ...result.addonIds])].map((moduleId) => ({

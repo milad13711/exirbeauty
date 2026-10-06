@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Route } from "../http/types";
-import { badRequest, unauthorized } from "../http/errors";
+import { badRequest, conflict, unauthorized } from "../http/errors";
 import { rateLimit } from "../http/ratelimit";
 import { parse } from "../http/validate";
 import { prisma } from "../db";
@@ -9,6 +9,9 @@ import { DUMMY_HASH, verifyPassword } from "./auth/password";
 import { clearedSessionCookie, sessionCookie, signSession } from "./auth/session";
 import { adminEditModule, adminListModules, changePlan, moduleVersions, getTenantEntitlements, installModule, purchaseAddon, setPlanModules, uninstallModule } from "./modules/service";
 import { createTenant } from "./tenants";
+import { paymentRoutes } from "./payments/routes";
+import { requestOtp, verifyOtp } from "./auth/otp";
+import { digits } from "@/lib/validate";
 
 const ADMIN = { roles: ["ADMIN", "SUPER_ADMIN"] } as const;
 const TENANT_MANAGER = { roles: ["OWNER", "ADMIN", "SUPER_ADMIN"] } as const;
@@ -18,7 +21,10 @@ function needTenant(tenantId: string | null): string {
   return tenantId;
 }
 
+const phoneField = z.string().transform((s) => digits(s).replace(/[\s-]/g, "")).pipe(z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست"));
+
 export const platformRoutes: Route[] = [
+  ...paymentRoutes,
   // ── auth
   {
     method: "POST", path: "/auth/login",
@@ -28,6 +34,26 @@ export const platformRoutes: Route[] = [
       const user = await prisma.user.findUnique({ where: { email } });
       const ok = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
       if (!user || !user.active || !user.passwordHash || !ok) throw unauthorized("ایمیل یا رمز عبور درست نیست");
+      const token = await signSession({ userId: user.id, role: user.role, tenantId: user.tenantId, name: user.name });
+      c.headers.append("set-cookie", sessionCookie(token));
+      return { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId };
+    },
+  },
+  {
+    method: "POST", path: "/auth/otp/request",
+    handler: async (c) => {
+      const { phone } = parse(z.object({ phone: phoneField }), await c.body());
+      rateLimit(`otp:ip:${c.ip}`, 10, 60 * 60_000);
+      rateLimit(`otp:phone:${phone}`, 5, 60 * 60_000);
+      return requestOtp(phone);
+    },
+  },
+  {
+    method: "POST", path: "/auth/otp/verify",
+    handler: async (c) => {
+      const { phone, code } = parse(z.object({ phone: phoneField, code: z.string().regex(/^\d{6}$/, "کد ۶ رقمی است") }), await c.body());
+      rateLimit(`otpv:ip:${c.ip}`, 30, 10 * 60_000);
+      const user = await verifyOtp(phone, code);
       const token = await signSession({ userId: user.id, role: user.role, tenantId: user.tenantId, name: user.name });
       c.headers.append("set-cookie", sessionCookie(token));
       return { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId };
@@ -112,6 +138,17 @@ export const platformRoutes: Route[] = [
       await changePlan(c.params.id, planCode);
       await audit(c.session, "tenant.plan.change", "Tenant", c.params.id, { planCode });
       return { ok: true };
+    },
+  },
+  {
+    method: "POST", path: "/admin/users", auth: ADMIN,
+    handler: async (c) => {
+      const b = parse(z.object({ name: z.string().trim().min(2).max(60), phone: phoneField, role: z.enum(["OWNER", "STAFF"]), tenantId: z.string().min(1) }), await c.body());
+      if (!(await prisma.tenant.count({ where: { id: b.tenantId } }))) throw badRequest("سالن پیدا نشد");
+      if (await prisma.user.count({ where: { phone: b.phone } })) throw conflict("این شماره قبلاً ثبت شده", "PHONE_TAKEN");
+      const u = await prisma.user.create({ data: b, select: { id: true, name: true, phone: true, role: true, tenantId: true } });
+      await audit(c.session, "user.create", "User", u.id, { role: b.role, tenantId: b.tenantId });
+      return u;
     },
   },
   {
