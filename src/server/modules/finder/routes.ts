@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Route } from "../../http/types";
 import { rateLimit } from "../../http/ratelimit";
 import { parse } from "../../http/validate";
@@ -47,6 +48,15 @@ export const finderRoutes: Route[] = [
     handler: async (c) => {
       rateLimit(`finder:edit:${c.ip}:${c.params.id}`, 10, 10 * MIN);
       return svc.submitEdit(c.params.id, editCode(c.req), parse(listingBody, await c.body()));
+    },
+  },
+
+  {
+    method: "POST", path: "/finder/listings/:id/activate",
+    handler: async (c) => {
+      rateLimit(`finder:activate:${c.ip}:${c.params.id}`, 5, 10 * MIN);
+      const { months } = parse(z.object({ months: z.number().int().min(1).max(12).default(1) }), await c.body());
+      return svc.startActivation(c.params.id, editCode(c.req), months);
     },
   },
 

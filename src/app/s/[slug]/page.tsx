@@ -1,5 +1,6 @@
 "use client";
-import { use, useMemo, useState } from "react";
+import { Suspense, use, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { CalendarCheck, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button, Card, Field, fieldCls } from "@/components/ui";
@@ -14,6 +15,7 @@ const STEPS = ["خدمت", "متخصص", "زمان", "اطلاعات"] as const;
 const ANY = "any";
 
 function Wizard({ slug }: { slug: string }) {
+  const preStaff = useSearchParams().get("staff"); // deep link from the map: a specific person
   const salon = useQuery(() => crm.publicSalon(slug), [slug]);
   const [step, setStep] = useState(0);
   const [serviceId, setServiceId] = useState("");
@@ -83,7 +85,7 @@ function Wizard({ slug }: { slug: string }) {
             {cats.map((c) => (
               <section key={c}><p className="mb-2 text-xs font-bold text-rosedeep">{c}</p>
                 <div className="grid gap-2 sm:grid-cols-2">{data.services.filter((s) => s.category === c).map((s) => (
-                  <button key={s.id} onClick={() => { setServiceId(s.id); setWho(ANY); setTime(null); }} aria-pressed={serviceId === s.id} className={clsx("flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-right", serviceId === s.id ? "border-rose bg-rosesoft ring-1 ring-rose" : "border-line hover:bg-surface2")}>
+                  <button key={s.id} onClick={() => { setServiceId(s.id); setWho(preStaff && s.staffIds.includes(preStaff) ? preStaff : ANY); setTime(null); }} aria-pressed={serviceId === s.id} className={clsx("flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-right", serviceId === s.id ? "border-rose bg-rosesoft ring-1 ring-rose" : "border-line hover:bg-surface2")}>
                     <span><b className="block text-sm">{s.name}</b><span className="text-xs text-ink3">{faNum(s.durationMin)} دقیقه</span></span><b className="text-sm">{toman(s.price)}</b>
                   </button>))}</div>
               </section>
@@ -148,5 +150,5 @@ function Wizard({ slug }: { slug: string }) {
 
 export default function PublicBooking({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  return <Wizard slug={slug} />;
+  return <Suspense fallback={null}><Wizard slug={slug} /></Suspense>;
 }

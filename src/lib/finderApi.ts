@@ -33,14 +33,19 @@ export type ListingInput = { name: string; brand?: string; phone: string; city: 
 
 export type PublicListing = {
   id: string; name: string; brand: string; phone: string; city: string; x: number; y: number; cats: FinderCat[]; bio: string; plan: FinderPlan;
-  staff: { id: string; name: string; cats: FinderCat[] }[]; rating: number; reviewCount: number;
+  /** For a salon with a dashboard, `bookingStaffId` is the id to pass to its public booking page. */
+  staff: { id: string; name: string; cats: FinderCat[]; bookingStaffId: string | null }[]; rating: number; reviewCount: number;
+  /** Present when the listing has an active salon; `direct` = the plan allows instant online booking. */
+  booking: { slug: string; direct: boolean } | null;
 };
 export type PublicReview = { id: string; name: string; rating: number; text: string; createdAt: string };
 export type PublicDetail = PublicListing & { reviews: PublicReview[] };
 
 export type OwnerView = ListingInput & {
-  id: string; status: ListingStatus; rejectReason: string | null; plan: FinderPlan; planLimits: { staff?: number; leads?: boolean };
+  id: string; status: ListingStatus; rejectReason: string | null; plan: FinderPlan; planLimits: { staff?: number; leads?: boolean; directBooking?: boolean };
   pendingEdit: ListingInput | null; leads: { id: string; name: string; phone: string; note: string; createdAt: string }[];
+  salon: { slug: string; active: boolean; expiresAt: string | null } | null;
+  activation: { priceMonthly: number; available: boolean; reason: "FREE_PLAN" | "ALREADY_ACTIVE" | "NOT_PUBLISHED" | null };
 };
 
 export type AdminListing = PublicListing & {
@@ -56,6 +61,7 @@ export const finderApi = {
   review: (id: string, r: { name: string; rating: number; text: string }) => api<{ id: string }>("POST", `/finder/listings/${id}/reviews`, r),
   lead: (id: string, l: { name: string; phone: string; note: string }) => api<{ id: string }>("POST", `/finder/listings/${id}/leads`, l),
   manage: (id: string, c: string) => api<OwnerView>("GET", `/finder/listings/${encodeURIComponent(id)}/manage`, undefined, code(c)),
+  activate: (id: string, c: string, months: number) => api<{ paymentId: string; amount: number; paymentUrl: string }>("POST", `/finder/listings/${id}/activate`, { months }, code(c)),
   edit: (id: string, c: string, body: ListingInput) => api<{ status: ListingStatus; pendingEdit: boolean }>("PUT", `/finder/listings/${id}`, body, code(c)),
 
   login: (email: string, password: string) => api<{ id: string; name: string; role: string }>("POST", "/auth/login", { email, password }),

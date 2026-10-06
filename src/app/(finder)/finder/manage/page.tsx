@@ -2,10 +2,11 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Plus, Rocket, Trash2 } from "lucide-react";
 import { Badge, Button, Card, Field, fieldCls } from "@/components/ui";
 import { MapPinPicker } from "@/components/finder/MapPinPicker";
 import { FINDER_CATS, catStyle, type FinderCat } from "@/lib/finder";
+import { faDate, toman } from "@/lib/fmt";
 import { PLAN_INFO, errorText, finderApi, type ListingInput, type ListingStaff, type OwnerView } from "@/lib/finderApi";
 
 const statusInfo = {
@@ -36,6 +37,46 @@ function LookupForm({ onFound }: { onFound: (l: OwnerView, code: string) => void
         {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
         <Button className="w-full" onClick={lookup} disabled={busy || !id.trim() || !code.trim()}>{busy ? "در حال بررسی…" : "ورود به ویرایش"}</Button>
       </div>
+    </Card>
+  );
+}
+
+function PlanCard({ listing, code }: { listing: OwnerView; code: string }) {
+  const [months, setMonths] = useState(1);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const { salon, activation } = listing;
+
+  if (salon) {
+    return (
+      <Card className="space-y-2 p-5">
+        <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-ink">پنل مدیریت فعال است</h3><Badge tone={salon.active ? "sage" : "danger"}>{salon.active ? "فعال" : "اشتراک منقضی"}</Badge></div>
+        {salon.expiresAt && <p className="text-xs text-ink3">اعتبار تا {faDate.full(salon.expiresAt.slice(0, 10))}</p>}
+        <p className="text-sm leading-7 text-ink2">با شماره‌ی موبایل ثبت‌نام و کد پیامکی وارد پنل شوید؛ خدمات، پرسنل، نوبت و صندوق از همان‌جا مدیریت می‌شود (متخصص‌های نقشه هم از پنل می‌آیند).</p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <a href="/login" className="press inline-flex items-center gap-1.5 rounded-[14px] bg-[image:var(--grad-rose)] px-4 py-2 text-[13px] font-bold text-white"><ExternalLink size={14} />ورود به پنل</a>
+          {listing.planLimits.directBooking && <a href={`/s/${salon.slug}`} className="press inline-flex items-center gap-1.5 rounded-[14px] border border-line px-4 py-2 text-[13px] font-bold text-ink2">صفحه‌ی رزرو آنلاین</a>}
+        </div>
+      </Card>
+    );
+  }
+  if (!activation.available) {
+    return activation.reason === "NOT_PUBLISHED"
+      ? <Card className="p-5"><p className="text-sm leading-7 text-ink2">پس از تأیید و انتشار پروفایل توسط تیم اکسیر، می‌توانید با پرداخت هزینه‌ی پلن، پنل مدیریت را فعال کنید.</p></Card>
+      : null;
+  }
+  async function pay() {
+    setBusy(true); setErr("");
+    try { const r = await finderApi.activate(listing.id, code, months); window.location.href = r.paymentUrl; } catch (e) { setErr(errorText(e)); setBusy(false); }
+  }
+  return (
+    <Card className="space-y-3 p-5">
+      <h3 className="flex items-center gap-1.5 text-sm font-bold text-ink"><Rocket size={15} className="text-rose" />فعال‌سازی پنل مدیریت ({PLAN_INFO[listing.plan].title})</h3>
+      <ul className="space-y-1 text-xs leading-6 text-ink2">{PLAN_INFO[listing.plan].features.map((f) => <li key={f}>• {f}</li>)}</ul>
+      <div className="flex flex-wrap items-center gap-2">{[1, 3, 6, 12].map((m) => <button key={m} type="button" onClick={() => setMonths(m)} className={clsx("rounded-full border px-3 py-1.5 text-xs font-bold", months === m ? "border-transparent bg-[image:var(--grad-rose)] text-white" : "border-line text-ink2")}>{m} ماه</button>)}</div>
+      <p className="text-sm text-ink2">مبلغ قابل پرداخت: <b className="text-ink">{toman(activation.priceMonthly * months)}</b></p>
+      {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger">{err}</p>}
+      <Button onClick={pay} disabled={busy}>{busy ? "در حال انتقال به درگاه…" : "پرداخت و فعال‌سازی"}</Button>
+      <p className="text-[11px] leading-5 text-ink3">با موفقیت پرداخت، یک پنل مخصوص شما ساخته می‌شود و با همین شماره‌ی موبایل می‌توانید وارد شوید.</p>
     </Card>
   );
 }
@@ -97,6 +138,8 @@ function EditForm({ listing, code }: { listing: OwnerView; code: string }) {
         {listing.status === "REJECTED" && listing.rejectReason && <p className="mt-3 rounded-xl bg-dangersoft p-2.5 text-xs text-danger">دلیل رد: {listing.rejectReason}</p>}
       </Card>
 
+      <PlanCard listing={listing} code={code} />
+
       {listing.planLimits.leads && (
         <Card className="p-5">
           <h3 className="mb-3 text-sm font-bold text-ink">درخواست‌های نوبت دریافتی ({listing.leads.length})</h3>
@@ -136,7 +179,8 @@ function EditForm({ listing, code }: { listing: OwnerView; code: string }) {
         <p className="text-sm text-ink2">شهر: <b>{pin.city}</b></p>
       </Card>
 
-      {isSalon && (
+      {isSalon && listing.salon && <Card className="p-5"><p className="text-sm leading-7 text-ink2">متخصص‌های سالن حالا از داخل پنل مدیریت (بخش «پرسنل») ویرایش می‌شوند.</p></Card>}
+      {isSalon && !listing.salon && (
         <Card className="space-y-3 p-5">
           <h3 className="text-sm font-bold text-ink">متخصص‌های سالن</h3>
           {staff.map((s, i) => (

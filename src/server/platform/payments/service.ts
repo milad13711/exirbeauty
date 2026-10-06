@@ -1,5 +1,6 @@
 import { prisma } from "../../db";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
+import { provisionFromListing } from "../../modules/finder/provision";
 import { changePlan, getTenantEntitlements, purchaseAddon } from "../modules/service";
 import { zarinpal } from "./zarinpal";
 
@@ -21,16 +22,18 @@ async function quote(tenantId: string, i: PayInput) {
   return { amount: m.price * i.months, description: `خرید ماژول ${m.name} — ${i.months} ماه`, moduleId: m.id };
 }
 
-export async function startPayment(tenantId: string, userId: string | null, i: PayInput) {
-  const q = await quote(tenantId, i);
+type Begin = { tenantId: string | null; listingId?: string; userId?: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN"; planCode?: string | null; moduleId?: string | null; months: number; amount: number; description: string };
+
+/** Records the payment, asks the gateway for an authority, and returns the URL the customer pays at. */
+async function begin(d: Begin) {
   const payment = await prisma.payment.create({
-    data: { tenantId, userId, kind: i.kind === "plan" ? "PLAN" : "ADDON", planCode: "planCode" in q ? q.planCode : null, moduleId: "moduleId" in q ? q.moduleId : null, months: i.months, amount: q.amount, description: q.description },
+    data: { tenantId: d.tenantId, listingId: d.listingId ?? null, userId: d.userId ?? null, kind: d.kind, planCode: d.planCode ?? null, moduleId: d.moduleId ?? null, months: d.months, amount: d.amount, description: d.description },
   });
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   try {
-    const { authority } = await zarinpal().request({ amount: q.amount, description: q.description, callbackUrl: `${appUrl}/api/v1/payments/zarinpal/callback` });
+    const { authority } = await zarinpal().request({ amount: d.amount, description: d.description, callbackUrl: `${appUrl}/api/v1/payments/zarinpal/callback` });
     await prisma.payment.update({ where: { id: payment.id }, data: { authority } });
-    return { paymentId: payment.id, amount: q.amount, paymentUrl: zarinpal().startUrl(authority) };
+    return { paymentId: payment.id, amount: d.amount, paymentUrl: zarinpal().startUrl(authority) };
   } catch (e) {
     console.error("[payments] gateway request failed", e);
     await prisma.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failReason: "GATEWAY_REQUEST" } });
@@ -38,9 +41,19 @@ export async function startPayment(tenantId: string, userId: string | null, i: P
   }
 }
 
-async function applyEntitlement(p: { tenantId: string; kind: "PLAN" | "ADDON"; planCode: string | null; moduleId: string | null; months: number }) {
-  if (p.kind === "PLAN" && p.planCode) await changePlan(p.tenantId, p.planCode, p.months);
-  else if (p.kind === "ADDON" && p.moduleId) await purchaseAddon(p.tenantId, p.moduleId, p.months);
+export async function startPayment(tenantId: string, userId: string | null, i: PayInput) {
+  const q = await quote(tenantId, i);
+  return begin({ tenantId, userId, kind: i.kind === "plan" ? "PLAN" : "ADDON", planCode: "planCode" in q ? q.planCode : null, moduleId: "moduleId" in q ? q.moduleId : null, months: i.months, amount: q.amount, description: q.description });
+}
+
+/** A published finder listing pays for its plan; success provisions the salon (see modules/finder/provision.ts). */
+export const startListingPayment = (listing: { id: string }, plan: { code: string; title: string; priceMonthly: number }, months: number) =>
+  begin({ tenantId: null, listingId: listing.id, kind: "LISTING_PLAN", planCode: plan.code, months, amount: plan.priceMonthly * months, description: `فعال‌سازی پنل ${plan.title} — ${months} ماه` });
+
+async function applyEntitlement(p: { tenantId: string | null; listingId: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN"; planCode: string | null; moduleId: string | null; months: number }) {
+  if (p.kind === "PLAN" && p.planCode && p.tenantId) await changePlan(p.tenantId, p.planCode, p.months);
+  else if (p.kind === "ADDON" && p.moduleId && p.tenantId) await purchaseAddon(p.tenantId, p.moduleId, p.months);
+  else if (p.kind === "LISTING_PLAN" && p.listingId) await provisionFromListing(p.listingId, p.months);
 }
 
 /** Gateway redirect target. Idempotent: a refreshed/replayed callback never applies the purchase twice. */

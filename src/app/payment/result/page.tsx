@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Card } from "@/components/ui";
 
-type Status = { status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; amount: number; refId: string | null; description: string; failReason: string | null };
+type Status = { status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; kind: "PLAN" | "ADDON" | "LISTING_PLAN"; amount: number; refId: string | null; description: string; failReason: string | null };
 
 function Result() {
   const sp = useSearchParams();
@@ -28,7 +28,12 @@ function Result() {
         {s && <p className="mt-2 text-sm leading-7 text-ink2">{s.description}<br />مبلغ: {s.amount.toLocaleString("fa-IR")} تومان{s.refId && <><br />کد پیگیری: <bdi dir="ltr">{s.refId}</bdi></>}</p>}
         {s?.failReason === "APPLY_FAILED" && <p className="mt-3 rounded-xl bg-ambersoft p-2.5 text-xs text-amber">پرداخت ثبت شد ولی فعال‌سازی به پشتیبانی ارجاع شد؛ تا دقایقی دیگر فعال می‌شود.</p>}
         {!paid && s && <p className="mt-3 text-xs text-ink3">اگر مبلغی از حساب شما کسر شده باشد، تا ۷۲ ساعت به حساب بازمی‌گردد.</p>}
-        <Link href="/modules" className="press mt-5 inline-block rounded-[14px] bg-[image:var(--grad-rose)] px-5 py-2.5 text-[13.5px] font-bold text-white">بازگشت به پنل</Link>
+        {paid && s?.kind === "LISTING_PLAN" && <p className="mt-3 rounded-xl bg-sagesoft p-3 text-sm leading-7 text-sage">پنل مدیریت شما فعال شد. با همان شماره‌ی موبایلِ ثبت‌نام و کد پیامکی وارد شوید.</p>}
+        {s?.kind === "LISTING_PLAN" ? (
+          <Link href={paid ? "/login" : "/finder/manage"} className="press mt-5 inline-block rounded-[14px] bg-[image:var(--grad-rose)] px-5 py-2.5 text-[13.5px] font-bold text-white">{paid ? "ورود به پنل" : "بازگشت به پروفایل"}</Link>
+        ) : (
+          <Link href="/modules" className="press mt-5 inline-block rounded-[14px] bg-[image:var(--grad-rose)] px-5 py-2.5 text-[13.5px] font-bold text-white">بازگشت به پنل</Link>
+        )}
       </Card>
     </div>
   );

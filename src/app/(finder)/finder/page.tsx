@@ -3,10 +3,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { CalendarCheck, LocateFixed, Loader2, MapPin, Maximize, Minus, Plus, Search, Send, Sparkles, Star, X } from "lucide-react";
-import { Avatar, Badge, Button, Card, fieldCls } from "@/components/ui";
-import { useDB } from "@/lib/db";
+import { Badge, Button, Card, fieldCls } from "@/components/ui";
 import {
-  CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, findCity, haversineKm, listFinderPros, nearestCity, reviewsFor, tintFor,
+  CITIES, FINDER_CATS, IRAN_MAP_VIEWBOX, IRAN_PROVINCES, catStyle, findCity, haversineKm, listFinderPros, nearestCity, tintFor,
   type FinderCat, type FinderProGeo, type Review,
 } from "@/lib/finder";
 import { errorText, finderApi, type PublicDetail, type PublicListing } from "@/lib/finderApi";
@@ -22,10 +21,8 @@ function CatChip({ c }: { c: FinderCat }) {
   return <span className={clsx("inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[11px] font-bold", catStyle[c].bg, catStyle[c].fg)}>{c}</span>;
 }
 
-/** آواتار متخصص‌های فهرست مستقل (بدون اتصال به CRM)؛ عمداً از کامپوننت Avatar مشترک استفاده نمی‌کند
- * چون آن با نام مشتری/پرسنل واقعی تطبیق می‌دهد و ممکن است تصادفاً به یک نام مشابه در دیتابیس گره بخورد. */
+/** آواتار حروف اول با رنگ دسته‌ی خدمت. */
 function ProAvatar({ pro, size = 40 }: { pro: FinderProGeo; size?: number }) {
-  if (pro.onCrm) return <Avatar name={pro.name} size={size} color={catStyle[pro.cats[0]].dot} />;
   const initials = pro.name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
   const color = catStyle[pro.cats[0]].dot;
   return (
@@ -154,7 +151,6 @@ function ZoomableMap({ children }: { children: React.ReactNode }) {
 }
 
 export default function FinderPage() {
-  const db = useDB();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<FinderCat | "all">("all");
   const [city, setCity] = useState<string>("all");
@@ -162,26 +158,6 @@ export default function FinderPage() {
   const [locState, setLocState] = useState<"idle" | "loading" | "denied">("idle");
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-
-  /** متخصص‌هایی که واقعاً از پنل مدیریت اکسیر استفاده می‌کنند (پرسنل فعال این سالن)؛ فقط این‌ها رزرو مستقیم دارند.
-   * عمداً مستقل از ماژول اختیاری «مارکت‌پلیس داخلی» است — داشتن پنل مدیریت با روشن بودن آن ماژول یکی نیست. */
-  const crmPros = useMemo<FinderProGeo[]>(() => {
-    const c = findCity(db.salon.city) ?? CITIES[0];
-    const ownWorks = db.posts.filter((x) => x.status === "منتشر شد" && (x.before || x.after)).flatMap((w) => [w.before, w.after].filter(Boolean) as string[]);
-    return db.staff.filter((s) => s.active).map((s) => {
-      const svcs = db.services.filter((x) => x.active && x.staff.includes(s.id));
-      const cats = [...new Set(svcs.map((x) => x.cat))] as FinderCat[];
-      const answered = db.surveys.filter((x) => x.staffId === s.id && x.rating);
-      const surveyReviews: Review[] = answered.filter((x) => x.route === "public")
-        .map((x, i) => ({ name: x.name.split(" ")[0] || "مشتری", rating: x.rating!, text: x.comment || "—", daysAgo: 3 + i * 4 }));
-      return {
-        id: `crm-${s.id}`, name: s.name, salon: db.salon.name, city: db.salon.city, cats: cats.length ? cats : (["مو"] as FinderCat[]),
-        rating: s.rating, reviews: answered.length, from: svcs.length ? Math.min(...svcs.map((x) => x.price)) : 0, bio: s.bio || `${s.role} در ${db.salon.name}`, verified: true,
-        x: c.x, y: c.y, lat: c.lat, lng: c.lng, tint: tintFor(cats.length ? cats : (["مو"] as FinderCat[])), portfolio: Math.max(3, Math.min(6, ownWorks.length || 3)),
-        reviewList: surveyReviews.length ? surveyReviews : reviewsFor(s.id, s.rating), onCrm: true, staffId: s.id, photos: ownWorks,
-      };
-    });
-  }, [db]);
 
   /** پروفایل‌های ثبت‌نام‌شده‌ی خودِ متخصص‌ها روی اکسیریاب (فقط منتشرشده‌ها، از API). پلن سالن هر متخصص را جدا پین می‌کند. */
   const [apiListings, setApiListings] = useState<PublicListing[]>([]);
@@ -197,21 +173,21 @@ export default function FinderPage() {
       const reviewList: Review[] = (details[l.id]?.reviews ?? []).map((r) => ({ name: r.name, rating: r.rating, text: r.text, daysAgo: Math.max(0, Math.floor((now - new Date(r.createdAt).getTime()) / 86_400_000)) }));
       const base = {
         city: l.city, x: l.x, y: l.y, lat: c.lat, lng: c.lng, from: 0, verified: l.plan !== "free", rating: l.rating, reviews: l.reviewCount,
-        reviewList, portfolio: 3, onCrm: false, listingId: l.id, plan: l.plan, phone: l.phone,
+        reviewList, portfolio: 3, onCrm: !!l.booking?.direct, listingId: l.id, plan: l.plan, phone: l.phone,
       };
       if (l.plan === "salon" && l.staff.length) {
         l.staff.forEach((s, i) => {
           const angle = (i / l.staff.length) * Math.PI * 2, r = 8;
-          out.push({ ...base, id: `listing-${l.id}-${i}`, name: s.name, salon: l.brand, cats: s.cats, bio: `متخصص در ${l.brand}`, tint: tintFor(s.cats), x: l.x + Math.cos(angle) * r, y: l.y + Math.sin(angle) * r });
+          out.push({ ...base, id: `listing-${l.id}-${i}`, name: s.name, salon: l.brand, cats: s.cats, bio: `متخصص در ${l.brand}`, tint: tintFor(s.cats), x: l.x + Math.cos(angle) * r, y: l.y + Math.sin(angle) * r, bookingUrl: l.booking?.direct && s.bookingStaffId ? `/s/${l.booking.slug}?staff=${s.bookingStaffId}` : undefined });
         });
       } else {
-        out.push({ ...base, id: `listing-${l.id}`, name: l.plan === "salon" ? l.brand : l.name, salon: l.brand || l.name, cats: l.cats, bio: l.bio, tint: tintFor(l.cats) });
+        out.push({ ...base, id: `listing-${l.id}`, name: l.plan === "salon" ? l.brand : l.name, salon: l.brand || l.name, cats: l.cats, bio: l.bio, tint: tintFor(l.cats), bookingUrl: l.booking?.direct ? `/s/${l.booking.slug}` : undefined });
       }
     }
     return out;
   }, [apiListings, details, now]);
 
-  const allPros = useMemo(() => [...crmPros, ...listingPros, ...PROS], [crmPros, listingPros]);
+  const allPros = useMemo(() => [...listingPros, ...PROS], [listingPros]);
 
   function useMyLocation() {
     if (!("geolocation" in navigator)) { setLocState("denied"); return; }
@@ -361,8 +337,8 @@ export default function FinderPage() {
               </div>
               <div className="mt-2.5 flex items-center justify-between gap-2">
                 <p className="text-xs text-ink3">از {p.from.toLocaleString("fa-IR")} تومان · {p.reviews} نظر</p>
-                {p.onCrm && (
-                  <Link href={`/book?staff=${p.staffId}`} onClick={(e) => e.stopPropagation()} className="shrink-0 rounded-full bg-[image:var(--grad-rose)] px-3 py-1.5 text-[11px] font-bold text-white">رزرو نوبت</Link>
+                {p.bookingUrl && (
+                  <Link href={p.bookingUrl} onClick={(e) => e.stopPropagation()} className="shrink-0 rounded-full bg-[image:var(--grad-rose)] px-3 py-1.5 text-[11px] font-bold text-white">رزرو نوبت</Link>
                 )}
               </div>
             </Card>
@@ -428,10 +404,10 @@ export default function FinderPage() {
             ) : <p className="text-xs text-ink3">هنوز نظری برای این پروفایل ثبت نشده است.</p>}
             {selectedPro.listingId && <ReviewForm listingId={selectedPro.listingId} onAdded={() => loadDetail(selectedPro.listingId!)} />}
 
-            {selectedPro.onCrm ? (
+            {selectedPro.bookingUrl ? (
               <>
                 <Badge tone="sage" className="mt-4">این متخصص روی پنل مدیریت اکسیر است؛ نوبت شما مستقیم برای تأیید ارسال می‌شود</Badge>
-                <Link href={`/book?staff=${selectedPro.staffId}`} className="press mt-3 block rounded-[14px] bg-[image:var(--grad-rose)] py-3 text-center text-[13.5px] font-bold text-white">رزرو نوبت از {selectedPro.name.split(" ")[0]}</Link>
+                <Link href={selectedPro.bookingUrl} className="press mt-3 block rounded-[14px] bg-[image:var(--grad-rose)] py-3 text-center text-[13.5px] font-bold text-white">رزرو نوبت از {selectedPro.name.split(" ")[0]}</Link>
               </>
             ) : selectedPro.listingId && selectedPro.plan !== "free" ? (
               <LeadForm listingId={selectedPro.listingId} name={selectedPro.name} />

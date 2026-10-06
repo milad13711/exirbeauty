@@ -152,6 +152,8 @@ export type FinderProGeo = FinderPro & {
   onCrm: boolean; staffId?: string; photos?: string[];
   /** اگر از ثبت‌نام مستقل روی اکسیریاب آمده باشد: شناسه‌ی پروفایل، پلن، و شماره تماس برای هماهنگی/درخواست نوبت. */
   listingId?: string; plan?: "free" | "artist" | "salon"; phone?: string;
+  /** Real direct-booking page of the salon (public wizard), when the listing runs a dashboard on a plan with online booking. */
+  bookingUrl?: string;
 };
 
 export function tintFor(cats: FinderCat[]): [string, string] {

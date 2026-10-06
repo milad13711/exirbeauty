@@ -114,9 +114,10 @@ model Tenant {
   status    TenantStatus @default(ACTIVE)
   createdAt DateTime     @default(now())
 
-  subscription Subscription?
-  modules      TenantModule[]
-  users        User[]
+  subscription  Subscription?
+  modules       TenantModule[]
+  users         User[]
+  finderListing FinderListing?
 }
 
 model Subscription {
@@ -194,12 +195,15 @@ model FinderListing {
   cats          String[]
   bio           String        @default("")
   rejectReason  String?
+  // Set once the listing has paid for its plan and been provisioned as a salon (dashboard, bookable staff).
+  tenantId      String?       @unique
   // Edits to an already-published listing wait here; the live version stays public until approved.
   pendingEdit   Json?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   plan    Plan           @relation(fields: [planId], references: [id])
+  tenant  Tenant?        @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   staff   FinderStaff[]
   reviews FinderReview[]
   leads   FinderLead[]
@@ -210,6 +214,7 @@ model FinderListing {
 model FinderStaff {
   id        String        @id @default(cuid())
   listingId String
+  staffId   String? // the salon's Staff row created at provisioning (the dashboard is the source of truth afterwards)
   name      String
   cats      String[]
   listing   FinderListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -260,6 +265,7 @@ model OtpCode {
 enum PaymentKind {
   PLAN
   ADDON
+  LISTING_PLAN // a finder listing paying for its plan; the salon (tenant) is created when it succeeds
 }
 
 enum PaymentStatus {
@@ -271,7 +277,8 @@ enum PaymentStatus {
 
 model Payment {
   id          String        @id @default(cuid())
-  tenantId    String
+  tenantId    String? // null until a LISTING_PLAN payment provisions the salon
+  listingId   String?
   userId      String?
   kind        PaymentKind
   planCode    String?
