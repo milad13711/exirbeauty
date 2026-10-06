@@ -25,7 +25,7 @@ export type Route = {
   /** e.g. "/finder/listings/:id" (mounted under /api/v1) */
   path: string;
   auth?: AuthRule; // default "public"
-  /** Module that must be active for the acting tenant (tenant-scoped modules) */
-  module?: string;
+  /** Module that must be active for the acting tenant. Tenant-scoped modules get theirs automatically; `false` opts a public route out (it must then resolve the tenant and check entitlement itself). */
+  module?: string | false;
   handler: (c: Ctx) => Promise<unknown>;
 };

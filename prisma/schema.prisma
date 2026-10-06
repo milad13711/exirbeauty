@@ -318,7 +318,8 @@ model Customer {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  visits CustomerVisit[]
+  visits       CustomerVisit[]
+  appointments Appointment[]
 
   @@unique([tenantId, phone])
   @@index([tenantId, archivedAt, createdAt])
@@ -364,9 +365,10 @@ model Staff {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  leaves   StaffLeave[]
-  services ServiceStaff[]
+  user         User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  leaves       StaffLeave[]
+  services     ServiceStaff[]
+  appointments Appointment[]
 
   @@index([tenantId, active])
 }
@@ -403,7 +405,8 @@ model Service {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  staff ServiceStaff[]
+  staff        ServiceStaff[]
+  appointments Appointment[]
 
   @@index([tenantId, archivedAt, category])
 }
@@ -415,4 +418,84 @@ model ServiceStaff {
   staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@id([serviceId, staffId])
+}
+
+// ───────── Module: calendar (tenant-scoped) ─────────
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_SERVICE
+  DONE
+  CANCELED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  STAFF
+  ONLINE
+}
+
+enum WaitStatus {
+  WAITING
+  BOOKED
+  CANCELED
+}
+
+// Times are the salon's local calendar (Asia/Tehran): a date plus minutes from midnight.
+// The database itself refuses overlapping active appointments for one staff member
+// (EXCLUDE constraint "appt_no_overlap", added in the migration), so concurrent bookings can't double-book.
+model Appointment {
+  id           String            @id @default(cuid())
+  tenantId     String
+  customerId   String
+  staffId      String
+  serviceId    String?
+  // Snapshot at booking time: later edits to the service don't rewrite history.
+  serviceName  String
+  category     String            @default("")
+  price        Int               @default(0)
+  date         DateTime          @db.Date
+  startMin     Int
+  durationMin  Int
+  status       AppointmentStatus @default(CONFIRMED)
+  source       AppointmentSource @default(STAFF)
+  note         String            @default("")
+  cancelReason String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  staff    Staff    @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  service  Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, date, staffId])
+  @@index([tenantId, customerId, date])
+}
+
+model WaitlistEntry {
+  id         String     @id @default(cuid())
+  tenantId   String
+  name       String
+  phone      String
+  serviceId  String
+  staffId    String? // null = any staff
+  fromDate   DateTime   @db.Date
+  toDate     DateTime   @db.Date
+  note       String     @default("")
+  status     WaitStatus @default(WAITING)
+  createdAt  DateTime   @default(now())
+
+  @@index([tenantId, status, fromDate])
+}
+
+model CalendarSettings {
+  tenantId      String  @id
+  // 7 entries, 0 = Saturday … 6 = Friday: { open, start, end } (minutes from midnight)
+  hours         Json
+  onlineEnabled Boolean @default(true)
+  autoConfirm   Boolean @default(false)
+  leadHours     Int     @default(2) // minimum notice for online bookings
+  cancelHours   Int     @default(12)
+  stepMin       Int     @default(30) // slot grid
 }

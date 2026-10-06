@@ -109,3 +109,13 @@ export async function importRows(tenantId: string, rows: { name: string; phone: 
   }
   return { created: fresh.length, skipped };
 }
+
+/** For other modules (calendar online booking): the customer with this phone, restoring an archived one or creating a new one. */
+export async function findOrCreateByPhone(tenantId: string, name: string, phone: string, tag: string) {
+  const found = await prisma.customer.findUnique({ where: { tenantId_phone: { tenantId, phone } } });
+  if (found) {
+    if (found.archivedAt) await prisma.customer.update({ where: { id: found.id }, data: { archivedAt: null } });
+    return found;
+  }
+  return prisma.customer.create({ data: { tenantId, name, phone, tags: [tag], source: tag } });
+}

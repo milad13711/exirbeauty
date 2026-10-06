@@ -30,9 +30,17 @@ sold as add-ons, or switched off per tenant without touching module code.
 
 Frontend: the finder (map, join, manage, admin moderation) already talks to this API (`src/lib/finderApi.ts`). Everything else in the app still runs on the localStorage prototype (`src/lib/db.ts`).
 
+### Calendar & booking
+
+Dates are the salon's local calendar (`YYYY-MM-DD` + minutes from midnight, Asia/Tehran); weekdays run Saturday = 0 … Friday = 6. All scheduling rules are pure functions in `modules/calendar/availability.ts` (unit-tested): salon hours ∩ staff hours, days off, leaves, breaks, existing appointments, slot grid, minimum notice.
+
+- **No double booking, even under concurrency:** a PostgreSQL `EXCLUDE` constraint (`appt_no_overlap`, needs the `btree_gist` extension — created by the migration, which requires a privileged DB role once) rejects overlapping active appointments for a staff member; the API turns it into `409 SLOT_TAKEN`.
+- Status flow `PENDING → CONFIRMED → IN_SERVICE → DONE` (+ `CANCELED`/`NO_SHOW`); transitions are claimed atomically, and `DONE` writes the customer's service history exactly once.
+- **Public online booking** (`/api/v1/public/salons/:slug/…`, no login): only for salons whose plan has `directBooking` and who left online booking on; per-IP/phone rate limits, a cap of 3 open online bookings per phone, minimum-notice and 120-day horizon; the caller gets a receipt, never internal records. Artist-plan salons receive requests through the finder instead.
+
 ### Login & payments
 
 - **OTP login** (`POST /auth/otp/request` → `/auth/otp/verify`): 6-digit code by SMS via Limo SMS (`SMS_DRIVER=limosms`; use `console` in dev to print the code in the server log instead of spending credit). Only active users with that phone get an SMS; the response is identical for unknown numbers. Codes live 2 min, are single-use, lock after 5 wrong guesses, resend cooldown 60 s. Admins create owners/staff with `POST /admin/users`; `SEED_OWNER_PHONE` seeds a demo owner.
 - **Payments** (Zarinpal, sandbox by default): `POST /tenant/payments` starts a plan purchase/renewal or add-on purchase — the amount is computed from DB prices, never sent by the client. The gateway returns to `/api/v1/payments/zarinpal/callback`, which verifies with Zarinpal, then grants the plan/add-on exactly once (replays are no-ops) and redirects to `/payment/result`. Payment rows are kept for reconciliation (`APPLY_FAILED` marks paid-but-not-applied).
 
-Backend modules so far: `finder` (reference, platform-scoped), and the tenant-scoped CRM core — `customers`, `staff` (weekly schedule, leaves, OTP invite, enforces `Plan.limits.staff`) and `services` (staff assignment). Every query is scoped by the session's tenant, deletes are owner-only archives, and the entitlement guard comes from the registry. PATCH schemas must not carry defaults (zod's `.partial()` keeps them) — see `customers/schemas.ts`. Not built yet: backend routes for the other modules, refunds, and tying finder listing plans (artist/salon) to payment (admins still approve them manually).
+Backend modules so far: `finder` (reference, platform-scoped), and the tenant-scoped CRM core — `customers`, `staff` (weekly schedule, leaves, OTP invite, enforces `Plan.limits.staff`) `services` (staff assignment) and `calendar` (below). Every query is scoped by the session's tenant, deletes are owner-only archives, and the entitlement guard comes from the registry. PATCH schemas must not carry defaults (zod's `.partial()` keeps them) — see `customers/schemas.ts`. Not built yet: backend routes for the other modules, refunds, and tying finder listing plans (artist/salon) to payment (admins still approve them manually).
