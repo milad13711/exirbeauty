@@ -35,6 +35,19 @@ export type WaitEntry = { id: string; name: string; phone: string; serviceId: st
 export type PublicSalon = { name: string; city: string; services: { id: string; category: string; name: string; price: number; durationMin: number; staffIds: string[] }[]; staff: { id: string; name: string; title: string; color: string; bio: string }[] };
 export type Receipt = { id: string; status: ApptStatus; date: string; startMin: number; serviceName: string; staffName: string };
 
+export type PayMethod = "CASH" | "CARD" | "ONLINE";
+export type SaleStatus = "PAID" | "DEBT" | "VOID";
+export type SaleLineIn = { kind: "SERVICE" | "PRODUCT" | "OTHER"; refId?: string | null; name: string; qty: number; price: number; staffId?: string | null; commissionPct?: number };
+export type SaleView = {
+  id: string; number: number; code: string; date: string; customerId: string | null; customerName: string; apptId: string | null;
+  subtotal: number; discountPct: number; discount: number; total: number; paid: number; debt: number; status: SaleStatus; note: string; voidReason: string | null; createdAt: string;
+  lines: (SaleLineIn & { id: string })[]; payments: { method: PayMethod; amount: number; ref: string }[];
+};
+export type ExpenseView = { id: string; date: string; title: string; amount: number; method: PayMethod; category: string };
+export type DebtRow = { customerId: string; name: string; phone: string; debt: number; invoices: number; since: string | null };
+export type Summary = { from: string; to: string; count: number; revenue: number; services: number; products: number; discounts: number; cash: number; card: number; online: number; newDebt: number; debtCollected: number; expenses: number; net: number; cashExpected: number; byStaff: { staffId: string; name: string; revenue: number; commission: number }[] };
+export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
+
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
 
 export const crm = {
@@ -75,6 +88,7 @@ export const crm = {
   calSettings: () => api<CalSettings>("GET", "/calendar/settings"),
   saveCalSettings: (b: Partial<CalSettings>) => api<CalSettings>("PUT", "/calendar/settings", b),
   availability: (q: { serviceId: string; date: string; staffId?: string }) => api<Availability>("GET", `/calendar/availability${qs(q)}`),
+  appointment: (id: string) => api<Appt>("GET", `/calendar/appointments/${id}`),
   appointments: (q: { date?: string; from?: string; to?: string; staffId?: string; status?: ApptStatus; customerId?: string }) => api<Appt[]>("GET", `/calendar/appointments${qs(q)}`),
   createAppt: (b: { customerId: string; staffId: string; serviceId: string; date: string; startMin: number; note?: string; status?: "PENDING" | "CONFIRMED" }) => api<Appt>("POST", "/calendar/appointments", b),
   confirmAppt: (id: string) => api<Appt>("POST", `/calendar/appointments/${id}/confirm`, {}),
@@ -85,6 +99,20 @@ export const crm = {
   addWait: (w: { name: string; phone: string; serviceId: string; staffId?: string | null; fromDate: string; toDate: string; note?: string }) => api<WaitEntry>("POST", "/calendar/waitlist", w),
   cancelWait: (id: string) => api<{ ok: true }>("DELETE", `/calendar/waitlist/${id}`),
   bookFromWait: (id: string, s: { staffId: string; date: string; startMin: number }) => api<Appt>("POST", `/calendar/waitlist/${id}/book`, s),
+
+  // cashier
+  sales: (q: { date?: string; from?: string; to?: string; customerId?: string; status?: SaleStatus }) => api<SaleView[]>("GET", `/cashier/sales${qs(q)}`),
+  createSale: (b: { customerId?: string | null; customerName?: string; apptId?: string | null; lines: SaleLineIn[]; discountPct: number; payments: { method: PayMethod; amount: number }[]; note?: string }) => api<SaleView>("POST", "/cashier/sales", b),
+  voidSale: (id: string, reason: string) => api<SaleView>("POST", `/cashier/sales/${id}/void`, { reason }),
+  expenses: (from: string, to?: string) => api<ExpenseView[]>("GET", `/cashier/expenses${qs({ from, to })}`),
+  addExpense: (e: { title: string; amount: number; method: "CASH" | "CARD"; category?: string; date?: string }) => api<ExpenseView>("POST", "/cashier/expenses", e),
+  deleteExpense: (id: string) => api<{ ok: true }>("DELETE", `/cashier/expenses/${id}`),
+  debts: () => api<DebtRow[]>("GET", "/cashier/debts"),
+  payDebt: (b: { customerId: string; amount: number; method: PayMethod }) => api<{ remainingDebt: number; settledInvoices: number }>("POST", "/cashier/debts/pay", b),
+  summary: (from: string, to?: string) => api<Summary>("GET", `/cashier/summary${qs({ from, to })}`),
+  day: (date: string) => api<DayStatus>("GET", `/cashier/days/${date}`),
+  closeDay: (date: string, countedCash: number, note = "") => api<DayStatus>("POST", `/cashier/days/${date}/close`, { countedCash, note }),
+  reopenDay: (date: string) => api<DayStatus>("DELETE", `/cashier/days/${date}/close`),
 
   // public booking (no login)
   publicSalon: (slug: string) => api<PublicSalon>("GET", `/public/salons/${encodeURIComponent(slug)}`),

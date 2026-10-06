@@ -232,6 +232,7 @@ function CalendarPage() {
                               <p className="text-xs text-ink2"><bdi dir="ltr">{a.customerPhone}</bdi>{a.note && ` · ${a.note}`}{a.cancelReason && ` · دلیل لغو: ${a.cancelReason}`}</p>
                               <div className="flex flex-wrap gap-2">
                                 {actions(a).map(([l, fn, v]) => <Button key={l} variant={v === "primary" ? "soft" : "ghost"} className={clsx("!min-h-9", l.includes("لغو") || l.includes("رد") ? "!text-danger" : "")} onClick={fn}>{l}</Button>)}
+                                {(a.status === "CONFIRMED" || a.status === "IN_SERVICE" || a.status === "DONE") && <a href={`/cashier?appt=${a.id}`} className="press inline-flex min-h-9 items-center rounded-[14px] bg-rosesoft px-3 text-[13px] font-bold text-rosedeep">صدور فاکتور</a>}
                                 <a href={`/customers/${a.customerId}`} className="press inline-flex min-h-9 items-center rounded-[14px] border border-line px-3 text-[13px] font-bold text-ink2">پرونده</a>
                               </div>
                             </div>
