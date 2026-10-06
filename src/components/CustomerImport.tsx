@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import clsx from "clsx";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, fieldCls } from "@/components/ui";
-import { actions, useDB, type Customer } from "@/lib/db";
-import { newCustomer } from "@/lib/factories";
+import { crm } from "@/lib/crmApi";
+import { errorText } from "@/lib/api";
+import { LiveGate } from "@/components/live/LiveGate";
 import { exportXlsx, parseDelimited, readSpreadsheet } from "@/lib/export";
 import { digits } from "@/lib/validate";
 import { fa } from "@/lib/fa";
@@ -32,13 +32,12 @@ function normPhone(raw: string): string | null {
 
 type Row = { n: number; cells: string[]; name: string; phone: string | null; raw: string; state: "ok" | "update" | "dup-file" | "bad-phone" | "no-name" | "exists"; existingId?: string };
 
-export function CustomerImport() {
-  const db = useDB();
+function ImportInner() {
   const [raw, setRaw] = useState<string[][] | null>(null);
   const [paste, setPaste] = useState("");
   const [hasHeader, setHasHeader] = useState(true);
   const [map, setMap] = useState<Record<Field, number>>({ name: -1, phone: -1, gender: -1, birth: -1, favService: -1, allergies: -1, note: -1, tags: -1 });
-  const [onDup, setOnDup] = useState<"skip" | "update">("skip");
+  const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ added: number; updated: number; skipped: number; bad: Row[] } | null>(null);
   const [err, setErr] = useState("");
   const [fileName, setFileName] = useState("");
@@ -63,46 +62,46 @@ export function CustomerImport() {
   const body = useMemo(() => (raw ? (hasHeader ? raw.slice(1) : raw) : []), [raw, hasHeader]);
   const rows: Row[] = useMemo(() => {
     const seen = new Set<string>();
-    const existing = new Map(db.customers.map((c) => [digits(c.phone).replace(/\s/g, ""), c.id]));
     return body.map((cells, i) => {
       const g = (k: Field) => (map[k] >= 0 ? cells[map[k]] ?? "" : "");
       const rawPhone = g("phone"); const phone = normPhone(rawPhone); const name = g("name").trim();
-      let state: Row["state"] = "ok"; let existingId: string | undefined;
+      let state: Row["state"] = "ok";
       if (name.length < 2) state = "no-name";
       else if (!phone) state = "bad-phone";
       else if (seen.has(phone)) state = "dup-file";
-      else if (existing.has(phone)) { state = onDup === "update" ? "update" : "exists"; existingId = existing.get(phone); }
       if (phone) seen.add(phone);
-      return { n: i + (hasHeader ? 2 : 1), cells, name, phone, raw: rawPhone, state, existingId };
+      return { n: i + (hasHeader ? 2 : 1), cells, name, phone, raw: rawPhone, state };
     });
-  }, [body, map, db.customers, onDup, hasHeader]);
+  }, [body, map, hasHeader]);
 
   const count = (s: Row["state"]) => rows.filter((r) => r.state === s).length;
   const importable = rows.filter((r) => r.state === "ok" || r.state === "update");
   const g = (r: Row, k: Field) => (map[k] >= 0 ? r.cells[map[k]] ?? "" : "").trim();
 
-  const run = () => {
+  // Shapes the file into the API's rows; the server skips phones already in this salon and reports them.
+  const run = async () => {
     if (map.name < 0 || map.phone < 0) return setErr("ستون نام و موبایل را مشخص کنید.");
-    let added = 0, updated = 0;
-    for (const r of importable) {
-      const phone = fa(r.phone!);
-      const extra = { gender: /مرد|male|^m$/i.test(g(r, "gender")) ? "مرد" : "زن", birth: g(r, "birth"), favService: g(r, "favService"), note: g(r, "note"), allergies: g(r, "allergies").split(/[،,;\n]/).map((x) => x.trim()).filter(Boolean), tags: g(r, "tags").split(/[،,;]/).map((x) => x.trim()).filter(Boolean) };
-      if (r.state === "update" && r.existingId) {
-        const c = db.customers.find((x) => x.id === r.existingId)!;
-        actions.saveCustomer({ ...c, name: r.name, gender: g(r, "gender") ? extra.gender : c.gender, birth: extra.birth || c.birth, favService: extra.favService || c.favService, note: extra.note || c.note, allergies: extra.allergies.length ? [...new Set([...c.allergies, ...extra.allergies])] : c.allergies, tags: [...new Set([...c.tags, ...extra.tags])] });
-        updated++;
-      } else {
-        const c: Customer = { ...newCustomer(), name: r.name, phone, ...extra, tags: extra.tags.length ? extra.tags : ["ورود از فایل"] };
-        actions.saveCustomer(c); added++;
+    setBusy(true); setErr("");
+    try {
+      const payload = importable.map((r) => ({
+        name: r.name, phone: r.phone!,
+        gender: (/مرد|male|^m$/i.test(g(r, "gender")) ? "MALE" : "FEMALE") as "MALE" | "FEMALE",
+        note: [g(r, "note"), g(r, "favService") && `خدمت موردعلاقه: ${g(r, "favService")}`].filter(Boolean).join(" — ").slice(0, 1000),
+        tags: g(r, "tags").split(/[،,;]/).map((x) => x.trim()).filter(Boolean).slice(0, 20),
+        allergies: g(r, "allergies").split(/[،,;\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 20),
+      }));
+      let created = 0, skipped = 0;
+      for (let i = 0; i < payload.length; i += 500) {
+        const r = await crm.importCustomers(payload.slice(i, i + 500));
+        created += r.created; skipped += r.skipped.length;
       }
-    }
-    setResult({ added, updated, skipped: rows.length - importable.length, bad: rows.filter((r) => r.state !== "ok" && r.state !== "update") });
+      setResult({ added: created, updated: 0, skipped: skipped + (rows.length - importable.length), bad: rows.filter((r) => r.state !== "ok") });
+    } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   };
-
   const downloadSample = () => exportXlsx("نمونه-ورود-مشتریان", [{ name: "مشتریان", head: ["نام و نام خانوادگی", "موبایل", "جنسیت", "تاریخ تولد", "خدمت موردعلاقه", "حساسیت‌ها", "یادداشت", "برچسب‌ها"], rows: [["نرگس رضایی", "09121234567", "زن", "۱۵ آذر ۱۳۷۹", "رنگ ریشه", "حساسیت به PPD", "عصرها نوبت می‌گیرد", "وفادار"], ["مریم احمدی", "09351112233", "زن", "", "کوتاهی", "", "", ""]] }]);
   const downloadBad = () => result && exportXlsx("ردیف‌های-ردشده", [{ name: "ردشده", head: ["ردیف", "نام", "موبایل", "دلیل"], rows: result.bad.map((r) => [r.n, r.name, r.raw, reasonText[r.state]]) }]);
 
-  const reasonText: Record<Row["state"], string> = { ok: "", update: "به‌روزرسانی", "dup-file": "شماره تکراری در فایل", "bad-phone": "موبایل نامعتبر", "no-name": "نام خالی", exists: "قبلاً در CRM ثبت است" };
+  const reasonText: Record<Row["state"], string> = { ok: "", update: "به‌روزرسانی", "dup-file": "شماره تکراری در فایل", "bad-phone": "موبایل نامعتبر", "no-name": "نام خالی", exists: "قبلاً در سالن ثبت است" };
   const stateBadge = (s: Row["state"]) => s === "ok" ? <Badge tone="sage">جدید</Badge> : s === "update" ? <Badge tone="sky">به‌روزرسانی</Badge> : s === "exists" ? <Badge tone="amber">موجود</Badge> : <Badge tone="danger">{reasonText[s]}</Badge>;
 
   if (result) return (
@@ -111,7 +110,7 @@ export function CustomerImport() {
       <Card className="mx-auto max-w-lg p-7 text-center">
         <FileSpreadsheet className="mx-auto text-sage" size={44} />
         <h2 className="mt-3 text-xl font-extrabold">ورود از فایل انجام شد</h2>
-        <p className="mt-2 text-sm leading-7 text-ink2"><b className="text-sage">{fa(result.added)}</b> مشتری جدید · <b className="text-sky">{fa(result.updated)}</b> به‌روزرسانی · <b className="text-danger">{fa(result.skipped)}</b> ردشده</p>
+        <p className="mt-2 text-sm leading-7 text-ink2"><b className="text-sage">{fa(result.added)}</b> مشتری جدید · <b className="text-danger">{fa(result.skipped)}</b> ردشده (شماره‌ی تکراری یا نامعتبر)</p>
         <div className="mt-5 flex flex-wrap justify-center gap-2"><Link href="/customers" className="inline-flex items-center rounded-xl bg-rose px-4 py-2.5 text-[13px] font-semibold text-white">مشاهده‌ی مشتریان</Link>{result.bad.length > 0 && <Button variant="ghost" onClick={downloadBad}><Download size={14} />دانلود ردیف‌های ردشده</Button>}<Button variant="ghost" onClick={() => { setResult(null); setRaw(null); setPaste(""); }}>ورود فایل دیگر</Button></div>
       </Card>
     </>
@@ -150,13 +149,12 @@ export function CustomerImport() {
                   </Field>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm"><span className="text-ink2">اگر شماره در CRM موجود بود:</span>
-                {([["skip", "رد شود"], ["update", "به‌روزرسانی شود"]] as const).map(([k, l]) => <label key={k} className={clsx("flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-1.5", onDup === k ? "border-rose bg-rosesoft" : "border-line")}><input type="radio" name="dup" checked={onDup === k} onChange={() => setOnDup(k)} className="accent-[#b4536f]" />{l}</label>)}</div>
+              <p className="text-xs text-ink3">شماره‌هایی که از قبل در سالن ثبت شده‌اند، رد می‌شوند (اطلاعاتشان تغییر نمی‌کند).</p>
             </div>
           </Card>
 
           <Card>
-            <CardHead title="۳. پیش‌نمایش و بررسی" hint={`${fa(count("ok"))} جدید · ${fa(count("update"))} به‌روزرسانی · ${fa(rows.length - importable.length)} ردشونده`} />
+            <CardHead title="۳. پیش‌نمایش و بررسی" hint={`${fa(count("ok"))} آماده‌ی ورود · ${fa(rows.length - importable.length)} ردشونده`} />
             <ul className="divide-y divide-line border-t border-line">
               {rows.slice(0, 40).map((r) => (
                 <li key={r.n} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 text-sm"><span className="w-6 text-xs text-ink3">{fa(r.n)}</span><b className="min-w-0 flex-1 basis-32 truncate">{r.name || "—"}</b><bdi dir="ltr" className="text-xs text-ink2">{r.phone ?? r.raw ?? "—"}</bdi>{stateBadge(r.state)}</li>
@@ -165,10 +163,14 @@ export function CustomerImport() {
             {rows.length > 40 && <p className="px-5 py-3 text-xs text-ink3">و {fa(rows.length - 40)} ردیف دیگر (فقط ۴۰ ردیف اول نمایش داده می‌شود).</p>}
           </Card>
           {err && <p role="alert" className="rounded-xl bg-dangersoft p-3 text-sm text-danger">{err}</p>}
-          <div className="flex flex-wrap gap-2"><Button disabled={!importable.length} onClick={run}><Upload size={14} />ورود {fa(importable.length)} مشتری</Button><Link href="/customers" className="inline-flex items-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink2">انصراف</Link></div>
+          <div className="flex flex-wrap gap-2"><Button disabled={!importable.length || busy} onClick={run}><Upload size={14} />{busy ? "در حال ورود…" : `ورود ${fa(importable.length)} مشتری`}</Button><Link href="/customers" className="inline-flex items-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink2">انصراف</Link></div>
         </div>
       )}
       {!raw && err && <p role="alert" className="mt-4 rounded-xl bg-dangersoft p-3 text-sm text-danger">{err}</p>}
     </>
   );
+}
+
+export function CustomerImport() {
+  return <LiveGate><ImportInner /></LiveGate>;
 }

@@ -135,6 +135,10 @@ describe("customers module", () => {
     expect(r.body.data.created).toBe(2);
     expect(r.body.data.skipped).toEqual([{ row: 3, phone: "09140000001", reason: "DUPLICATE_IN_FILE" }, { row: 4, phone: "09121111111", reason: "EXISTS" }]);
     expect((await call(A, "GET", `/customers/${ids.sara}`)).body.data.name).toBe("سارا محمدی"); // existing row untouched
+    const withAllergy = await call(A, "POST", "/customers/import", { rows: [mk("حساسیت دارد", "09140000009", { allergies: ["PPD"], gender: "MALE" })] });
+    expect(withAllergy.body.data.created).toBe(1);
+    const imported = (await call(A, "GET", "/customers?q=09140000009")).body.data.items[0];
+    expect((await call(A, "GET", `/customers/${imported.id}`)).body.data).toMatchObject({ allergies: ["PPD"], gender: "MALE" });
     expect((await call(A, "POST", "/customers/import", { rows: [] })).status).toBe(422);
   });
 

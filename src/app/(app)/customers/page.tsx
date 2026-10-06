@@ -1,63 +1,62 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import clsx from "clsx";
-import { Download, FileUp, Plus, Search } from "lucide-react";
-import { Avatar, Badge, Button, Card, LinkButton, PageTitle, tierTone } from "@/components/ui";
-import { useDB } from "@/lib/db";
-import { digits } from "@/lib/validate";
-import { exportXlsx } from "@/lib/export";
-import { fa, short } from "@/lib/fa";
+import { FileUp, Plus, Search } from "lucide-react";
+import { Avatar, Badge, Button, Card, LinkButton, PageTitle } from "@/components/ui";
+import { LiveGate } from "@/components/live/LiveGate";
+import { ErrorNote, Spinner } from "@/components/live/ui";
+import { crm, type CustomerRow } from "@/lib/crmApi";
+import { errorText } from "@/lib/api";
+import { faNum } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-const filters = [{ k: "all", l: "همه" }, { k: "hot", l: "زمان مراجعه رسیده" }, { k: "lost", l: "در حال از دست رفتن" }, { k: "vip", l: "VIP" }] as const;
-const riskBadge = { ok: <Badge tone="sage">فعال</Badge>, hot: <Badge tone="amber">وقتش رسیده</Badge>, lost: <Badge tone="danger">در خطر ریزش</Badge> } as const;
-
-export default function Customers() {
-  const db = useDB();
-  const [f, setF] = useState<(typeof filters)[number]["k"]>("all");
+function List() {
   const [q, setQ] = useState("");
-  const qq = digits(q.trim());
-  const rows = db.customers.filter((c) => (f === "all" || (f === "vip" ? c.tier === "VIP" : c.risk === f)) && (!qq || c.name.includes(q.trim()) || digits(c.phone).replace(/\s/g, "").includes(qq)));
+  const [applied, setApplied] = useState("");
+  const [extra, setExtra] = useState<CustomerRow[]>([]);
+  const [cursor, setCursor] = useState<string | null | undefined>(undefined);
+  const [more, setMore] = useState(false);
+  const first = useQuery(() => crm.customers({ q: applied || undefined }), [applied]);
+  const rows = [...(first.data?.items ?? []), ...extra];
+  const next = cursor === undefined ? first.data?.nextCursor : cursor;
+
+  async function loadMore() {
+    if (!next) return;
+    setMore(true);
+    try { const r = await crm.customers({ q: applied || undefined, cursor: next }); setExtra((e) => [...e, ...r.items]); setCursor(r.nextCursor); } finally { setMore(false); }
+  }
+  const search = (v: string) => { setApplied(v.trim()); setExtra([]); setCursor(undefined); };
+
   return (
     <>
-      <PageTitle title="مشتریان" sub={`${fa(db.customers.length)} مشتری · سیستم زمان احتمالی مراجعه بعدی را پیش‌بینی می‌کند`}
-        actions={<><Button variant="ghost" onClick={() => exportXlsx("مشتریان", [{ name: "مشتریان", head: ["نام", "موبایل", "جنسیت", "تولد", "سطح", "امتیاز", "مراجعات", "مجموع خرید", "آخرین مراجعه", "خدمت موردعلاقه", "بدهی", "وضعیت"], rows: rows.map((c) => [c.name, c.phone, c.gender, c.birth, c.tier, c.points, c.visits, c.total, c.lastVisit, c.favService, c.debt, c.risk === "ok" ? "فعال" : c.risk === "hot" ? "وقتش رسیده" : "در خطر"]) }])}><Download size={14} />خروجی Excel</Button><LinkButton href="/customers/import" variant="ghost"><FileUp size={14} />ورود از فایل</LinkButton><LinkButton href="/customers/new"><Plus size={14} />مشتری جدید</LinkButton></>} />
-      <label className="relative mb-4 block max-w-md"><Search size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink3" /><input value={q} onChange={(e) => setQ(e.target.value)} aria-label="جستجوی مشتری" placeholder="جستجوی نام یا شماره…" className="w-full rounded-xl border border-line bg-surface py-2.5 pr-9 pl-3 text-sm outline-none focus:border-rose" /></label>
-      <div className="mb-4 flex flex-wrap gap-2" role="tablist">
-        {filters.map((x) => <button key={x.k} role="tab" aria-selected={f === x.k} onClick={() => setF(x.k)} className={clsx("cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors", f === x.k ? "border-transparent bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-10px_rgba(156,53,88,.7)]" : "border-line bg-surface text-ink2 hover:bg-surface2")}>{x.l}</button>)}
-      </div>
-      <Card className="md:hidden">
-        <ul className="divide-y divide-line">
-          {rows.map((c) => (
-            <li key={c.id}>
-              <Link href={`/customers/${c.id}`} className="flex items-center gap-3 px-4 py-3.5">
-                <Avatar name={c.name} />
-                <span className="min-w-0 flex-1"><b className="block truncate text-sm">{c.name}</b><span className="block text-xs text-ink3">{fa(c.visits)} مراجعه · {short(c.total)} · {c.lastVisit}</span></span>
-                <span className="flex flex-col items-end gap-1"><Badge tone={tierTone[c.tier]}>{c.tier}</Badge>{riskBadge[c.risk]}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </Card>
-      <Card className="hidden md:block">
-        <table className="w-full text-sm">
-          <thead className="border-b border-line text-right text-xs text-ink3"><tr>{["مشتری", "سطح", "مراجعات", "مجموع خرید", "آخرین مراجعه", "خدمت موردعلاقه", "وضعیت"].map((h) => <th key={h} className="px-5 py-3 font-medium">{h}</th>)}</tr></thead>
-          <tbody>
+      <PageTitle title="مشتریان" sub={first.data?.total !== undefined && !applied ? `${faNum(first.data.total)} مشتری` : "جست‌وجو و مدیریت پرونده‌ی مشتری‌ها"}
+        actions={<><LinkButton href="/customers/import" variant="ghost"><FileUp size={14} />ورود از فایل</LinkButton><LinkButton href="/customers/new"><Plus size={14} />مشتری جدید</LinkButton></>} />
+      <form onSubmit={(e) => { e.preventDefault(); search(q); }} className="relative mb-4 block max-w-md">
+        <Search size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink3" />
+        <input value={q} onChange={(e) => { setQ(e.target.value); if (!e.target.value) search(""); }} aria-label="جستجوی مشتری" placeholder="جستجوی نام یا شماره… (Enter)" className="w-full rounded-xl border border-line bg-surface py-2.5 pr-9 pl-3 text-sm outline-none focus:border-rose" />
+      </form>
+      {first.error && <ErrorNote message={errorText(first.error)} onRetry={first.reload} />}
+      {first.loading && !first.data ? <Spinner /> : (
+        <Card>
+          <ul className="divide-y divide-line">
             {rows.map((c) => (
-              <tr key={c.id} className="border-b border-line/60 last:border-0 hover:bg-surface2/60">
-                <td className="px-5 py-3"><Link href={`/customers/${c.id}`} className="flex items-center gap-3"><Avatar name={c.name} /><span><b className="block text-ink">{c.name}</b><bdi dir="ltr" className="text-xs text-ink3">{c.phone}</bdi></span></Link></td>
-                <td className="px-5"><Badge tone={tierTone[c.tier]}>{c.tier}</Badge></td>
-                <td className="px-5">{fa(c.visits)}</td>
-                <td className="px-5 font-semibold">{short(c.total)}</td>
-                <td className="px-5 text-ink2">{c.lastVisit}{c.lastVisitDays > 0 && <span className="text-xs text-ink3"> ({fa(c.lastVisitDays)} روز پیش)</span>}</td>
-                <td className="px-5 text-ink2">{c.favService || "—"}</td>
-                <td className="px-5">{riskBadge[c.risk]}</td>
-              </tr>
+              <li key={c.id}>
+                <Link href={`/customers/${c.id}`} className="flex items-center gap-3 px-4 py-3.5 hover:bg-surface2/60">
+                  <Avatar name={c.name} />
+                  <span className="min-w-0 flex-1"><b className="block truncate text-sm">{c.name}</b><bdi dir="ltr" className="text-xs text-ink3">{c.phone}</bdi></span>
+                  <span className="flex flex-wrap justify-end gap-1">{c.tags.slice(0, 2).map((t) => <Badge key={t} tone="rose">{t}</Badge>)}</span>
+                </Link>
+              </li>
             ))}
-          </tbody>
-        </table>
-      </Card>
-      {!rows.length && <p className="py-10 text-center text-sm text-ink3">مشتری‌ای پیدا نشد. <Link href="/customers/new" className="font-bold text-rose">افزودن مشتری جدید</Link></p>}
+          </ul>
+          {!rows.length && !first.loading && <p className="py-10 text-center text-sm text-ink3">{applied ? "مشتری‌ای پیدا نشد." : "هنوز مشتری ثبت نشده است."} <Link href="/customers/new" className="font-bold text-rose">افزودن مشتری جدید</Link></p>}
+        </Card>
+      )}
+      {next && <div className="mt-4 text-center"><Button variant="ghost" onClick={loadMore} disabled={more}>{more ? "در حال بارگذاری…" : "نمایش بیشتر"}</Button></div>}
     </>
   );
+}
+
+export default function Customers() {
+  return <LiveGate><List /></LiveGate>;
 }

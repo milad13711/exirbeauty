@@ -1,256 +1,280 @@
 "use client";
-import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight, Globe, Plus, Settings2 } from "lucide-react";
 import clsx from "clsx";
-import { Bell, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Coffee, Hourglass, Plus, Repeat, Sparkles, Trash2 } from "lucide-react";
-import { Avatar, Badge, Button, Card, Field, LinkButton, PageTitle, fieldCls, type Tone } from "@/components/ui";
-import { actions, useDB, type StaffMember } from "@/lib/db";
-import { dayInfo } from "@/lib/dates";
-import { NOW_MIN, smartSuggestions, type Appt } from "@/lib/mock";
-import { clock, dayLoad, findSlot, offReason, svcOf, workWindow } from "@/lib/booking";
-import { schedule } from "@/lib/schedule";
-import { moduleActive } from "@/lib/modules";
-import { digits } from "@/lib/validate";
-import { fa, short } from "@/lib/fa";
+import { Badge, Button, Card, Field, PageTitle, fieldCls, type Tone } from "@/components/ui";
+import { LiveGate, canManage, useMe } from "@/components/live/LiveGate";
+import { Chip, ErrorNote, Modal, Spinner } from "@/components/live/ui";
+import { SlotPicker, type Slot } from "@/components/live/SlotPicker";
+import { crm, type Appt, type ApptStatus, type CalSettings, type CustomerRow, type Service, type WaitEntry } from "@/lib/crmApi";
+import { errorText } from "@/lib/api";
+import { DAY_NAMES, addDays, faDate, faNum, fmtMin, parseTime, timeValue, todayLocal } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-const MIN_GAP = 45;
-const range = (s: number, d: number) => `${clock(s)} تا ${clock(s + d)}`;
-
-const status: Record<Appt["status"], { l: string; t: Tone }> = {
-  inservice: { l: "در حال انجام", t: "rose" },
-  confirmed: { l: "تأییدشده", t: "sage" },
-  pending: { l: "منتظر تأیید", t: "amber" },
-  done: { l: "انجام‌شده", t: "neutral" },
+const STATUS: Record<ApptStatus, { label: string; tone: Tone }> = {
+  PENDING: { label: "در انتظار تأیید", tone: "amber" },
+  CONFIRMED: { label: "تأیید شده", tone: "sage" },
+  IN_SERVICE: { label: "در حال انجام", tone: "sky" },
+  DONE: { label: "انجام شد", tone: "neutral" },
+  CANCELED: { label: "لغو شده", tone: "danger" },
+  NO_SHOW: { label: "عدم حضور", tone: "danger" },
 };
 
-type Item =
-  | { kind: "appt"; start: number; a: Appt }
-  | { kind: "break"; start: number; dur: number; label: string }
-  | { kind: "free"; start: number; dur: number }
-  | { kind: "now"; start: number };
+// ───────── new appointment ─────────
+function NewAppt({ date, preCustomer, services, onClose, onDone }: { date: string; preCustomer: CustomerRow | null; services: Service[]; onClose: () => void; onDone: () => void }) {
+  const [customer, setCustomer] = useState<CustomerRow | null>(preCustomer);
+  const [q, setQ] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [day, setDay] = useState(date);
+  const [slot, setSlot] = useState<Slot | null>(null);
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const found = useQuery(() => (q.trim().length >= 2 && !customer ? crm.customers({ q: q.trim(), limit: 6 }) : Promise.resolve(null)), [q, customer]);
 
-function timeline(m: StaffMember, win: [number, number], dayAppts: Appt[], showNow: boolean): Item[] {
-  const mine = dayAppts.filter((a) => a.staffId === m.id);
-  const busy = [...mine.map((a) => ({ s: a.start, e: a.start + a.dur })), ...m.breaks.map((b) => ({ s: b.s, e: b.e }))].sort((x, y) => x.s - y.s);
-  const items: Item[] = [...mine.map((a): Item => ({ kind: "appt", start: a.start, a })), ...m.breaks.map((b): Item => ({ kind: "break", start: b.s, dur: b.e - b.s, label: b.label }))];
-  let cur = win[0];
-  for (const b of busy) {
-    if (b.s - cur >= MIN_GAP) items.push({ kind: "free", start: cur, dur: b.s - cur });
-    cur = Math.max(cur, b.e);
+  async function save() {
+    if (!customer || !serviceId || !slot) return;
+    setBusy(true); setErr("");
+    try { await crm.createAppt({ customerId: customer.id, serviceId, staffId: slot.staffId, date: day, startMin: slot.startMin, note: note.trim() }); onDone(); onClose(); }
+    catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   }
-  if (win[1] - cur >= MIN_GAP) items.push({ kind: "free", start: cur, dur: win[1] - cur });
-  if (showNow) items.push({ kind: "now", start: NOW_MIN - 0.5 });
-  return items.sort((x, y) => x.start - y.start);
+  return (
+    <Modal title="نوبت جدید" onClose={onClose} wide>
+      <div className="space-y-4">
+        <Field label="مشتری">
+          {customer ? (
+            <div className="flex items-center justify-between rounded-xl border border-line px-3 py-2.5 text-sm"><span><b>{customer.name}</b> <bdi dir="ltr" className="text-xs text-ink3">{customer.phone}</bdi></span><button onClick={() => setCustomer(null)} className="cursor-pointer text-xs font-bold text-rose">تغییر</button></div>
+          ) : (
+            <div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="نام یا شماره‌ی مشتری (حداقل ۲ حرف)…" className={fieldCls} autoFocus />
+              {found.data && <ul className="mt-1.5 divide-y divide-line rounded-xl border border-line">{found.data.items.map((c) => <li key={c.id}><button onClick={() => setCustomer(c)} className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-right text-sm hover:bg-surface2"><b>{c.name}</b><bdi dir="ltr" className="text-xs text-ink3">{c.phone}</bdi></button></li>)}{!found.data.items.length && <li className="px-3 py-2 text-xs text-ink3">پیدا نشد؛ ابتدا از «مشتری جدید» ثبتش کنید.</li>}</ul>}
+            </div>
+          )}
+        </Field>
+        <Field label="خدمت">
+          <select value={serviceId} onChange={(e) => { setServiceId(e.target.value); setSlot(null); }} className={fieldCls}>
+            <option value="">انتخاب کنید…</option>
+            {services.filter((s) => s.active && s.staffIds.length).map((s) => <option key={s.id} value={s.id}>{s.name} — {faNum(s.durationMin)} دقیقه</option>)}
+          </select>
+        </Field>
+        <Field label="تاریخ"><input type="date" value={day} onChange={(e) => { setDay(e.target.value); setSlot(null); }} min={todayLocal()} className={`${fieldCls} !w-48`} /></Field>
+        {serviceId && day && <div><p className="mb-1.5 text-xs font-bold text-ink2">ساعت — {faDate.full(day)}</p><SlotPicker manual load={() => crm.availability({ serviceId, date: day })} deps={[serviceId, day]} value={slot} onChange={setSlot} /></div>}
+        <Field label="یادداشت (اختیاری)"><input value={note} onChange={(e) => setNote(e.target.value)} className={fieldCls} /></Field>
+        {err && <ErrorNote message={err} />}
+        <div className="flex gap-2"><Button onClick={save} disabled={busy || !customer || !serviceId || !slot}>{busy ? "در حال ثبت…" : "ثبت نوبت"}</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>
+      </div>
+    </Modal>
+  );
 }
 
-const views = [{ k: "day", l: "روز" }, { k: "week", l: "هفته" }, { k: "smart", l: "پیشنهاد" }, { k: "wait", l: "انتظار" }] as const;
-
-function ApptRow({ a, open, onToggle }: { a: Appt; open: boolean; onToggle: () => void }) {
-  const s = status[a.status];
-  const cashier = moduleActive(useDB(), "cashier");
+// ───────── move / book-from-waitlist (same picker) ─────────
+function PlaceModal({ title, serviceId, initialDate, confirmLabel, onSubmit, onClose }: { title: string; serviceId: string; initialDate: string; confirmLabel: string; onSubmit: (day: string, s: Slot) => Promise<void>; onClose: () => void }) {
+  const [day, setDay] = useState(initialDate);
+  const [slot, setSlot] = useState<Slot | null>(null);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  async function go() { if (!slot) return; setBusy(true); setErr(""); try { await onSubmit(day, slot); onClose(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); } }
   return (
-    <li className={clsx("rounded-xl border border-line bg-surface", a.status === "done" && "bg-surface2/60")}>
-      <button onClick={onToggle} aria-expanded={open} className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-right">
-        <span className="w-[74px] shrink-0 text-[12px] leading-5 text-ink2"><b className="block text-ink">{clock(a.start)}</b>{fa(a.dur)} دقیقه</span>
-        <span className="min-w-0 flex-1"><b className="block truncate text-sm">{a.client}</b><span className="block truncate text-xs text-ink3">{a.service}</span></span>
-        <Badge tone={s.t}>{s.l}</Badge>
-        <ChevronDown size={16} className={clsx("shrink-0 text-ink3 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="border-t border-line px-4 py-3">
-          {a.client === "سارا محمدی" && <p className="mb-3 rounded-lg bg-dangersoft p-2.5 text-xs leading-6 text-danger">⚠️ حساسیت به PPD؛ از رنگ‌های بدون PPD استفاده شود.</p>}
-          <p className="mb-3 text-xs text-ink2">{range(a.start, a.dur)}</p>
-          <div className="flex flex-wrap gap-2">
-            {a.status === "pending" && <Button variant="soft" onClick={() => actions.setApptStatus(a.id, "confirmed")}>تأیید</Button>}
-            {a.status !== "done" && <LinkButton href={`/calendar/new?move=${a.id}`} variant="ghost">جابه‌جایی</LinkButton>}
-            {a.status !== "done" && cashier && <LinkButton href={`/cashier?appt=${a.id}`} variant="ghost">صدور فاکتور</LinkButton>}
-            <Button variant="ghost" className="!text-danger" onClick={() => actions.cancelAppt(a.id)}>لغو نوبت</Button>
+    <Modal title={title} onClose={onClose} wide>
+      <div className="space-y-4">
+        <Field label="تاریخ"><input type="date" value={day} onChange={(e) => { setDay(e.target.value); setSlot(null); }} min={todayLocal()} className={`${fieldCls} !w-48`} /></Field>
+        <SlotPicker manual load={() => crm.availability({ serviceId, date: day })} deps={[serviceId, day]} value={slot} onChange={setSlot} />
+        {err && <ErrorNote message={err} />}
+        <div className="flex gap-2"><Button onClick={go} disabled={busy || !slot}>{busy ? "…" : confirmLabel}</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>
+      </div>
+    </Modal>
+  );
+}
+
+// ───────── settings ─────────
+function SettingsModal({ onClose }: { onClose: () => void }) {
+  const q = useQuery(() => crm.calSettings(), []);
+  const [s, setS] = useState<CalSettings | null>(null);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const cur = s ?? q.data;
+  if (!cur) return <Modal title="تنظیمات تقویم" onClose={onClose}><Spinner /></Modal>;
+  const patch = (p: Partial<CalSettings>) => setS({ ...cur, ...p });
+  async function save() {
+    setBusy(true); setErr("");
+    try { await crm.saveCalSettings(cur!); onClose(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
+  }
+  return (
+    <Modal title="تنظیمات تقویم و رزرو آنلاین" onClose={onClose} wide>
+      <div className="space-y-4">
+        <div>
+          <p className="mb-2 text-xs font-bold text-ink2">ساعت کاری سالن</p>
+          <div className="space-y-1.5">
+            {cur.hours.map((h, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+                <label className="flex w-28 cursor-pointer items-center gap-2"><input type="checkbox" checked={h.open} onChange={(e) => patch({ hours: cur.hours.map((x, j) => (j === i ? { ...x, open: e.target.checked } : x)) })} className="size-4 accent-[#b5476b]" />{DAY_NAMES[i]}</label>
+                {h.open ? <>
+                  <input type="time" aria-label="شروع" value={timeValue(h.start)} onChange={(e) => { const m = parseTime(e.target.value); if (m !== null) patch({ hours: cur.hours.map((x, j) => (j === i ? { ...x, start: m } : x)) }); }} dir="ltr" className={`${fieldCls} !w-32`} />
+                  <span className="text-ink3">تا</span>
+                  <input type="time" aria-label="پایان" value={timeValue(h.end)} onChange={(e) => { const m = parseTime(e.target.value); if (m !== null) patch({ hours: cur.hours.map((x, j) => (j === i ? { ...x, end: m } : x)) }); }} dir="ltr" className={`${fieldCls} !w-32`} />
+                </> : <span className="text-xs text-ink3">تعطیل</span>}
+              </div>
+            ))}
           </div>
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-ink3"><Bell size={12} />یادآوری خودکار ۲۴ ساعت و ۲ ساعت قبل</p>
         </div>
-      )}
-    </li>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="فاصله‌ی ساعت‌ها"><select value={cur.stepMin} onChange={(e) => patch({ stepMin: Number(e.target.value) })} className={fieldCls}>{[10, 15, 20, 30, 60].map((m) => <option key={m} value={m}>{faNum(m)} دقیقه</option>)}</select></Field>
+          <Field label="حداقل پیش‌اطلاع رزرو آنلاین (ساعت)"><input type="number" min={0} max={168} value={cur.leadHours} onChange={(e) => patch({ leadHours: Math.max(0, Math.min(168, Number(e.target.value) || 0)) })} dir="ltr" className={fieldCls} /></Field>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={cur.onlineEnabled} onChange={(e) => patch({ onlineEnabled: e.target.checked })} className="size-4 accent-[#b5476b]" />رزرو آنلاین فعال باشد</label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={cur.autoConfirm} onChange={(e) => patch({ autoConfirm: e.target.checked })} className="size-4 accent-[#b5476b]" />نوبت‌های آنلاین بدون تأیید دستی ثبت شوند</label>
+        {err && <ErrorNote message={err} />}
+        <div className="flex gap-2"><Button onClick={save} disabled={busy}>ذخیره</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>
+      </div>
+    </Modal>
   );
 }
 
-function WeekView({ onPick }: { onPick: (d: number) => void }) {
-  const db = useDB();
-  const [week, setWeek] = useState(0);
-  const days = Array.from({ length: 7 }, (_, i) => week * 7 + i);
+// ───────── waitlist ─────────
+function WaitModal({ services, onClose, onDone }: { services: Service[]; onClose: () => void; onDone: () => void }) {
+  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [serviceId, setServiceId] = useState("");
+  const [from, setFrom] = useState(todayLocal()); const [to, setTo] = useState(addDays(todayLocal(), 7)); const [note, setNote] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  async function save() { setBusy(true); setErr(""); try { await crm.addWait({ name: name.trim(), phone: phone.replace(/\s/g, ""), serviceId, fromDate: from, toDate: to, note: note.trim() }); onDone(); onClose(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); } }
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-2.5">
-        <button aria-label="هفته قبل" disabled={week === 0} onClick={() => setWeek(week - 1)} className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight size={16} /></button>
-        <span className="text-sm font-extrabold">{dayInfo(days[0]).short} تا {dayInfo(days[6]).short}</span>
-        <button aria-label="هفته بعد" onClick={() => setWeek(week + 1)} className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2"><ChevronLeft size={16} /></button>
+    <Modal title="افزودن به لیست انتظار" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="نام"><input value={name} onChange={(e) => setName(e.target.value)} className={fieldCls} /></Field>
+        <Field label="موبایل"><input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="09123456789" style={{ textAlign: "right" }} className={fieldCls} /></Field>
+        <Field label="خدمت"><select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={fieldCls}><option value="">انتخاب کنید…</option>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+        <div className="grid grid-cols-2 gap-3"><Field label="از"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={fieldCls} /></Field><Field label="تا"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={fieldCls} /></Field></div>
+        <Field label="یادداشت"><input value={note} onChange={(e) => setNote(e.target.value)} className={fieldCls} /></Field>
+        {err && <ErrorNote message={err} />}
+        <div className="flex gap-2"><Button onClick={save} disabled={busy || name.trim().length < 2 || !serviceId}>افزودن</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {days.map((d) => {
-          const info = dayInfo(d), load = dayLoad(db, d);
-          const shown = [...load.list].sort((a, b) => a.start - b.start);
-          return (
-            <button key={d} onClick={() => onPick(d)} className={clsx("cursor-pointer rounded-2xl border bg-surface p-4 text-right transition-shadow hover:shadow-md", d === 0 ? "border-rose ring-1 ring-rose" : "border-line", !load.open && "opacity-60")}>
-              <div className="flex items-center justify-between"><b className="text-sm">{d === 0 ? "امروز" : info.weekday} · {info.short}</b>{load.open ? <Badge tone={load.pct >= 80 ? "danger" : load.pct >= 50 ? "amber" : "sage"}>{fa(load.pct)}٪ پُر</Badge> : <Badge>تعطیل</Badge>}</div>
-              {load.open ? (
-                <>
-                  <div className="mt-3 h-2 rounded-full bg-surface2"><div className="h-2 rounded-full bg-rose" style={{ width: `${load.pct}%` }} /></div>
-                  <p className="mt-2 text-xs text-ink2">{fa(load.list.length)} نوبت · {fa(Math.max(0, Math.round((load.capacity - load.booked) / 60)))} ساعت ظرفیت خالی</p>
-                  <ul className="mt-2 space-y-0.5 text-xs text-ink3">
-                    {shown.slice(0, 3).map((a) => <li key={a.id} className="truncate">{clock(a.start)} · {a.client} — {a.service}</li>)}
-                    {shown.length > 3 && <li>و {fa(shown.length - 3)} نوبت دیگر…</li>}
-                  </ul>
-                </>
-              ) : <p className="mt-3 text-xs text-ink3">هیچ متخصصی در دسترس نیست.</p>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
-function WaitView() {
-  const db = useDB();
-  const [f, setF] = useState({ name: "", phone: "", serviceId: db.services.find((s) => s.active)?.id ?? "", staffId: "any", from: 0, to: 3, note: "" });
+// ───────── page ─────────
+function CalendarPage() {
+  const me = useMe();
+  const sp = useSearchParams();
+  const [date, setDate] = useState(todayLocal());
+  const [tab, setTab] = useState<"day" | "wait">("day");
+  const [staffId, setStaffId] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [modal, setModal] = useState<{ kind: "new" | "move" | "wait" | "waitBook" | "settings"; appt?: Appt; entry?: WaitEntry } | null>(null);
   const [err, setErr] = useState("");
-  const [open, setOpen] = useState(false);
-  const active = db.waitlist.filter((w) => w.status === "منتظر" || w.status === "اطلاع داده شد");
-  const closed = db.waitlist.filter((w) => w.status === "رزرو شد" || w.status === "لغو");
-  const tone: Record<string, Tone> = { "منتظر": "amber", "اطلاع داده شد": "sky", "رزرو شد": "sage", "لغو": "neutral" };
+  const [preCustomer, setPreCustomer] = useState<CustomerRow | null>(null);
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-ink2">{fa(active.length)} نفر در لیست انتظار</p>
-        <Button variant="soft" onClick={() => setOpen(!open)}><Plus size={14} />افزودن به لیست</Button>
-      </div>
-      {open && (
-        <Card className="p-5">
-          <form onSubmit={(e) => { e.preventDefault(); if (f.name.trim().length < 3) return setErr("نام را وارد کنید."); if (!/^09\d{9}$/.test(digits(f.phone).replace(/\s/g, ""))) return setErr("موبایل معتبر نیست."); if (f.to < f.from) return setErr("بازه‌ی روزها نادرست است."); schedule.addWait({ ...f, name: f.name.trim() }); setF({ ...f, name: "", phone: "", note: "" }); setErr(""); setOpen(false); }} className="grid gap-3 sm:grid-cols-2">
-            <Field label="نام"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={fieldCls} /></Field>
-            <Field label="موبایل"><input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} dir="ltr" style={{ textAlign: "right" }} className={fieldCls} /></Field>
-            <Field label="خدمت"><select value={f.serviceId} onChange={(e) => setF({ ...f, serviceId: e.target.value })} className={fieldCls}>{db.services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-            <Field label="متخصص"><select value={f.staffId} onChange={(e) => setF({ ...f, staffId: e.target.value })} className={fieldCls}><option value="any">هر متخصص</option>{db.staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-            <Field label="از روز"><select value={f.from} onChange={(e) => setF({ ...f, from: +e.target.value, to: Math.max(f.to, +e.target.value) })} className={fieldCls}>{Array.from({ length: 14 }, (_, i) => <option key={i} value={i}>{i === 0 ? "امروز" : `${dayInfo(i).weekday} ${dayInfo(i).short}`}</option>)}</select></Field>
-            <Field label="تا روز"><select value={f.to} onChange={(e) => setF({ ...f, to: +e.target.value })} className={fieldCls}>{Array.from({ length: 14 }, (_, i) => i).filter((i) => i >= f.from).map((i) => <option key={i} value={i}>{i === 0 ? "امروز" : `${dayInfo(i).weekday} ${dayInfo(i).short}`}</option>)}</select></Field>
-            <div className="sm:col-span-2"><Field label="توضیح (اختیاری)"><input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="مثلاً ترجیحاً عصر" className={fieldCls} /></Field></div>
-            {err && <p role="alert" className="rounded-xl bg-dangersoft p-2.5 text-xs text-danger sm:col-span-2">{err}</p>}
-            <div className="flex gap-2 sm:col-span-2"><Button type="submit">ثبت</Button><Button type="button" variant="ghost" onClick={() => setOpen(false)}>انصراف</Button></div>
-          </form>
-        </Card>
-      )}
-      <ul className="space-y-3">
-        {active.map((w) => {
-          const sv = svcOf(db, w.serviceId);
-          const slot = findSlot(db, w);
-          const st = slot && db.staff.find((s) => s.id === slot.staffId);
-          return (
-            <li key={w.id}>
-              <Card className="p-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Hourglass size={18} className="shrink-0 text-amber" />
-                  <div className="min-w-0 flex-1 basis-40"><b className="block text-sm">{w.name}</b><span className="text-xs text-ink3">{sv?.name ?? "—"} · {w.staffId === "any" ? "هر متخصص" : db.staff.find((s) => s.id === w.staffId)?.name} · {w.from === 0 ? "از امروز" : dayInfo(w.from).short} تا {dayInfo(w.to).short}{w.note && ` · ${w.note}`}</span></div>
-                  <Badge tone={tone[w.status]}>{w.status}</Badge>
-                  <button aria-label={`حذف ${w.name}`} onClick={() => schedule.removeWait(w.id)} className="cursor-pointer rounded-lg p-1.5 text-danger hover:bg-dangersoft"><Trash2 size={15} /></button>
-                </div>
-                <div className={clsx("mt-3 flex flex-wrap items-center gap-2 rounded-xl p-3 text-sm", slot ? "bg-sagesoft" : "bg-surface2")}>
-                  {slot && st ? (
-                    <>
-                      <span className="min-w-0 flex-1 basis-48 text-sage">جای خالی پیدا شد: <b>{dayInfo(slot.day).weekday} {dayInfo(slot.day).short} · {clock(slot.start)}</b> با {st.name}</span>
-                      <Button onClick={() => schedule.bookFromWait(w.id, slot)}>رزرو این وقت</Button>
-                      {w.status === "منتظر" && <Button variant="ghost" onClick={() => schedule.setWaitStatus(w.id, "اطلاع داده شد")}>اطلاع دادم</Button>}
-                    </>
-                  ) : <span className="text-ink2">هنوز وقت خالی مناسبی در این بازه نیست.</span>}
-                </div>
-              </Card>
-            </li>
-          );
-        })}
-        {!active.length && <p className="py-10 text-center text-sm text-ink3">لیست انتظار خالی است.</p>}
-      </ul>
-      {closed.length > 0 && <p className="text-xs text-ink3">{fa(closed.length)} مورد رزرو یا لغو شده: {closed.map((w) => w.name).join("، ")}</p>}
-    </div>
-  );
-}
+  const staff = useQuery(() => crm.staff(), []);
+  const services = useQuery(() => crm.services(), []);
+  const appts = useQuery(() => crm.appointments({ date, staffId: staffId || undefined }), [date, staffId]);
+  const wait = useQuery(() => crm.waitlist(), []);
 
-export default function CalendarPage() {
-  const db = useDB();
-  const [day, setDay] = useState(0);
-  const info = dayInfo(day);
-  const dayAppts = db.appts.filter((a) => a.day === day);
-  const [who, setWho] = useState("all");
-  const [view, setView] = useState<(typeof views)[number]["k"]>("day");
-  const [open, setOpen] = useState<string | null>("a3");
-  const cols = db.staff.filter((s) => s.active && (who === "all" || s.id === who));
-  const total = dayAppts.filter((a) => who === "all" || a.staffId === who).length;
-  const waiting = db.waitlist.filter((w) => w.status === "منتظر").length;
+  const preId = sp.get("customer");
+  useEffect(() => {
+    if (!preId) return;
+    crm.customer(preId).then((c) => { setPreCustomer({ id: c.id, name: c.name, phone: c.phone, gender: c.gender, tags: c.tags, source: c.source, createdAt: c.createdAt, birthDate: c.birthDate }); setModal({ kind: "new" }); }).catch(() => {});
+  }, [preId]);
+
+  const isToday = date === todayLocal();
+  const act = async (fn: () => Promise<unknown>) => { setErr(""); try { await fn(); await appts.reload(); } catch (e) { setErr(errorText(e)); } };
+  const rows = appts.data ?? [];
+  const byStaff = (staff.data ?? []).filter((s) => !staffId || s.id === staffId).map((s) => ({ s, items: rows.filter((a) => a.staffId === s.id) }));
+  const pending = rows.filter((a) => a.status === "PENDING").length;
+
+  const actions = (a: Appt) => {
+    const out: [string, () => void, "primary" | "ghost"][] = [];
+    if (a.status === "PENDING") out.push(["تأیید", () => act(() => crm.confirmAppt(a.id)), "primary"]);
+    if (a.status === "CONFIRMED") out.push(["شروع خدمت", () => act(() => crm.setApptStatus(a.id, "IN_SERVICE")), "primary"]);
+    if (a.status === "CONFIRMED" || a.status === "IN_SERVICE") out.push(["انجام شد", () => act(() => crm.setApptStatus(a.id, "DONE")), "primary"]);
+    if (a.status === "PENDING" || a.status === "CONFIRMED") out.push(["جابه‌جایی", () => setModal({ kind: "move", appt: a }), "ghost"]);
+    if (a.status === "CONFIRMED") out.push(["عدم حضور", () => act(() => crm.setApptStatus(a.id, "NO_SHOW")), "ghost"]);
+    if (a.status === "PENDING" || a.status === "CONFIRMED" || a.status === "IN_SERVICE") out.push([a.status === "PENDING" ? "رد کردن" : "لغو نوبت", () => { const r = prompt("دلیل (اختیاری):") ; if (r !== null) void act(() => crm.cancelAppt(a.id, r)); }, "ghost"]);
+    return out;
+  };
 
   return (
     <>
-      <PageTitle title="تقویم و نوبت‌دهی" actions={<><LinkButton href="/calendar/new" variant="ghost"><Repeat size={14} />تکرارشونده</LinkButton><LinkButton href="/calendar/new"><Plus size={14} />نوبت جدید</LinkButton></>} />
+      <PageTitle title="تقویم و نوبت‌دهی" sub={pending ? `${faNum(pending)} نوبت منتظر تأیید شماست` : "نوبت‌های روز به تفکیک متخصص"}
+        actions={<>{canManage(me) && <Button variant="ghost" onClick={() => setModal({ kind: "settings" })}><Settings2 size={14} />تنظیمات</Button>}<Button onClick={() => { setPreCustomer(null); setModal({ kind: "new" }); }}><Plus size={14} />نوبت جدید</Button></>} />
 
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-4 grid grid-cols-4 gap-1 rounded-xl bg-surface2 p-1" role="tablist">
-          {views.map((v) => (
-            <button key={v.k} role="tab" aria-selected={view === v.k} onClick={() => setView(v.k)} className={clsx("cursor-pointer rounded-lg px-1.5 py-2 text-[13px] font-bold", view === v.k ? "bg-surface text-rosedeep shadow-sm" : "text-ink2")}>
-              {v.l}{v.k === "smart" && ` (${fa(smartSuggestions.length)})`}{v.k === "wait" && waiting > 0 && ` (${fa(waiting)})`}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4 flex flex-wrap gap-2" role="tablist">
+        {([["day", "روز"], ["wait", `انتظار (${faNum(wait.data?.length ?? 0)})`]] as const).map(([k, l]) => <Chip key={k} active={tab === k} onClick={() => setTab(k)}>{l}</Chip>)}
+      </div>
 
-        {view === "day" && (
-          <>
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
-              <div className="flex items-center gap-1">
-                <button aria-label="روز قبل" disabled={day === 0} onClick={() => setDay(day - 1)} className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight size={16} /></button>
-                <span className="px-2 text-sm font-extrabold">{info.full}</span>{day > 0 && <button onClick={() => setDay(0)} className="mr-1 cursor-pointer rounded-lg bg-rosesoft px-2.5 py-1 text-xs font-bold text-rosedeep">امروز</button>}
-                <button aria-label="روز بعد" onClick={() => setDay(day + 1)} className="cursor-pointer rounded-lg border border-line p-1.5 hover:bg-surface2"><ChevronLeft size={16} /></button>
-              </div>
-              <select aria-label="متخصص" value={who} onChange={(e) => setWho(e.target.value)} className="mr-auto cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm font-semibold">
-                <option value="all">همه‌ی متخصص‌ها</option>
-                {db.staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-6">
-              <p className="text-sm text-ink2"><b className="text-ink">{fa(total)}</b> نوبت{day === 0 && <> امروز · ساعت <b className="text-ink">{clock(NOW_MIN)}</b> اکنون</>}</p>
-              {cols.map((s) => (
-                <section key={s.id}>
-                  <header className="mb-2 flex items-center gap-2.5"><Avatar name={s.name} color={s.color} size={30} /><div className="leading-tight"><h2 className="text-sm font-extrabold">{s.name}</h2><p className="text-[11px] text-ink3">{s.role}</p></div></header>
-                  <ul className="space-y-2">
-                    {!workWindow(db, s, day) ? <li className="rounded-xl border border-dashed border-line px-4 py-3 text-xs text-ink3">{offReason(db, s, day)}</li> : timeline(s, workWindow(db, s, day)!, dayAppts, day === 0).map((it, i) => {
-                      if (it.kind === "appt") return <ApptRow key={it.a.id} a={it.a} open={open === it.a.id} onToggle={() => setOpen(open === it.a.id ? null : it.a.id)} />;
-                      if (it.kind === "now") return <li key={`n${i}`} className="flex items-center gap-2 text-[11px] font-bold text-danger" aria-label="اکنون"><span className="h-px flex-1 bg-danger/40" />اکنون {clock(NOW_MIN)}<span className="h-px flex-1 bg-danger/40" /></li>;
-                      if (it.kind === "break") return <li key={`b${i}`} className="flex items-center gap-2 px-4 py-1.5 text-xs text-ink3"><Coffee size={13} />{it.label} · {range(it.start, it.dur)}</li>;
-                      return (
-                        <li key={`f${i}`}><Link href={`/calendar/new?staff=${s.id}&day=${day}&start=${it.start}`} className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-dashed border-line px-4 py-2.5 text-xs text-ink2 hover:bg-rosesoft/50"><span>خالی · {range(it.start, it.dur)}</span><span className="inline-flex items-center gap-1 font-bold text-rose"><Plus size={13} />نوبت</span></Link></li>
-                      );
-                    })}
-                  </ul>
-                </section>
+      {err && <div className="mb-3"><ErrorNote message={err} /></div>}
+
+      {tab === "day" && (
+        <>
+          <Card className="mb-4 flex flex-wrap items-center gap-2 p-3">
+            <button aria-label="روز قبل" onClick={() => setDate(addDays(date, -1))} className="grid size-9 cursor-pointer place-items-center rounded-xl border border-line hover:bg-surface2"><ChevronRight size={16} /></button>
+            <button aria-label="روز بعد" onClick={() => setDate(addDays(date, 1))} className="grid size-9 cursor-pointer place-items-center rounded-xl border border-line hover:bg-surface2"><ChevronLeft size={16} /></button>
+            <b className="mx-1 text-sm">{faDate.full(date)}</b>
+            {!isToday && <button onClick={() => setDate(todayLocal())} className="cursor-pointer rounded-full bg-rosesoft px-3 py-1 text-xs font-bold text-rosedeep">امروز</button>}
+            <input type="date" aria-label="انتخاب تاریخ" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="mr-auto rounded-xl border border-line bg-surface px-2 py-1.5 text-xs" />
+            <select aria-label="متخصص" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="rounded-xl border border-line bg-surface px-2 py-1.5 text-sm"><option value="">همه‌ی متخصص‌ها</option>{staff.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          </Card>
+
+          {appts.error && <ErrorNote message={errorText(appts.error)} onRetry={appts.reload} />}
+          {(appts.loading && !appts.data) || (staff.loading && !staff.data) ? <Spinner /> : (
+            <div className="space-y-4">
+              {byStaff.map(({ s, items }) => (
+                <Card key={s.id}>
+                  <div className="flex items-center gap-2 px-5 pt-4 pb-2"><span className="size-2.5 rounded-full" style={{ background: s.color }} /><b className="text-sm">{s.name}</b><span className="text-xs text-ink3">{s.title}</span><span className="mr-auto text-xs text-ink3">{faNum(items.filter((a) => a.status !== "CANCELED").length)} نوبت</span></div>
+                  {items.length === 0 ? <p className="px-5 pb-4 text-xs text-ink3">نوبتی ثبت نشده.</p> : (
+                    <ul className="divide-y divide-line">
+                      {items.map((a) => (
+                        <li key={a.id}>
+                          <button onClick={() => setOpen(open === a.id ? null : a.id)} className="flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-right hover:bg-surface2/50">
+                            <span className="w-24 shrink-0 text-sm font-bold tabular-nums">{fmtMin(a.startMin)}–{fmtMin(a.startMin + a.durationMin)}</span>
+                            <span className="min-w-0 flex-1"><b className={clsx("block truncate text-sm", (a.status === "CANCELED" || a.status === "NO_SHOW") && "line-through opacity-60")}>{a.customerName}</b><span className="text-xs text-ink3">{a.serviceName}</span></span>
+                            {a.source === "ONLINE" && <span title="رزرو آنلاین" className="text-ink3"><Globe size={14} /></span>}
+                            <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
+                          </button>
+                          {open === a.id && (
+                            <div className="space-y-2.5 bg-surface2/40 px-5 pb-4 pt-1 text-sm">
+                              <p className="text-xs text-ink2"><bdi dir="ltr">{a.customerPhone}</bdi>{a.note && ` · ${a.note}`}{a.cancelReason && ` · دلیل لغو: ${a.cancelReason}`}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {actions(a).map(([l, fn, v]) => <Button key={l} variant={v === "primary" ? "soft" : "ghost"} className={clsx("!min-h-9", l.includes("لغو") || l.includes("رد") ? "!text-danger" : "")} onClick={fn}>{l}</Button>)}
+                                <a href={`/customers/${a.customerId}`} className="press inline-flex min-h-9 items-center rounded-[14px] border border-line px-3 text-[13px] font-bold text-ink2">پرونده</a>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
               ))}
+              {!byStaff.length && <p className="py-10 text-center text-sm text-ink3">هنوز متخصصی تعریف نشده؛ از بخش «پرسنل» شروع کنید.</p>}
             </div>
-          </>
-        )}
+          )}
+        </>
+      )}
 
-        {view === "week" && <WeekView onPick={(d) => { setDay(d); setView("day"); }} />}
-
-        {view === "smart" && (
-          <Card>
-            <p className="flex items-center gap-2 px-5 pt-4 text-xs text-ink2"><Sparkles size={14} className="text-rose" />بر اساس چرخه‌ی مراجعه‌ی هر مشتری</p>
+      {tab === "wait" && (
+        <Card>
+          <div className="flex items-center justify-between px-5 pt-4 pb-2"><b className="text-sm">لیست انتظار</b><Button variant="ghost" className="!min-h-9" onClick={() => setModal({ kind: "wait" })}><Plus size={14} />افزودن</Button></div>
+          {wait.error && <div className="px-5 pb-3"><ErrorNote message={errorText(wait.error)} onRetry={wait.reload} /></div>}
+          {(wait.data ?? []).length === 0 ? <p className="px-5 pb-5 text-sm text-ink3">کسی در لیست انتظار نیست.</p> : (
             <ul className="divide-y divide-line">
-              {smartSuggestions.map((g) => (
-                <li key={g.id} className="px-5 py-4">
-                  <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{g.name} <span className="font-medium text-rosedeep">· {g.reason}</span></p><span className="shrink-0 text-xs font-bold text-sage">{short(g.value)}</span></div>
-                  <p className="mt-1 text-xs leading-6 text-ink2">{g.detail}</p>
-                  <div className="mt-2 flex items-center justify-between gap-2"><Badge tone="sky"><CalendarClock size={11} />{g.slot} · {g.staff.split(" ")[0]}</Badge><button className="cursor-pointer text-[13px] font-semibold text-rose hover:text-rosedeep">ارسال پیشنهاد</button></div>
+              {wait.data!.map((w) => (
+                <li key={w.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
+                  <span className="min-w-0 flex-1"><b>{w.name}</b> <bdi dir="ltr" className="text-xs text-ink3">{w.phone}</bdi><span className="block text-xs text-ink3">{services.data?.find((s) => s.id === w.serviceId)?.name} · {faDate.short(w.fromDate.slice(0, 10))} تا {faDate.short(w.toDate.slice(0, 10))}{w.note && ` · ${w.note}`}</span></span>
+                  <Button variant="soft" className="!min-h-9" onClick={() => setModal({ kind: "waitBook", entry: w })}>رزرو</Button>
+                  <Button variant="ghost" className="!min-h-9 !text-danger" onClick={async () => { try { await crm.cancelWait(w.id); await wait.reload(); } catch (e) { setErr(errorText(e)); } }}>حذف</Button>
                 </li>
               ))}
             </ul>
-          </Card>
-        )}
+          )}
+        </Card>
+      )}
 
-        {view === "wait" && <WaitView />}
-      </div>
+      {modal?.kind === "new" && services.data && <NewAppt date={date} preCustomer={preCustomer} services={services.data} onClose={() => setModal(null)} onDone={() => { void appts.reload(); }} />}
+      {modal?.kind === "move" && modal.appt?.serviceId && <PlaceModal title={`جابه‌جایی نوبت ${modal.appt.customerName}`} serviceId={modal.appt.serviceId} initialDate={modal.appt.date} confirmLabel="جابه‌جا کن" onClose={() => setModal(null)} onSubmit={async (d, s) => { await crm.moveAppt(modal.appt!.id, { date: d, startMin: s.startMin, staffId: s.staffId }); setDate(d); await appts.reload(); }} />}
+      {modal?.kind === "waitBook" && modal.entry && <PlaceModal title={`رزرو برای ${modal.entry.name}`} serviceId={modal.entry.serviceId} initialDate={modal.entry.fromDate.slice(0, 10) < todayLocal() ? todayLocal() : modal.entry.fromDate.slice(0, 10)} confirmLabel="ثبت نوبت" onClose={() => setModal(null)} onSubmit={async (d, s) => { await crm.bookFromWait(modal.entry!.id, { staffId: s.staffId, date: d, startMin: s.startMin }); setDate(d); setTab("day"); await Promise.all([appts.reload(), wait.reload()]); }} />}
+      {modal?.kind === "wait" && services.data && <WaitModal services={services.data} onClose={() => setModal(null)} onDone={() => { void wait.reload(); }} />}
+      {modal?.kind === "settings" && <SettingsModal onClose={() => setModal(null)} />}
     </>
   );
+}
+
+export default function Calendar() {
+  return <LiveGate><Suspense fallback={<Spinner />}><CalendarPage /></Suspense></LiveGate>;
 }

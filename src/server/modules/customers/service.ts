@@ -91,7 +91,7 @@ export async function deleteVisit(tenantId: string, customerId: string, visitId:
 }
 
 /** Bulk import (e.g. from Excel). Existing phones are skipped, never overwritten; a report says what happened per row. */
-export async function importRows(tenantId: string, rows: { name: string; phone: string; gender?: CustomerBody["gender"]; note?: string; tags?: string[]; birthDate?: string | null }[]) {
+export async function importRows(tenantId: string, rows: { name: string; phone: string; gender?: CustomerBody["gender"]; note?: string; tags?: string[]; allergies?: string[]; birthDate?: string | null }[]) {
   const seen = new Set<string>();
   const existing = new Set((await prisma.customer.findMany({ where: { tenantId, phone: { in: rows.map((r) => r.phone) } }, select: { phone: true } })).map((c) => c.phone));
   const fresh: typeof rows = [];
@@ -103,7 +103,7 @@ export async function importRows(tenantId: string, rows: { name: string; phone: 
   });
   if (fresh.length) {
     await prisma.customer.createMany({
-      data: fresh.map((r) => ({ tenantId, name: r.name, phone: r.phone, gender: r.gender ?? "FEMALE", note: r.note ?? "", tags: r.tags ?? ["وارد شده"], birthDate: date(r.birthDate) ?? null, source: "import" })),
+      data: fresh.map((r) => ({ tenantId, name: r.name, phone: r.phone, gender: r.gender ?? "FEMALE", note: r.note ?? "", tags: r.tags ?? ["وارد شده"], allergies: r.allergies ?? [], birthDate: date(r.birthDate) ?? null, source: "import" })),
       skipDuplicates: true,
     });
   }

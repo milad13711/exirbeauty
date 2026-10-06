@@ -28,7 +28,11 @@ sold as add-ons, or switched off per tenant without touching module code.
 - Code owns module identity; admins own price and the plan matrix (seeding never overwrites their edits).
 - Modules listed in `modules/_catalog.ts` already take part in plans/add-ons but have no backend routes yet; move each to its own folder when it gets some (`modules/finder` is the reference).
 
-Frontend: the finder (map, join, manage, admin moderation) already talks to this API (`src/lib/finderApi.ts`). Everything else in the app still runs on the localStorage prototype (`src/lib/db.ts`).
+### Frontend ↔ API
+
+Screens on the real API (`src/lib/api.ts`, `crmApi.ts`, `finderApi.ts`): finder (map, join, manage, admin moderation), **login (OTP / admin)**, **customers** (list, new, profile with beauty profile + history, import), **services**, **staff**, **calendar** (day view, create/move/confirm/cancel, waitlist, settings) and the public booking page **`/s/<salon-slug>`**. They sit behind `LiveGate` (real session required, redirects to `/login?next=…`).
+
+Everything else (dashboard, cashier, loyalty, SMS, …) still runs on the localStorage prototype (`src/lib/db.ts`) — so those screens don't see the real customers/appointments yet; they move over as their backend modules are built. For local OTP login without spending SMS credit run the server with `SMS_DRIVER=console` and read the code from its log (set `SEED_OWNER_PHONE` + `npm run db:seed` first).
 
 ### Calendar & booking
 

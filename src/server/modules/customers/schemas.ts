@@ -49,4 +49,4 @@ export const visitBody = z.object({
   note: text(500).default(""),
 });
 
-export const importBody = z.object({ rows: z.array(customerFields.pick({ name: true, phone: true, gender: true, note: true, tags: true, birthDate: true }).partial().required({ name: true, phone: true })).min(1).max(500) });
+export const importBody = z.object({ rows: z.array(customerFields.pick({ name: true, phone: true, gender: true, note: true, tags: true, allergies: true, birthDate: true }).partial().required({ name: true, phone: true })).min(1).max(500) });

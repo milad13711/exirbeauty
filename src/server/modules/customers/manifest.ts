@@ -4,8 +4,8 @@ import { customerRoutes } from "./routes";
 /** پروفایل و پرونده‌ی زیبایی مشتری — CRUD, search, beauty profile, service history, bulk import. Tenant-scoped. */
 export const customersModule = defineModule({
   id: "customers",
-  version: "1.2.0",
-  changelog: "افزودن findOrCreateByPhone برای رزرو آنلاین تقویم",
+  version: "1.2.1",
+  changelog: "ورود گروهی حساسیت‌ها را هم می‌پذیرد",
   name: "پروفایل و پرونده‌ی زیبایی مشتری",
   description: "پرونده‌ی ۳۶۰ درجه‌ی مشتری",
   category: "هسته",

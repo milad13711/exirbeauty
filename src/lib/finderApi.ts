@@ -1,6 +1,9 @@
 "use client";
 // Client for the finder module's API (src/server/modules/finder). Replaces the old localStorage mock.
 import type { FinderCat } from "./finder";
+import { api, ApiError, errorText } from "./api";
+
+export { ApiError, errorText };
 
 export type FinderPlan = "free" | "artist" | "salon";
 
@@ -44,22 +47,6 @@ export type AdminListing = PublicListing & {
   status: ListingStatus; rejectReason: string | null; pendingEdit: ListingInput | null; planTitle: string; leadCount: number; reviewCount: number; updatedAt: string;
 };
 
-export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string, public details?: unknown) { super(message); }
-}
-
-async function api<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`/api/v1${path}`, { method, headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...headers }, body: body !== undefined ? JSON.stringify(body) : undefined });
-  } catch {
-    throw new ApiError(0, "NETWORK", "ارتباط با سرور برقرار نشد؛ اینترنت را بررسی کنید.");
-  }
-  const json = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, json?.error?.code ?? "ERROR", json?.error?.message ?? "خطای نامشخص", json?.error?.details);
-  return json.data as T;
-}
-
 const code = (c: string) => ({ "x-edit-code": c.trim() });
 
 export const finderApi = {
@@ -77,5 +64,3 @@ export const finderApi = {
   reject: (id: string, reason: string) => api<{ rejected: string }>("POST", `/admin/finder/listings/${id}/reject`, { reason }),
   unpublish: (id: string, reason: string) => api<{ ok: true }>("POST", `/admin/finder/listings/${id}/unpublish`, { reason }),
 };
-
-export const errorText = (e: unknown) => (e instanceof ApiError ? (e.status === 422 ? "اطلاعات واردشده معتبر نیست؛ فیلدها را بررسی کنید." : e.message) : "خطای ناشناخته");
