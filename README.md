@@ -55,7 +55,7 @@ Whole-toman money; every rule is checked twice — in code (`modules/cashier/mon
 - **Credit** is prepaid whole toman per salon (`SmsAccount`, never negative — also a DB CHECK). A message costs `parts × sell price` (platform setting `sms.pricing`, default 190; 70 chars for part one, 67 each after). Salons buy **packages** (price + bonus %) through Zarinpal (`POST /sms/topup`, payment kind `SMS_TOPUP`); admins manage pricing/packages and can adjust credit (`/admin/sms/*`, audited).
 - **Sending** reserves a `SmsMessage` row, debits atomically, calls the gateway, and refunds on failure — a failure never costs the salon and concurrent sends never overdraw. Without credit the message is `BLOCKED` (nothing sent or charged).
 - **Scenarios** (confirm, moved, cancel, 24h/2h reminder, thanks, birthday) are editable templates per salon. They react to **domain events** (`platform/events.ts`: `appointment.created|status|moved`, delivered only to modules active for that tenant; a failing listener never breaks the booking). A partial unique index guarantees each automatic message goes out once per (kind, appointment).
-- **Reminders & birthdays** are time-based: have a scheduler call `POST /api/v1/sms/cron/run` with header `x-cron-secret: $CRON_SECRET` every ~10 minutes (idempotent; closed when `CRON_SECRET` is unset).
+- **Reminders & birthdays** are time-based: have a scheduler call `POST /api/v1/sms/cron/run` (and `/api/v1/campaigns/cron/run`) with header `x-cron-secret: $CRON_SECRET` every ~10 minutes (idempotent; closed when `CRON_SECRET` is unset).
 - Not built yet: customer opt-out, dedicated sender lines, campaigns.
 
 ### Customer club (loyalty)
@@ -79,6 +79,11 @@ The sidebar, the "locked module" screen and `/modules` read the signed-in salon'
 - Products (retail / consumable) with price, last purchase cost, reorder point and supplier. **Stock changes only through the ledger** (`StockMove`): receiving, owner corrections ("count was X", with a reason, audited) and invoices — never by editing the product, and never below zero (DB CHECK).
 - The cashier's `sale.created` event deducts every PRODUCT line that points at a product (same product on several lines is summed); `sale.voided` restores exactly what was taken. A sale of more than is in stock takes what's there, records the shortfall and never blocks the till. Each invoice deducts/restores at most once (unique index), so replays are harmless. Deleting a product archives it.
 - The cashier offers a "product from stock" picker when the module is on. Consumable usage per service and purchase orders to suppliers are not built yet.
+
+### Campaigns
+- The audience is chosen by combinable rules: days since last visit, minimum lifetime spend, a service they've had, Jalali birthday month, and loyalty tier (needs the loyalty module). A **preview** returns the head-count, sample names, the exact cost (parts × sell price) and whether credit covers it; sending is refused up front when it doesn't, and when the list is empty or over 500 (campaigns send synchronously for now).
+- Sending goes through the SMS module (per-message charge/refund, once per campaign+customer). A customer receives at most **2 campaign messages per rolling 30 days**; the rest are counted as skipped. Campaigns can be **scheduled** (salon-local date+time, up to 60 days ahead) and canceled until they start; a scheduler calls `POST /api/v1/campaigns/cron/run` with `x-cron-secret` (claim-then-send, so overlapping runs never double-send).
+- History shows sent/failed/skipped and the **sales those recipients made in the 5 days after** the send. Not built: opt-out lists, A/B tests, a background queue for very large audiences.
 
 ### Finder listing → real salon
 

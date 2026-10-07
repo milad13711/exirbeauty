@@ -82,6 +82,9 @@ export type Product = { id: string; name: string; kind: ProductKind; price: numb
 export type ProductInput = Partial<Pick<Product, "name" | "kind" | "price" | "cost" | "reorder" | "supplier">> & { stock?: number };
 export type StockMoveRow = { id: string; kind: "RECEIVE" | "SALE" | "SALE_VOID" | "ADJUST"; delta: number; stockAfter: number; unitCost: number | null; note: string; createdAt: string };
 export type InventoryOverview = { items: number; low: number; value: number; suppliers: number };
+export type CampaignSegment = { inactiveDays?: number; tiers?: string[]; birthdayMonth?: boolean; minSpend?: number; service?: string };
+export type CampaignPreview = { count: number; tooMany: boolean; sample: string[]; cost: number; balance: number; enough: boolean; text: string };
+export type CampaignRow = { id: string; name: string; message: string; segment: CampaignSegment; status: "SCHEDULED" | "SENDING" | "SENT" | "CANCELED"; scheduledFor: string | null; sentAt: string | null; audienceCount: number; sentCount: number; failedCount: number; skippedCount: number; createdAt: string; revenue?: number; buyers?: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -159,6 +162,12 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // campaigns
+  campaigns: () => api<CampaignRow[]>("GET", "/campaigns"),
+  campaignPreview: (segment: CampaignSegment, message: string) => api<CampaignPreview>("POST", "/campaigns/preview", { segment, message }),
+  createCampaign: (b: { name: string; message: string; segment: CampaignSegment; sendAt?: { date: string; minute: number } }) => api<CampaignRow>("POST", "/campaigns", b),
+  cancelCampaign: (id: string) => api<{ ok: true }>("DELETE", `/campaigns/${id}`),
 
   // inventory
   products: (q: { kind?: ProductKind; low?: "1" } = {}) => api<Product[]>("GET", `/inventory/products${qs(q)}`),
