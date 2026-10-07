@@ -5,12 +5,13 @@ export const parts = (t: string) => { const n = [...t].length; return n <= 70 ? 
 
 export const render = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
 
-export const KINDS = ["MANUAL", "CONFIRM", "MOVED", "CANCEL", "REMINDER_24", "REMINDER_2", "THANKS", "BIRTHDAY"] as const;
+export const KINDS = ["MANUAL", "CONFIRM", "MOVED", "CANCEL", "REMINDER_24", "REMINDER_2", "THANKS", "BIRTHDAY", "CAMPAIGN"] as const;
 export type Kind = (typeof KINDS)[number];
-/** Scenarios a salon can switch on/off and edit (MANUAL is one-off). */
-export const SCENARIO_KINDS = KINDS.filter((k) => k !== "MANUAL") as Exclude<Kind, "MANUAL">[];
+/** Scenarios a salon can switch on/off and edit (MANUAL and CAMPAIGN are one-off sends). */
+export type ScenarioKind = Exclude<Kind, "MANUAL" | "CAMPAIGN">;
+export const SCENARIO_KINDS = KINDS.filter((k) => k !== "MANUAL" && k !== "CAMPAIGN") as ScenarioKind[];
 
-export const SCENARIO_DEFAULTS: Record<Exclude<Kind, "MANUAL">, { enabled: boolean; title: string; template: string; vars: string[] }> = {
+export const SCENARIO_DEFAULTS: Record<ScenarioKind, { enabled: boolean; title: string; template: string; vars: string[] }> = {
   CONFIRM: { enabled: true, title: "تأیید نوبت", vars: ["name", "salon", "service", "date", "time"], template: "{name} عزیز، نوبت {service} شما در {salon} برای {date} ساعت {time} تأیید شد." },
   MOVED: { enabled: true, title: "جابه‌جایی نوبت", vars: ["name", "salon", "service", "date", "time"], template: "{name} عزیز، نوبت {service} شما در {salon} به {date} ساعت {time} منتقل شد." },
   CANCEL: { enabled: true, title: "لغو نوبت", vars: ["name", "salon", "service", "date", "time"], template: "{name} عزیز، نوبت {service} شما در {salon} برای {date} ساعت {time} لغو شد." },

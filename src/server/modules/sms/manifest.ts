@@ -5,8 +5,8 @@ import { onAppointmentCreated, onAppointmentMoved, onAppointmentStatus } from ".
 /** پیامک و سناریوهای خودکار — prepaid credit (Zarinpal top-up), manual send, editable automatic scenarios (confirm/move/cancel/reminders/thanks/birthday), history & stats. Tenant-scoped. */
 export const smsModule = defineModule({
   id: "sms",
-  version: "1.1.0",
-  changelog: "بک‌اند کامل: اعتبار پیش‌پرداخت و شارژ آنلاین، ارسال دستی، سناریوهای خودکار (تأیید، جابه‌جایی، لغو، یادآوری، تشکر، تولد)، تاریخچه و آمار",
+  version: "1.1.1",
+  changelog: "نوع پیام «کمپین» (CAMPAIGN) برای ماژول کمپین‌ها",
   name: "پیامک و سناریوهای خودکار",
   description: "خط اختصاصی، اعتبار لحظه‌ای و ارسال خودکار با کنترل کامل",
   category: "ارتباط با مشتری",

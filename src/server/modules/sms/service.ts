@@ -4,7 +4,7 @@ import { badRequest, conflict, notFound } from "../../http/errors";
 import { assertModuleActive } from "../../platform/modules/service";
 import { smsGateway } from "../../platform/sms";
 import { addDays, instantOf, tehranNow, type Now } from "../calendar/availability";
-import { MAX_TEXT, SCENARIO_DEFAULTS, SCENARIO_KINDS, dateFa, normalizePhone, packageCredit, parts, render, timeFa, type Kind } from "./text";
+import { MAX_TEXT, SCENARIO_DEFAULTS, SCENARIO_KINDS, dateFa, normalizePhone, packageCredit, parts, render, timeFa, type ScenarioKind } from "./text";
 
 // Every query is scoped by tenantId. Credit is whole toman; a message costs parts × the platform's sell price.
 
@@ -156,7 +156,7 @@ export async function scenarios(tenantId: string) {
 }
 export async function putScenario(tenantId: string, kind: string, p: { enabled?: boolean; template?: string }) {
   if (!(SCENARIO_KINDS as string[]).includes(kind)) throw notFound("سناریو پیدا نشد");
-  const k = kind as Exclude<Kind, "MANUAL">;
+  const k = kind as ScenarioKind;
   const cur = (await scenarios(tenantId)).find((s) => s.kind === k)!;
   const template = (p.template ?? cur.template).trim();
   if (!template || [...template].length > MAX_TEXT) throw badRequest(`متن پیامک باید بین ۱ تا ${MAX_TEXT} کاراکتر باشد`);
@@ -165,7 +165,7 @@ export async function putScenario(tenantId: string, kind: string, p: { enabled?:
 }
 
 /** Sends a scenario message for an appointment, if the salon has that scenario on. */
-async function sendScenario(tenantId: string, kind: Exclude<Kind, "MANUAL">, a: ApptCtx, relatedId: string) {
+async function sendScenario(tenantId: string, kind: ScenarioKind, a: ApptCtx, relatedId: string) {
   const s = (await scenarios(tenantId)).find((x) => x.kind === kind)!;
   if (!s.enabled) return null;
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });

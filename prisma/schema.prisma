@@ -658,6 +658,7 @@ enum SmsKind {
   REMINDER_2
   THANKS
   BIRTHDAY
+  CAMPAIGN
 }
 
 enum SmsStatus {
@@ -838,4 +839,32 @@ model StockMove {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, productId, createdAt])
+}
+
+// ───────── Module: campaigns (SMS to a rule-based audience) ─────────
+
+enum CampaignStatus {
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELED
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  tenantId      String
+  name          String
+  message       String
+  segment       Json
+  status        CampaignStatus
+  scheduledFor  DateTime?
+  sentAt        DateTime?
+  audienceCount Int            @default(0)
+  sentCount     Int            @default(0)
+  failedCount   Int            @default(0)
+  skippedCount  Int            @default(0) // over the per-customer frequency cap or no credit
+  createdAt     DateTime       @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([status, scheduledFor])
 }
