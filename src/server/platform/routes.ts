@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Route } from "../http/types";
-import { badRequest, conflict, unauthorized } from "../http/errors";
+import { badRequest, conflict, forbidden, notFound, unauthorized } from "../http/errors";
 import { rateLimit } from "../http/ratelimit";
 import { parse } from "../http/validate";
 import { prisma } from "../db";
@@ -87,6 +87,27 @@ export const platformRoutes: Route[] = [
       const r = await updateTenantProfile(needTenant(c.tenantId), b);
       await audit(c.session, "tenant.update", "Tenant", c.tenantId!, b);
       return r;
+    },
+  },
+
+  // ── the salon's own users (owners manage their staff; staff logins are created from the staff screen)
+  {
+    method: "GET", path: "/tenant/users", auth: TENANT_MANAGER,
+    handler: async (c) => (await prisma.user.findMany({ where: { tenantId: needTenant(c.tenantId) }, orderBy: [{ role: "asc" }, { createdAt: "asc" }], select: { id: true, name: true, phone: true, role: true, active: true, createdAt: true, staffProfile: { select: { id: true, name: true } } } }))
+      .map(({ staffProfile, ...u }) => ({ ...u, staff: staffProfile })),
+  },
+  {
+    method: "PATCH", path: "/tenant/users/:id", auth: TENANT_MANAGER,
+    handler: async (c) => {
+      const tenantId = needTenant(c.tenantId);
+      const { active } = parse(z.object({ active: z.boolean() }), await c.body());
+      const u = await prisma.user.findFirst({ where: { id: c.params.id, tenantId }, select: { id: true, role: true, active: true } });
+      if (!u) throw notFound("کاربر پیدا نشد");
+      if (u.id === c.session!.userId) throw conflict("نمی‌توانید حساب خودتان را غیرفعال کنید", "SELF");
+      if (u.role !== "STAFF") throw forbidden("فقط حساب پرسنل را می‌توان از اینجا غیرفعال کرد");
+      await prisma.user.update({ where: { id: u.id }, data: { active } });
+      await audit(c.session, active ? "user.activate" : "user.deactivate", "User", u.id, { tenantId });
+      return { id: u.id, active };
     },
   },
 

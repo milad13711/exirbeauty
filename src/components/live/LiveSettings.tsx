@@ -9,7 +9,7 @@ import { errorText } from "@/lib/api";
 import { DAY_NAMES, faDate, faNum, parseTime, timeValue, toman } from "@/lib/fmt";
 import { useQuery } from "@/lib/useQuery";
 
-const TABS = [["profile", "پروفایل سالن"], ["hours", "ساعت کاری"], ["online", "رزرو آنلاین"], ["plan", "اشتراک و پلن"]] as const;
+const TABS = [["profile", "پروفایل سالن"], ["hours", "ساعت کاری"], ["online", "رزرو آنلاین"], ["users", "کاربران"], ["plan", "اشتراک و پلن"]] as const;
 type Tab = (typeof TABS)[number][0];
 const STATUS: Record<string, { label: string; tone: Tone }> = { ACTIVE: { label: "فعال", tone: "sage" }, TRIAL: { label: "آزمایشی", tone: "sky" }, EXPIRED: { label: "منقضی", tone: "danger" }, CANCELED: { label: "لغوشده", tone: "danger" } };
 
@@ -94,6 +94,35 @@ function Online({ s, canEdit, onSaved }: { s: CalSettings; canEdit: boolean; onS
   );
 }
 
+function Users() {
+  const me = useMe();
+  const q = useQuery(crm.tenantUsers, []);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState("");
+  async function toggle(id: string, active: boolean) {
+    setErr(""); setBusy(id);
+    try { await crm.setUserActive(id, active); await q.reload(); } catch (e) { setErr(errorText(e)); } finally { setBusy(""); }
+  }
+  if (q.loading && !q.data) return <Spinner />;
+  if (!q.data) return <ErrorNote message={errorText(q.error)} onRetry={q.reload} />;
+  return (
+    <Card className="max-w-3xl p-5">
+      <CardHead title="کاربران سالن" hint="ورود با کد پیامکی؛ ورود پرسنل را از صفحه‌ی «پرسنل» تعریف کنید" />
+      {err && <div className="mb-3"><ErrorNote message={err} /></div>}
+      <ul className="divide-y divide-line">
+        {q.data.map((u) => (
+          <li key={u.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+            <span className="min-w-0 flex-1"><b>{u.name}</b><span dir="ltr" className="mr-2 text-xs text-ink3">{u.phone}</span>{u.staff && <span className="block text-xs text-ink3">متخصص: {u.staff.name}</span>}</span>
+            <Badge tone={u.role === "OWNER" ? "rose" : "neutral"}>{u.role === "OWNER" ? "مالک" : "پرسنل"}</Badge>
+            {u.role === "STAFF" && u.id !== me.userId
+              ? <Toggle on={u.active} label={`فعال بودن ${u.name}`} onChange={(v) => busy === "" && toggle(u.id, v)} />
+              : <Badge tone="sage">فعال</Badge>}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function Plan({ t, canEdit }: { t: TenantProfile; canEdit: boolean }) {
   const plans = useQuery(crm.plans, []);
   const pays = useQuery(crm.payments, []);
@@ -169,6 +198,7 @@ function Hub() {
       {(tab === "hours" || tab === "online") && (cal.loading && !cal.data ? <Spinner /> : !cal.data
         ? <Card className="p-6 text-sm text-ink2">تقویم و نوبت‌دهی برای این سالن در دسترس نیست.</Card>
         : tab === "hours" ? <Hours s={cal.data} canEdit={canEdit} onSaved={cal.reload} /> : <Online s={cal.data} canEdit={canEdit} onSaved={cal.reload} />)}
+      {tab === "users" && (canEdit ? <Users /> : <Card className="p-6 text-sm text-ink2">مدیریت کاربران فقط برای مالک سالن است.</Card>)}
       {tab === "plan" && <Plan t={t.data} canEdit={canEdit} />}
     </div>
   );

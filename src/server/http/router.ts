@@ -3,6 +3,7 @@ import { HttpError, forbidden, unauthorized } from "./errors";
 import { clientIp } from "./ratelimit";
 import type { Ctx, Method, Route } from "./types";
 import { readSession } from "../platform/auth/session";
+import { prisma } from "../db";
 import { assertModuleActive } from "../platform/modules/service";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -63,6 +64,8 @@ export async function dispatch(req: Request, segments: string[], table: Compiled
     const rule = route.auth ?? "public";
     if (rule !== "public") {
       if (!session) throw unauthorized();
+      // A deactivated user loses access immediately, even with a still-valid cookie.
+      if ((await prisma.user.findUnique({ where: { id: session.userId }, select: { active: true } }))?.active === false) throw unauthorized("حساب شما غیرفعال شده است");
       if (rule !== "user" && !rule.roles.includes(session.role)) throw forbidden();
     }
 

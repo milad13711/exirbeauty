@@ -76,6 +76,7 @@ export type Entitlements = { tenantId: string; plan: { code: string; title: stri
 export type TenantProfile = { id: string; name: string; slug: string; city: string; subscription: { planCode: string; planTitle: string; priceMonthly: number; status: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELED"; startedAt: string; expiresAt: string | null } | null };
 export type PlanInfo = { code: string; title: string; tagline: string; priceMonthly: number; limits: Record<string, number | boolean>; moduleIds: string[] };
 export type PaymentRow = { id: string; kind: string; planCode: string | null; moduleId: string | null; months: number; amount: number; status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; refId: string | null; description: string; createdAt: string; paidAt: string | null };
+export type SalonUser = { id: string; name: string; phone: string | null; role: Role; active: boolean; createdAt: string; staff: { id: string; name: string } | null };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -150,6 +151,9 @@ export const crm = {
   plans: () => api<PlanInfo[]>("GET", "/platform/plans"),
   payPlan: (planCode: string, months: number) => api<{ paymentUrl: string }>("POST", "/tenant/payments", { kind: "plan", planCode, months }),
   payments: () => api<PaymentRow[]>("GET", "/tenant/payments"),
+
+  tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
+  setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
 
   // modules
   entitlements: () => api<Entitlements>("GET", "/tenant/modules"),
