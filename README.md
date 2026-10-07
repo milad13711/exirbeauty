@@ -75,6 +75,11 @@ The sidebar, the "locked module" screen and `/modules` read the signed-in salon'
 ### Dashboard (reports module)
 `GET /reports/dashboard` (owner-level) rolls up today's sales vs the same weekday last week, appointments, how full the day is (bookable minutes minus breaks vs booked), new/returning customers, a 7-day revenue series, service share + margin (30 days), top staff and the day's opportunities (inactive customers, unconfirmed appointments, unpaid debt). The home page and the top-bar SMS credit chip now read real data. Excel export and period reports are still to come.
 
+### Inventory
+- Products (retail / consumable) with price, last purchase cost, reorder point and supplier. **Stock changes only through the ledger** (`StockMove`): receiving, owner corrections ("count was X", with a reason, audited) and invoices — never by editing the product, and never below zero (DB CHECK).
+- The cashier's `sale.created` event deducts every PRODUCT line that points at a product (same product on several lines is summed); `sale.voided` restores exactly what was taken. A sale of more than is in stock takes what's there, records the shortfall and never blocks the till. Each invoice deducts/restores at most once (unique index), so replays are harmless. Deleting a product archives it.
+- The cashier offers a "product from stock" picker when the module is on. Consumable usage per service and purchase orders to suppliers are not built yet.
+
 ### Finder listing → real salon
 
 A published artist/salon listing can pay for its plan (`POST /finder/listings/:id/activate`, edit-code protected, Zarinpal). When the verified payment lands, `modules/finder/provision.ts` creates — in one transaction — the salon (tenant with the plan's modules and a paid-through date), an OWNER login on the listing's phone (OTP), and bookable staff (the listed people on the salon plan, otherwise the owner). Replays are no-ops; a phone that already has an account is refused *before* charging. From then on the dashboard is the source of truth: the map shows the salon's live staff with deep links to its booking page (`/s/<slug>?staff=<id>`, salon plan only — artist plan keeps request/lead forms), and finder edits no longer touch staff.

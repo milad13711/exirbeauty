@@ -4,7 +4,7 @@ import { Ban, Plus, Receipt, Trash2 } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, Stat, fieldCls, type Tone } from "@/components/ui";
 import { LiveGate, canManage, useMe } from "./LiveGate";
 import { Chip, ErrorNote, Modal, Spinner } from "./ui";
-import { crm, type Appt, type CustomerRow, type DebtRow, type PayMethod, type RealMethod, type SaleLineIn, type SaleView, type Service, type Staff } from "@/lib/crmApi";
+import { crm, type Appt, type CustomerRow, type DebtRow, type PayMethod, type Product, type RealMethod, type SaleLineIn, type SaleView, type Service, type Staff } from "@/lib/crmApi";
 import { errorText } from "@/lib/api";
 import { faDate, faNum, shortToman, todayLocal, toman } from "@/lib/fmt";
 import { totals } from "@/server/modules/cashier/money"; // pure arithmetic, shared so the preview rounds exactly like the server
@@ -33,6 +33,13 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
   const club = useQuery(() => (customer ? crm.loyaltyCustomer(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
   const walletBal = club.data?.wallet ?? 0;
   const methods: PayMethod[] = walletBal > 0 ? [...REAL, "WALLET"] : REAL;
+
+  // Retail products from the inventory module (a salon without it just gets no picker).
+  const stock = useQuery(() => crm.products({ kind: "RETAIL" }).catch(() => [] as Product[]), []);
+  const addProduct = (id: string) => {
+    const p = stock.data?.find((x) => x.id === id);
+    if (p) setRows((l) => [...l, { key: ++seq, kind: "PRODUCT", refId: p.id, name: p.name, qty: 1, price: p.price }]);
+  };
 
   const pct = Math.min(100, num(discount));
   const t = useMemo(() => totals(rows, pct), [rows, pct]);
@@ -93,6 +100,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <select aria-label="افزودن خدمت" value="" onChange={(e) => e.target.value && addService(e.target.value)} className="rounded-xl border border-line bg-surface px-2.5 py-2 text-sm"><option value="">+ افزودن خدمت…</option>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} — {shortToman(s.price)}</option>)}</select>
+            {!!stock.data?.length && <select aria-label="افزودن محصول" value="" onChange={(e) => e.target.value && addProduct(e.target.value)} className="rounded-xl border border-line bg-surface px-2.5 py-2 text-sm"><option value="">+ محصول انبار…</option>{stock.data.map((p) => <option key={p.id} value={p.id}>{p.name} — {shortToman(p.price)} ({faNum(p.stock)} عدد)</option>)}</select>}
             <Button variant="ghost" className="!min-h-9" onClick={() => setRows((l) => [...l, { key: ++seq, kind: "PRODUCT", name: "", qty: 1, price: 0 }])}><Plus size={14} />محصول / سایر</Button>
           </div>
         </div>

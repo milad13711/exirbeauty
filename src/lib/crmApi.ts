@@ -77,6 +77,11 @@ export type TenantProfile = { id: string; name: string; slug: string; city: stri
 export type PlanInfo = { code: string; title: string; tagline: string; priceMonthly: number; limits: Record<string, number | boolean>; moduleIds: string[] };
 export type PaymentRow = { id: string; kind: string; planCode: string | null; moduleId: string | null; months: number; amount: number; status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; refId: string | null; description: string; createdAt: string; paidAt: string | null };
 export type SalonUser = { id: string; name: string; phone: string | null; role: Role; active: boolean; createdAt: string; staff: { id: string; name: string } | null };
+export type ProductKind = "RETAIL" | "CONSUMABLE";
+export type Product = { id: string; name: string; kind: ProductKind; price: number; cost: number; stock: number; reorder: number; supplier: string; low: boolean };
+export type ProductInput = Partial<Pick<Product, "name" | "kind" | "price" | "cost" | "reorder" | "supplier">> & { stock?: number };
+export type StockMoveRow = { id: string; kind: "RECEIVE" | "SALE" | "SALE_VOID" | "ADJUST"; delta: number; stockAfter: number; unitCost: number | null; note: string; createdAt: string };
+export type InventoryOverview = { items: number; low: number; value: number; suppliers: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -154,6 +159,16 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // inventory
+  products: (q: { kind?: ProductKind; low?: "1" } = {}) => api<Product[]>("GET", `/inventory/products${qs(q)}`),
+  inventoryOverview: () => api<InventoryOverview>("GET", "/inventory/overview"),
+  createProduct: (b: ProductInput) => api<Product>("POST", "/inventory/products", b),
+  updateProduct: (id: string, b: ProductInput) => api<Product>("PATCH", `/inventory/products/${id}`, b),
+  archiveProduct: (id: string) => api<{ ok: true }>("DELETE", `/inventory/products/${id}`),
+  receiveStock: (id: string, b: { qty: number; unitCost?: number; note?: string }) => api<Product>("POST", `/inventory/products/${id}/receive`, b),
+  adjustStock: (id: string, b: { stock: number; note: string }) => api<Product>("POST", `/inventory/products/${id}/adjust`, b),
+  stockMoves: (id: string) => api<StockMoveRow[]>("GET", `/inventory/products/${id}/moves`),
 
   // modules
   entitlements: () => api<Entitlements>("GET", "/tenant/modules"),
