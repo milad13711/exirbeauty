@@ -659,6 +659,7 @@ enum SmsKind {
   THANKS
   BIRTHDAY
   CAMPAIGN
+  REVIEW
 }
 
 enum SmsStatus {
@@ -867,4 +868,37 @@ model Campaign {
 
   @@index([tenantId, createdAt])
   @@index([status, scheduledFor])
+}
+
+// ───────── Module: reviews (post-service survey; good → public, bad → private to the owner) ─────────
+
+enum ReviewRoute {
+  PUBLIC
+  PRIVATE
+}
+
+model Review {
+  id          String       @id @default(cuid())
+  tenantId    String
+  saleId      String?
+  customerId  String?
+  staffId     String?
+  serviceName String       @default("")
+  tokenHash   String       @unique // sha256 of the secret in the survey link
+  rating      Int? // 1-5, null until answered
+  comment     String       @default("")
+  route       ReviewRoute?
+  resolved    Boolean      @default(false)
+  reply       String?
+  repliedAt   DateTime?
+  answeredAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@unique([tenantId, saleId])
+  @@index([tenantId, createdAt])
+}
+
+model ReviewConfig {
+  tenantId  String @id
+  threshold Int    @default(4) // ratings at or above this are invited to be public
 }

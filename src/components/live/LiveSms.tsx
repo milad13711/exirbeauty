@@ -10,7 +10,7 @@ import { faDate, faNum, toman } from "@/lib/fmt";
 import { useQuery } from "@/lib/useQuery";
 import { parts, render } from "@/server/modules/sms/text"; // pure helpers, shared so the preview counts exactly like the server
 
-const KIND: Record<SmsKind, string> = { MANUAL: "دستی", CONFIRM: "تأیید نوبت", MOVED: "جابه‌جایی", CANCEL: "لغو نوبت", REMINDER_24: "یادآوری ۲۴ساعته", REMINDER_2: "یادآوری ۲ساعته", THANKS: "تشکر", BIRTHDAY: "تولد" };
+const KIND: Record<SmsKind, string> = { MANUAL: "دستی", CONFIRM: "تأیید نوبت", MOVED: "جابه‌جایی", CANCEL: "لغو نوبت", REMINDER_24: "یادآوری ۲۴ساعته", REMINDER_2: "یادآوری ۲ساعته", THANKS: "تشکر", BIRTHDAY: "تولد", CAMPAIGN: "کمپین", REVIEW: "درخواست نظر" };
 const STATUS: Record<SmsMessage["status"], { label: string; tone: Tone }> = { SENT: { label: "ارسال‌شده", tone: "sage" }, FAILED: { label: "ناموفق", tone: "danger" }, BLOCKED: { label: "نبود اعتبار", tone: "amber" }, QUEUED: { label: "در صف", tone: "neutral" } };
 const SAMPLE: Record<string, string> = { name: "سارا", salon: "سالن شما", service: "رنگ ریشه", staff: "مریم", date: "۱۵ مهر", time: "۱۰:۳۰" };
 type Tab = "credit" | "scenarios" | "send" | "history";

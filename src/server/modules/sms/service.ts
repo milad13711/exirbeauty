@@ -173,6 +173,14 @@ async function sendScenario(tenantId: string, kind: ScenarioKind, a: ApptCtx, re
   return sendSms(tenantId, { customerId: a.customerId, phone: a.phone, text, kind, relatedId });
 }
 
+/** Sends a scenario message built by another module (e.g. the review request); null when the salon has that scenario off. */
+export async function sendScenarioText(tenantId: string, kind: ScenarioKind, c: { customerId: string; phone: string }, vars: Record<string, string>, relatedId: string) {
+  const s = (await scenarios(tenantId)).find((x) => x.kind === kind)!;
+  if (!s.enabled) return null;
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  return sendSms(tenantId, { customerId: c.customerId, phone: c.phone, text: render(s.template, { salon: tenant?.name ?? "", ...vars }), kind, relatedId });
+}
+
 type ApptCtx = { customerId: string; customerName: string; phone: string; serviceName: string; staffName: string; date: string; startMin: number };
 async function apptCtx(tenantId: string, id: string): Promise<(ApptCtx & { status: string }) | null> {
   const a = await prisma.appointment.findFirst({ where: { id, tenantId }, include: { customer: { select: { id: true, name: true, phone: true } }, staff: { select: { name: true } } } });
