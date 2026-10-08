@@ -106,6 +106,9 @@ Customers sign in at `/me/login?salon=<slug>` with an SMS code **bound to that s
 ### Academy
 Courses are platform content managed by admins (`/admin/courses`, needs an admin session): audience (all / owners / specialists), price, plans that get it free, lessons. For salons the catalog filters by role; **lesson text is returned only to enrolled people**. Free and plan-included courses enroll at once (idempotent); paid ones go through Zarinpal (`COURSE` payment, the amount from the course row, enrollment created once by the verified callback). Progress is per person (distinct lessons), completion issues a certificate number shown only to its owner.
 
+### Content
+A posting calendar (draft / scheduled / published) plus salon context for the caption generator. Captions and story cards are generated in the browser; publishing happens on the salon's own social accounts (the page only tracks it). Before/after photo posts are not supported (no photo storage yet).
+
 ### Finder listing → real salon
 
 A published artist/salon listing can pay for its plan (`POST /finder/listings/:id/activate`, edit-code protected, Zarinpal). When the verified payment lands, `modules/finder/provision.ts` creates — in one transaction — the salon (tenant with the plan's modules and a paid-through date), an OWNER login on the listing's phone (OTP), and bookable staff (the listed people on the salon plan, otherwise the owner). Replays are no-ops; a phone that already has an account is refused *before* charging. From then on the dashboard is the source of truth: the map shows the salon's live staff with deep links to its booking page (`/s/<slug>?staff=<id>`, salon plan only — artist plan keeps request/lead forms), and finder edits no longer touch staff.

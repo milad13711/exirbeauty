@@ -107,6 +107,9 @@ export type CourseCard = { id: string; title: string; description: string; audie
 export type CourseDetail = CourseCard & { done: number[]; lessons: { title: string; minutes: number; body?: string }[] };
 export type Certificate = { serial: string; name: string; salon: string; course: string; hours: number; completedAt: string };
 export type AdminCourse = { id: string; title: string; description: string; audience: "ALL" | "OWNER" | "STAFF"; hours: number; price: number; inPlans: string[]; published: boolean; lessons: { title: string; minutes: number; body: string }[]; enrollments: number };
+export type PostKind = "BEFORE_AFTER" | "SERVICE" | "OFFER" | "BIRTHDAY" | "TIPS";
+export type ContentPostRow = { id: string; kind: PostKind; caption: string; tags: string[]; service: string | null; status: "DRAFT" | "SCHEDULED" | "PUBLISHED"; scheduledFor: string | null; publishedAt: string | null; createdAt: string };
+export type ContentContext = { salon: string; services: { id: string; name: string; price: number }[]; birthdaysThisMonth: number; month: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -184,6 +187,13 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // content
+  contentContext: () => api<ContentContext>("GET", "/content/context"),
+  contentPosts: () => api<{ posts: ContentPostRow[]; due: number }>("GET", "/content/posts"),
+  createPost: (b: { kind: PostKind; caption: string; tags: string[]; service?: string | null; status: ContentPostRow["status"]; scheduledFor?: string | null }) => api<ContentPostRow>("POST", "/content/posts", b),
+  updatePost: (id: string, b: { caption?: string; tags?: string[]; service?: string | null; status?: ContentPostRow["status"]; scheduledFor?: string | null }) => api<ContentPostRow>("PATCH", `/content/posts/${id}`, b),
+  deletePost: (id: string) => api<{ ok: true }>("DELETE", `/content/posts/${id}`),
 
   // academy
   courses: () => api<CourseCard[]>("GET", "/academy/courses"),
