@@ -9,8 +9,9 @@ import { errorText } from "@/lib/api";
 import { faDate, faNum, shortToman, todayLocal, toman } from "@/lib/fmt";
 import { totals } from "@/server/modules/cashier/money"; // pure arithmetic, shared so the preview rounds exactly like the server
 import { useQuery } from "@/lib/useQuery";
+import { useEntitlements } from "@/lib/entitlements";
 
-const METHOD: Record<PayMethod, string> = { CASH: "نقدی", CARD: "کارت", ONLINE: "آنلاین", WALLET: "کیف پول" };
+const METHOD: Record<PayMethod, string> = { CASH: "نقدی", CARD: "کارت", ONLINE: "آنلاین", WALLET: "کیف پول", GIFT: "کارت هدیه" };
 const REAL: RealMethod[] = ["CASH", "CARD", "ONLINE"];
 const STATUS: Record<SaleView["status"], { label: string; tone: Tone }> = { PAID: { label: "پرداخت‌شده", tone: "sage" }, DEBT: { label: "بدهکار", tone: "amber" }, VOID: { label: "باطل", tone: "danger" } };
 const num = (s: string) => Math.max(0, Math.round(Number(s.replace(/[^\d.]/g, "")) || 0));
@@ -24,7 +25,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Row[]>(fromAppt ? [{ key: ++seq, kind: "SERVICE", refId: fromAppt.serviceId, name: fromAppt.serviceName, qty: 1, price: fromAppt.price, staffId: fromAppt.staffId }] : []);
   const [discount, setDiscount] = useState("0");
-  const [pays, setPays] = useState<{ key: number; method: PayMethod; amount: string }[]>([]);
+  const [pays, setPays] = useState<{ key: number; method: PayMethod; amount: string; ref?: string }[]>([]);
   const [note, setNote] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const found = useQuery(() => (q.trim().length >= 2 && !customer ? crm.customers({ q: q.trim(), limit: 6 }) : Promise.resolve(null)), [q, customer]);
@@ -34,7 +35,8 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
   const invite = useQuery(() => (customer ? crm.referralCustomer(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
   const mem = useQuery(() => (customer ? crm.membershipOf(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
   const walletBal = club.data?.wallet ?? 0;
-  const methods: PayMethod[] = walletBal > 0 ? [...REAL, "WALLET"] : REAL;
+  const ent = useEntitlements();
+  const methods: PayMethod[] = [...REAL, ...(walletBal > 0 ? ["WALLET" as const] : []), ...(ent.isActive("giftcards") ? ["GIFT" as const] : [])];
 
   // Retail products from the inventory module (a salon without it just gets no picker).
   const stock = useQuery(() => crm.products({ kind: "RETAIL" }).catch(() => [] as Product[]), []);
@@ -65,7 +67,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
       const s = await crm.createSale({
         customerId: customer?.id ?? null, apptId: fromAppt?.id ?? null, discountPct: pct, note: note.trim(),
         lines: rows.map(({ key: _k, ...r }) => { void _k; return { ...r, name: r.name.trim() }; }),
-        payments: pays.map((p) => ({ method: p.method, amount: num(p.amount) })).filter((p) => p.amount > 0),
+        payments: pays.map((p) => ({ method: p.method, amount: num(p.amount), ...(p.method === "GIFT" ? { ref: (p.ref ?? "").trim() } : {}) })).filter((p) => p.amount > 0),
       });
       onDone(s); onClose();
     } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
@@ -123,6 +125,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
             {pays.map((p) => (
               <div key={p.key} className="flex items-center gap-2">
                 <select aria-label="روش" value={p.method} onChange={(e) => setPays((l) => l.map((x) => (x.key === p.key ? { ...x, method: e.target.value as PayMethod } : x)))} className="rounded-xl border border-line bg-surface px-2.5 py-2 text-sm">{methods.map((m) => <option key={m} value={m}>{m === "WALLET" ? `${METHOD[m]} (${toman(walletBal)})` : METHOD[m]}</option>)}</select>
+                {p.method === "GIFT" && <input aria-label="کد کارت هدیه" value={p.ref ?? ""} onChange={(e) => setPays((l) => l.map((x) => (x.key === p.key ? { ...x, ref: e.target.value } : x)))} dir="ltr" placeholder="XXXX-XXXX-XXXX" className={`${fieldCls} !min-h-10 !w-40`} />}
                 <input aria-label="مبلغ" value={p.amount} onChange={(e) => setPays((l) => l.map((x) => (x.key === p.key ? { ...x, amount: e.target.value } : x)))} inputMode="numeric" dir="ltr" placeholder="مبلغ (تومان)" className={`${fieldCls} !min-h-10`} />
                 <button aria-label="حذف پرداخت" onClick={() => setPays((l) => l.filter((x) => x.key !== p.key))} className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink3 hover:text-danger"><Trash2 size={14} /></button>
               </div>
@@ -324,7 +327,7 @@ function ReportTab() {
             <Card>
               <CardHead title="تفکیک دریافت‌ها" />
               <dl className="space-y-2 px-5 pb-5 text-sm">
-                {([["نقدی", s.cash], ["کارت", s.card], ["آنلاین", s.online], ...(s.wallet ? [["کیف پول", s.wallet] as const] : [])] as const).map(([l, v]) => <div key={l} className="flex justify-between"><dt className="text-ink3">{l}</dt><dd className="font-semibold">{toman(v)}</dd></div>)}
+                {([["نقدی", s.cash], ["کارت", s.card], ["آنلاین", s.online], ...(s.wallet ? [["کیف پول", s.wallet] as const] : []), ...(s.giftSpent ? [["کارت هدیه (خرج)", s.giftSpent] as const] : []), ...(s.giftSold ? [["کارت هدیه فروخته‌شده (بدهی، نه درآمد)", s.giftSold] as const] : [])] as const).map(([l, v]) => <div key={l} className="flex justify-between"><dt className="text-ink3">{l}</dt><dd className="font-semibold">{toman(v)}</dd></div>)}
                 <div className="flex justify-between border-t border-line pt-2"><dt className="text-ink3">خدمات / محصولات</dt><dd>{shortToman(s.services)} / {shortToman(s.products)}</dd></div>
                 <div className="flex justify-between"><dt className="text-ink3">تخفیف‌ها</dt><dd>{toman(s.discounts)}</dd></div>
               </dl>

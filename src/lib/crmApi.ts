@@ -36,7 +36,7 @@ export type PublicSalon = { name: string; city: string; services: { id: string; 
 export type Receipt = { id: string; status: ApptStatus; date: string; startMin: number; serviceName: string; staffName: string };
 
 export type RealMethod = "CASH" | "CARD" | "ONLINE";
-export type PayMethod = RealMethod | "WALLET";
+export type PayMethod = RealMethod | "WALLET" | "GIFT";
 export type SaleStatus = "PAID" | "DEBT" | "VOID";
 export type SaleLineIn = { kind: "SERVICE" | "PRODUCT" | "OTHER"; refId?: string | null; name: string; qty: number; price: number; staffId?: string | null; commissionPct?: number };
 export type SaleView = {
@@ -46,7 +46,7 @@ export type SaleView = {
 };
 export type ExpenseView = { id: string; date: string; title: string; amount: number; method: RealMethod; category: string };
 export type DebtRow = { customerId: string; name: string; phone: string; debt: number; invoices: number; since: string | null };
-export type Summary = { from: string; to: string; count: number; revenue: number; services: number; products: number; discounts: number; cash: number; card: number; online: number; wallet: number; newDebt: number; debtCollected: number; expenses: number; net: number; cashExpected: number; byStaff: { staffId: string; name: string; revenue: number; commission: number }[] };
+export type Summary = { from: string; to: string; count: number; revenue: number; services: number; products: number; discounts: number; cash: number; card: number; online: number; wallet: number; giftSpent: number; giftSold: number; newDebt: number; debtCollected: number; expenses: number; net: number; cashExpected: number; byStaff: { staffId: string; name: string; revenue: number; commission: number }[] };
 export type SmsKind = "MANUAL" | "CONFIRM" | "MOVED" | "CANCEL" | "REMINDER_24" | "REMINDER_2" | "THANKS" | "BIRTHDAY" | "CAMPAIGN" | "REVIEW";
 export type SmsAccount = { balance: number; lowThreshold: number; low: boolean; pricing: { sell: number } };
 export type SmsPackage = { id: string; name: string; price: number; bonusPct: number; active: boolean };
@@ -94,6 +94,9 @@ export type ReferralOverview = { referred: number; converted: number; top: { cus
 export type MembershipPlan = { id: string; name: string; price: number; months: number; credits: number; creditLabel: string; discountPct: number; perks: string[]; active: boolean };
 export type MembershipRow = { id: string; customerId: string; customerName?: string; planName: string; discountPct: number; startDate: string; expiryDate: string; credits: number; creditsTotal: number; creditLabel: string; status: "ACTIVE" | "EXPIRED" | "CANCELED"; saleId: string | null };
 export type MembershipOverview = { activeMembers: number; mrr: number; sessionsLeft: number; plans: number };
+export type GiftCardRow = { id: string; last4: string; amount: number; balance: number; status: "ACTIVE" | "USED" | "VOID"; fromName: string; toName: string; toPhone: string; occasion: string; message: string; saleId: string | null; createdAt: string };
+export type GiftIssued = GiftCardRow & { code: string; saleNumber: number; smsSent: boolean };
+export type GiftOverview = { issued: number; sold: number; outstanding: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -150,7 +153,7 @@ export const crm = {
 
   // cashier
   sales: (q: { date?: string; from?: string; to?: string; customerId?: string; status?: SaleStatus }) => api<SaleView[]>("GET", `/cashier/sales${qs(q)}`),
-  createSale: (b: { customerId?: string | null; customerName?: string; apptId?: string | null; lines: SaleLineIn[]; discountPct: number; payments: { method: PayMethod; amount: number }[]; note?: string }) => api<SaleView>("POST", "/cashier/sales", b),
+  createSale: (b: { customerId?: string | null; customerName?: string; apptId?: string | null; lines: SaleLineIn[]; discountPct: number; payments: { method: PayMethod; amount: number; ref?: string }[]; note?: string }) => api<SaleView>("POST", "/cashier/sales", b),
   voidSale: (id: string, reason: string) => api<SaleView>("POST", `/cashier/sales/${id}/void`, { reason }),
   expenses: (from: string, to?: string) => api<ExpenseView[]>("GET", `/cashier/expenses${qs({ from, to })}`),
   addExpense: (e: { title: string; amount: number; method: "CASH" | "CARD"; category?: string; date?: string }) => api<ExpenseView>("POST", "/cashier/expenses", e),
@@ -171,6 +174,12 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // gift cards
+  giftCards: (status?: string) => api<GiftCardRow[]>("GET", `/giftcards${qs({ status })}`),
+  giftOverview: () => api<GiftOverview>("GET", "/giftcards/overview"),
+  issueGiftCard: (b: { buyerId?: string | null; fromName?: string; toName: string; toPhone: string; occasion?: string; message?: string; amount: number; payments: { method: PayMethod; amount: number }[] }) => api<GiftIssued>("POST", "/giftcards", b),
+  lookupGiftCard: (code: string) => api<{ id: string; last4: string; balance: number; amount: number; status: string; toName: string }>("POST", "/giftcards/lookup", { code }),
 
   // memberships
   membershipPlans: (activeOnly = false) => api<MembershipPlan[]>("GET", `/memberships/plans${activeOnly ? "?active=1" : ""}`),
