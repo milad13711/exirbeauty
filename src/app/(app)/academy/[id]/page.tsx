@@ -1,6 +1,6 @@
-import { CoursePlayer } from "./CoursePlayer";
+import { LiveCoursePlayer } from "@/components/live/LiveAcademy";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <CoursePlayer id={id} />;
+  return <LiveCoursePlayer id={id} />;
 }

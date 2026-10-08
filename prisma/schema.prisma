@@ -268,6 +268,7 @@ enum PaymentKind {
   ADDON
   LISTING_PLAN // a finder listing paying for its plan; the salon (tenant) is created when it succeeds
   SMS_TOPUP // buying SMS credit (packageId = SmsPackage id)
+  COURSE // buying an academy course (packageId = course id)
 }
 
 enum PaymentStatus {
@@ -1071,4 +1072,44 @@ model NetworkRequest {
 
   @@index([tenantId, createdAt])
   @@index([status, createdAt])
+}
+
+// ───────── Module: academy (platform-run courses salons and their staff take) ─────────
+
+enum CourseAudience {
+  ALL
+  OWNER
+  STAFF
+}
+
+model Course {
+  id          String         @id @default(cuid())
+  title       String
+  description String         @default("")
+  audience    CourseAudience @default(ALL)
+  hours       Float          @default(1)
+  price       Int            @default(0) // 0 = free
+  inPlans     String[]       @default([]) // plan codes that get it at no charge
+  published   Boolean        @default(false)
+  lessons     Json // [{ title, minutes, body }]
+  createdAt   DateTime       @default(now())
+
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  tenantId    String
+  userId      String
+  courseId    String
+  done        Int[]     @default([]) // completed lesson indexes
+  paid        Int       @default(0)
+  completedAt DateTime?
+  serial      String?   @unique // certificate number, set on completion
+  createdAt   DateTime  @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, courseId])
+  @@index([tenantId])
 }

@@ -34,6 +34,16 @@ async function main() {
     ] });
   }
 
+  // Starter academy catalog (the platform team edits it in the admin panel); only when none exists.
+  if (!(await prisma.course.count())) {
+    const lesson = (title: string, minutes: number, body: string) => ({ title, minutes, body });
+    await prisma.course.createMany({ data: [
+      { title: "مقدمه‌ای بر مدیریت سالن", description: "قیمت‌گذاری، برنامه‌ریزی نوبت و نگه‌داشت مشتری برای مدیران سالن.", audience: "OWNER", hours: 1.5, price: 0, published: true, lessons: [lesson("اصول قیمت‌گذاری خدمات", 20, "هزینه‌ی مواد، زمان و سهم متخصص را محاسبه کنید و حاشیه‌ی سود هر خدمت را بشناسید."), lesson("برنامه‌ریزی تقویم", 25, "ساعت کاری، استراحت و ظرفیت خالی را طوری بچینید که صندلی‌ها کمتر خالی بمانند."), lesson("نگه‌داشت مشتری", 30, "یادآوری نوبت، باشگاه مشتریان و پیام‌های به‌موقع، مشتری را برمی‌گرداند.")] },
+      { title: "ارتباط با مشتری برای متخصص‌ها", description: "گفت‌وگوی حرفه‌ای، مدیریت انتظار و پرونده‌ی زیبایی مشتری.", audience: "STAFF", hours: 1, price: 0, inPlans: ["salon", "artist"], published: true, lessons: [lesson("اولین برخورد", 15, "خوش‌آمدگویی، پرسیدن سابقه و حساسیت‌ها پیش از شروع."), lesson("ثبت پرونده‌ی زیبایی", 20, "فرمول رنگ، حساسیت‌ها و تاریخ آخرین خدمت را در پرونده بنویسید.")] },
+      { title: "بازاریابی پیشرفته برای سالن", description: "کمپین، معرفی دوستان و شبکه‌های اجتماعی.", audience: "ALL", hours: 2, price: 490_000, published: true, lessons: [lesson("ساخت کمپین هدفمند", 30, "مخاطب را با شرط‌های دقیق انتخاب کنید."), lesson("برنامه‌ی معرفی دوستان", 25, "پاداش را طوری تنظیم کنید که هم جذاب باشد هم سودآور."), lesson("محتوای شبکه‌های اجتماعی", 35, "نمونه‌کار قبل و بعد با اجازه‌ی مشتری.")] },
+    ] });
+  }
+
   if (process.env.NODE_ENV !== "production" && !(await prisma.tenant.findUnique({ where: { slug: "demo-salon" } }))) {
     const t = await createTenant({ name: "سالن رُز (دمو)", slug: "demo-salon", city: "تهران", planCode: "salon" });
     console.log("demo tenant:", t.id);

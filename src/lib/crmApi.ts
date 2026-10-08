@@ -103,6 +103,10 @@ export type MarketReview = { id: string; name: string; rating: number; text: str
 export type NetworkCategory = { id: string; description: string };
 export type NetworkRequestRow = { id: string; category: string; note: string; status: "SUBMITTED" | "REVIEWING" | "ANSWERED"; response: string | null; createdAt: string; updatedAt: string };
 export type AdminNetworkRow = NetworkRequestRow & { tenantId: string; salon: string; city: string };
+export type CourseCard = { id: string; title: string; description: string; audience: "ALL" | "OWNER" | "STAFF"; hours: number; price: number; lessonCount: number; free: boolean; enrolled: boolean; progress: number; completed: boolean; enrollmentId: string | null };
+export type CourseDetail = CourseCard & { done: number[]; lessons: { title: string; minutes: number; body?: string }[] };
+export type Certificate = { serial: string; name: string; salon: string; course: string; hours: number; completedAt: string };
+export type AdminCourse = { id: string; title: string; description: string; audience: "ALL" | "OWNER" | "STAFF"; hours: number; price: number; inPlans: string[]; published: boolean; lessons: { title: string; minutes: number; body: string }[]; enrollments: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -180,6 +184,17 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // academy
+  courses: () => api<CourseCard[]>("GET", "/academy/courses"),
+  course: (id: string) => api<CourseDetail>("GET", `/academy/courses/${id}`),
+  enrollCourse: (id: string) => api<CourseDetail>("POST", `/academy/courses/${id}/enroll`, {}),
+  payCourse: (id: string) => api<{ paymentUrl: string }>("POST", `/academy/courses/${id}/pay`, {}),
+  completeLesson: (id: string, n: number) => api<CourseDetail>("POST", `/academy/courses/${id}/lessons/${n}/complete`, {}),
+  certificate: (enrollmentId: string) => api<Certificate>("GET", `/academy/enrollments/${enrollmentId}/certificate`),
+  adminCourses: () => api<AdminCourse[]>("GET", "/admin/academy/courses"),
+  adminCreateCourse: (b: Omit<AdminCourse, "id" | "enrollments">) => api<{ id: string }>("POST", "/admin/academy/courses", b),
+  adminUpdateCourse: (id: string, b: Partial<Omit<AdminCourse, "id" | "enrollments">>) => api<{ id: string }>("PATCH", `/admin/academy/courses/${id}`, b),
 
   // network
   networkCategories: () => api<NetworkCategory[]>("GET", "/network/categories"),
