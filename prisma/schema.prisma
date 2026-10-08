@@ -332,6 +332,7 @@ model Customer {
   sales        Sale[]
   loyalty      LoyaltyAccount[]
   loyaltyTxs   LoyaltyTx[]
+  memberships  Membership[]
   debtPayments DebtPayment[]
 
   @@unique([tenantId, phone])
@@ -932,4 +933,63 @@ model ReferralReward {
 
   @@unique([tenantId, friendId]) // a friend rewards their referrer once, ever
   @@index([tenantId, referrerId])
+}
+
+// ───────── Module: memberships (prepaid packages: validity period + included sessions + a service discount) ─────────
+
+enum MembershipStatus {
+  ACTIVE
+  CANCELED
+}
+
+model MembershipPlan {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  price       Int
+  months      Int // validity in 30-day months
+  credits     Int // sessions included
+  creditLabel String    @default("")
+  discountPct Int       @default(0) // discount offered on services while the membership is valid
+  perks       String[]  @default([])
+  active      Boolean   @default(true)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, archivedAt])
+}
+
+model Membership {
+  id           String           @id @default(cuid())
+  tenantId     String
+  customerId   String
+  planId       String?
+  planName     String // snapshot: later plan edits don't rewrite what was sold
+  discountPct  Int              @default(0)
+  startDate    DateTime         @db.Date
+  expiryDate   DateTime         @db.Date
+  credits      Int // sessions left
+  creditsTotal Int
+  creditLabel  String           @default("")
+  status       MembershipStatus @default(ACTIVE)
+  saleId       String?          @unique
+  createdAt    DateTime         @default(now())
+
+  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  uses     MembershipUse[]
+
+  @@index([tenantId, customerId])
+  @@index([tenantId, status, expiryDate])
+}
+
+model MembershipUse {
+  id           String   @id @default(cuid())
+  tenantId     String
+  membershipId String
+  note         String   @default("")
+  at           DateTime @default(now())
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
 }
