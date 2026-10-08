@@ -179,6 +179,13 @@ describe("club data", () => {
     expect(rw).toMatchObject({ points: 600, tier: "نقره‌ای" });
     expect(rw.rewards.length).toBeGreaterThan(0);
     expect((await raw(cookie, "GET", "/portal/wallet")).body.data).toMatchObject({ balance: 40_000 });
+    // wallet rewards can be claimed by the customer; vouchers only at the salon
+    const red = await raw(cookie, "POST", "/portal/rewards/w1/redeem");
+    expect(red.body.data).toMatchObject({ points: 100, wallet: 90_000 });
+    expect((await raw(cookie, "POST", "/portal/rewards/w1/redeem")).status).toBe(409); // not enough points left
+    expect((await raw(cookie, "POST", "/portal/rewards/w3/redeem")).body.error.code).toBe("AT_SALON");
+    expect((await raw(cookie, "POST", "/portal/rewards/nope/redeem")).status).toBe(404);
+    await staff(A, "POST", `/loyalty/customers/${cust}/adjust`, { points: 500, wallet: -50_000, note: "برگرداندن" });
     await staff(A, "PUT", "/referral/config", { enabled: true, referrerPts: 100, friendOff: 10 });
     const inv = (await raw(cookie, "GET", "/portal/invite")).body.data;
     expect(inv.code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);

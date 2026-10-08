@@ -114,6 +114,17 @@ export async function rewards(s: Session) {
   return { ...state, tiers: cfg.tiers, rewards: cfg.rewards };
 }
 
+/** Customers can claim wallet rewards themselves; service/product vouchers are honoured at the salon by staff. */
+export async function redeemReward(s: Session, rewardId: string) {
+  const c = await current(s);
+  if (!(await on(c.tenantId, "loyalty"))) throw notFound("باشگاه مشتریان برای این سالن فعال نیست");
+  const reward = (await loyalty.getConfig(c.tenantId)).rewards.find((r) => r.id === rewardId);
+  if (!reward) throw notFound("جایزه پیدا نشد");
+  if (reward.kind !== "wallet") throw conflict("برای دریافت این جایزه در مراجعه‌ی بعد به سالن اطلاع دهید", "AT_SALON");
+  const r = await loyalty.redeem(c.tenantId, c.id, rewardId);
+  return { reward: r.reward, wallet: r.state.wallet, points: r.state.points };
+}
+
 export async function wallet(s: Session) {
   const c = await current(s);
   if (!(await on(c.tenantId, "loyalty"))) throw notFound("کیف پول برای این سالن فعال نیست");

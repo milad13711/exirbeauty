@@ -30,6 +30,7 @@ export const portalRoutes: Route[] = [
   { method: "GET", path: "/portal/appointments", auth: CUSTOMER, handler: async (c) => svc.appointments(c.session!) },
   { method: "POST", path: "/portal/appointments/:id/cancel", auth: CUSTOMER, handler: async (c) => svc.cancelAppointment(c.session!, c.params.id) },
   { method: "GET", path: "/portal/rewards", auth: CUSTOMER, handler: async (c) => svc.rewards(c.session!) },
+  { method: "POST", path: "/portal/rewards/:id/redeem", auth: CUSTOMER, handler: async (c) => svc.redeemReward(c.session!, c.params.id) },
   { method: "GET", path: "/portal/wallet", auth: CUSTOMER, handler: async (c) => svc.wallet(c.session!) },
   { method: "GET", path: "/portal/invite", auth: CUSTOMER, handler: async (c) => svc.invite(c.session!) },
   { method: "GET", path: "/portal/membership", auth: CUSTOMER, handler: async (c) => svc.membership(c.session!) },
