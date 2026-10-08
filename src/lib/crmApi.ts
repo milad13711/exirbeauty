@@ -73,7 +73,7 @@ export type Dashboard = {
 };
 export type ModuleEnt = { id: string; name: string; category: string; scope: string; price: number; addonPurchasable: boolean; version: string; enabled: boolean; minPlan: string | null; available: boolean; source: "plan" | "addon" | null; installed: boolean; active: boolean; blockedBy: string[] };
 export type Entitlements = { tenantId: string; plan: { code: string; title: string } | null; subscriptionActive: boolean; modules: ModuleEnt[] };
-export type TenantProfile = { id: string; name: string; slug: string; city: string; subscription: { planCode: string; planTitle: string; priceMonthly: number; status: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELED"; startedAt: string; expiresAt: string | null } | null };
+export type TenantProfile = { id: string; name: string; slug: string; city: string; brandColor: string | null; subscription: { planCode: string; planTitle: string; priceMonthly: number; status: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELED"; startedAt: string; expiresAt: string | null } | null };
 export type PlanInfo = { code: string; title: string; tagline: string; priceMonthly: number; limits: Record<string, number | boolean>; moduleIds: string[] };
 export type PaymentRow = { id: string; kind: string; planCode: string | null; moduleId: string | null; months: number; amount: number; status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; refId: string | null; description: string; createdAt: string; paidAt: string | null };
 export type SalonUser = { id: string; name: string; phone: string | null; role: Role; active: boolean; createdAt: string; staff: { id: string; name: string } | null };
@@ -115,7 +115,10 @@ export type ShopOverview = { slug: string; wallet: number; orders: number; sales
 export type ShopWallet = { balance: number; log: { id: string; kind: "COMMISSION" | "PLAN_PAYMENT" | "ADJUST"; delta: number; balanceAfter: number; note: string; createdAt: string }[] };
 export type ShopRecommend = { basedOn: string | null; products: { id: string; name: string; brand: string; category: string; price: number; commissionPct: number }[] };
 export type AdminStoreProduct = { id: string; name: string; brand: string; category: string; price: number; oldPrice: number | null; stock: number; description: string; commissionPct: number; active: boolean };
-export type AdminStoreOrder = { id: string; number: number; customerName: string; phone: string; city: string; address: string; total: number; status: "PENDING_PAYMENT" | "PAID" | "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED"; commission: number; commissionStatus: "NONE" | "WAITING" | "CREDITED" | "VOID"; salon: string | null; createdAt: string; lines: { name: string; qty: number; price: number }[] };
+export type AdminStoreOrder = { id: string; number: number; customerName: string; phone: string; city: string; address: string; total: number; status: "PENDING_PAYMENT" | "PAID" | "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED"; commission: number; commissionStatus: "NONE" | "WAITING" | "CREDITED" | "VOID"; shippingCost: number; trackingCode: string | null; salon: string | null; createdAt: string; lines: { name: string; qty: number; price: number }[] };
+export type AdminModule = { id: string; name: string; category: string; version: string; price: number; addonPurchasable: boolean; enabled: boolean; core: boolean; requires: string[]; planCodes: string[]; tenantCount: number };
+export type ModuleVersionRow = { version: string; changelog: string; releasedAt: string };
+export type AdminSmsPricing = { pricing: { sell: number }; packages: { id: string; name: string; price: number; bonusPct: number; active: boolean }[] };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -186,7 +189,8 @@ export const crm = {
 
   // salon profile & subscription
   tenant: () => api<TenantProfile>("GET", "/tenant"),
-  patchTenant: (b: { name?: string; city?: string }) => api<TenantProfile>("PATCH", "/tenant", b),
+  patchTenant: (b: { name?: string; city?: string; brandColor?: string | null }) => api<TenantProfile>("PATCH", "/tenant", b),
+  patchMe: (name: string) => api<{ id: string; name: string }>("PATCH", "/auth/me", { name }),
   plans: () => api<PlanInfo[]>("GET", "/platform/plans"),
   payPlan: (planCode: string, months: number) => api<{ paymentUrl: string }>("POST", "/tenant/payments", { kind: "plan", planCode, months }),
   payments: () => api<PaymentRow[]>("GET", "/tenant/payments"),
@@ -194,16 +198,28 @@ export const crm = {
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
 
+  // platform admin
+  adminModules: () => api<AdminModule[]>("GET", "/admin/modules"),
+  adminModuleVersions: (id: string) => api<ModuleVersionRow[]>("GET", `/admin/modules/${id}/versions`),
+  adminEditModule: (id: string, b: { price?: number; addonPurchasable?: boolean; enabled?: boolean }) => api<{ id: string }>("PATCH", `/admin/modules/${id}`, b),
+  adminSetPlanModules: (code: string, moduleIds: string[]) => api<{ ok: true }>("PUT", `/admin/plans/${code}/modules`, { moduleIds }),
+  adminSms: () => api<AdminSmsPricing>("GET", "/admin/sms/pricing"),
+  adminSmsPricing: (sell: number) => api<{ sell: number }>("PUT", "/admin/sms/pricing", { sell }),
+  adminSmsPackage: (b: { name: string; price: number; bonusPct: number }) => api<{ id: string }>("POST", "/admin/sms/packages", b),
+  adminSmsPackageUpdate: (id: string, b: { name?: string; price?: number; bonusPct?: number; active?: boolean }) => api<{ id: string }>("PATCH", `/admin/sms/packages/${id}`, b),
+  adminSmsAdjust: (b: { tenantId: string; delta: number; note: string }) => api<{ balance: number }>("POST", "/admin/sms/adjust", b),
+
   // shop
   shopOverview: () => api<ShopOverview>("GET", "/shop/overview"),
   shopWallet: () => api<ShopWallet>("GET", "/shop/wallet"),
   shopPayPlan: (planCode: string, months: number) => api<ShopWallet>("POST", "/shop/wallet/pay-plan", { planCode, months }),
+  shopPayPlanPartial: (planCode: string, months: number) => api<{ paid: boolean; walletUsed: number; paymentUrl?: string }>("POST", "/shop/wallet/pay-plan", { planCode, months, partial: true }),
   shopRecommend: (customerId: string) => api<ShopRecommend>("GET", `/shop/recommend?customerId=${customerId}`),
   adminStoreProducts: () => api<AdminStoreProduct[]>("GET", "/admin/store/products"),
   adminStoreCreate: (b: Omit<AdminStoreProduct, "id">) => api<{ id: string }>("POST", "/admin/store/products", b),
   adminStoreUpdate: (id: string, b: Partial<Omit<AdminStoreProduct, "id">>) => api<{ id: string }>("PATCH", `/admin/store/products/${id}`, b),
   adminStoreOrders: (status?: string) => api<AdminStoreOrder[]>("GET", `/admin/store/orders${qs({ status })}`),
-  adminStoreOrderStatus: (id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED") => api<{ ok: true }>("POST", `/admin/store/orders/${id}/status`, { status }),
+  adminStoreOrderStatus: (id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED", trackingCode?: string) => api<{ ok: true }>("POST", `/admin/store/orders/${id}/status`, { status, ...(trackingCode ? { trackingCode } : {}) }),
 
   // assistant
   aiSuggestions: () => api<string[]>("GET", "/ai/suggestions"),

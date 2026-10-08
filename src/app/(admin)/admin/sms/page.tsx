@@ -1,103 +1,61 @@
 "use client";
 import { useState } from "react";
-import { Gift, MessageSquareText, Send } from "lucide-react";
-import { Badge, Button, Card, CardHead, Field, PageTitle, Stat, fieldCls } from "@/components/ui";
-import { DataList } from "@/components/DataList";
-import { useDB } from "@/lib/db";
-import { packageCredits, perSms, sms } from "@/lib/sms";
-import { dayInfo } from "@/lib/dates";
-import { fa, num, short, toman } from "@/lib/fa";
+import { Plus } from "lucide-react";
+import { Badge, Button, Card, CardHead, Field, PageTitle, Toggle, fieldCls } from "@/components/ui";
+import { AdminGate } from "@/components/live/AdminGate";
+import { ErrorNote, Spinner } from "@/components/live/ui";
+import { errorText } from "@/lib/api";
+import { crm } from "@/lib/crmApi";
+import { faNum, toman } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-export default function AdminSms() {
-  const db = useDB();
-  const [pr, setPr] = useState(() => structuredClone(db.smsPricing));
-  const [saved, setSaved] = useState(false);
-  const [sent, setSent] = useState<string | null>(null);
-  const name = (id: string) => db.tenants.find((t) => t.id === id)?.name ?? id;
+const n = (s: string) => Math.max(0, Math.round(Number(s) || 0));
 
-  const tx30 = db.smsTx.filter((x) => x.day >= -29 && (x.kind === "شارژ" || x.kind === "خرید خط"));
-  const revenue = tx30.reduce((a, x) => a + x.amount, 0);
-  const topups = db.smsTx.filter((x) => x.day >= -29 && x.kind === "شارژ");
-  const sold30 = db.smsAccounts.reduce((a, x) => a + x.sent30, 0);
-  const cost = sold30 * db.smsPricing.cost;
-  const leads = db.smsAccounts.filter((a) => a.balance < 300 && db.tenants.find((t) => t.id === a.tenantId)?.status !== "تعلیق");
-  const pending = db.smsAccounts.filter((a) => a.line.status === "در انتظار تأیید");
-  const dedicated = db.smsAccounts.filter((a) => a.line.kind === "dedicated" && a.line.status === "فعال").length;
-  const setP = (i: number, p: Partial<(typeof pr.packages)[number]>) => { setPr({ ...pr, packages: pr.packages.map((x, j) => (j === i ? { ...x, ...p } : x)) }); setSaved(false); };
-
+function Board() {
+  const q = useQuery(crm.adminSms, []);
+  const [sell, setSell] = useState(""); const [np, setNp] = useState({ name: "", price: "", bonus: "0" });
+  const [adj, setAdj] = useState({ tenantId: "", delta: "", note: "" });
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  async function run(fn: () => Promise<unknown>, ok: string) { setMsg(null); try { await fn(); setMsg({ ok: true, t: ok }); await q.reload(); } catch (e) { setMsg({ ok: false, t: errorText(e) }); } }
+  if (q.loading && !q.data) return <Spinner />;
+  if (!q.data) return <ErrorNote message={errorText(q.error)} onRetry={q.reload} />;
   return (
     <>
-      <PageTitle title="پیامک و درآمد" sub="فروش اعتبار و خط اختصاصی، سرنخ‌های شارژ و قیمت‌گذاری" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="درآمد پیامک ۳۰ روز" value={short(revenue)} sub={`${fa(topups.length)} شارژ · ${fa(tx30.length - topups.length)} خط`} tone="rose" icon={<MessageSquareText size={16} />} />
-        <Stat label="پیامک ارسالی ۳۰ روز" value={num(sold30)} tone="sky" />
-        <Stat label="حاشیه‌ی سود مصرف" value={short(sold30 * (db.smsPricing.sell - db.smsPricing.cost))} sub={`${fa(Math.round(((db.smsPricing.sell - db.smsPricing.cost) / db.smsPricing.sell) * 100))}٪ · هزینه ${short(cost)}`} tone="sage" />
-        <Stat label="خط اختصاصی فعال" value={fa(dedicated)} sub={pending.length ? `${fa(pending.length)} در انتظار تأیید` : undefined} tone="gold" />
-      </div>
-
-      {pending.length > 0 && (
-        <Card className="mt-5">
-          <CardHead title="درخواست‌های خط اختصاصی" hint="مدارک را بررسی و تأیید یا رد کنید" />
-          <ul className="divide-y divide-line">
-            {pending.map((a) => (
-              <li key={a.tenantId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 text-sm">
-                <div className="min-w-0 flex-1 basis-56"><b>{name(a.tenantId)}</b> <bdi dir="ltr" className="font-mono text-rosedeep">{a.line.number}</bdi> <Badge tone="gold">{a.line.tier}</Badge><p className="mt-1 text-xs text-ink2">صاحب امتیاز: {a.line.kyc?.holder} · شناسه: <bdi dir="ltr">{a.line.kyc?.idNo}</bdi> · مدارک {a.line.kyc?.doc ? "بارگذاری شد" : "ندارد"} · {toman(a.line.price ?? 0)}</p></div>
-                <Button onClick={() => sms.adminLine(a.tenantId, true)}>تأیید و فعال‌سازی</Button>
-                <Button variant="ghost" className="!text-danger" onClick={() => sms.adminLine(a.tenantId, false, "مدارک ناقص بود؛ مبلغ به کیف پول برگشت")}>رد</Button>
-              </li>
-            ))}
-          </ul>
+      <PageTitle title="پیامک و درآمد" sub="قیمت هر پیامک، بسته‌های شارژ و اصلاح دستی اعتبار سالن‌ها" />
+      {msg && <p role="status" className={`mb-4 rounded-xl p-3 text-sm ${msg.ok ? "bg-sagesoft text-sage" : "bg-dangersoft text-danger"}`}>{msg.t}</p>}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="space-y-3 p-5">
+          <CardHead title="قیمت فروش هر پیامک" hint="برای هر ۷۰ کاراکتر؛ از پیام‌های بعدی اعمال می‌شود" />
+          <p className="text-sm">قیمت فعلی: <b>{toman(q.data.pricing.sell)}</b></p>
+          <div className="flex gap-2"><input dir="ltr" inputMode="numeric" className={fieldCls} value={sell} onChange={(e) => setSell(e.target.value)} placeholder="قیمت جدید (تومان)" /><Button disabled={!n(sell)} onClick={() => run(() => crm.adminSmsPricing(n(sell)), "قیمت به‌روز شد.")}>ثبت</Button></div>
         </Card>
-      )}
-
-      <Card className="mt-5">
-        <CardHead title="سرنخ‌های شارژ (اعتبار کم)" hint="سالن‌هایی که اعتبارشان زیر ۳۰۰ پیامک است" />
-        <ul className="divide-y divide-line">
-          {leads.map((a) => (
-            <li key={a.tenantId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 text-sm">
-              <span className="min-w-0 flex-1 basis-40"><b>{name(a.tenantId)}</b><span className="block text-xs text-ink3">مصرف ۳۰ روز {num(a.sent30)} · آخرین شارژ {a.lastTopup === 0 ? "امروز" : dayInfo(a.lastTopup).short}</span></span>
-              <Badge tone={a.balance === 0 ? "danger" : "amber"}>{num(a.balance)} پیامک</Badge>
-              <Button variant="soft" onClick={() => { sms.nudge(a.tenantId); setSent(a.tenantId); }}><Send size={13} />{sent === a.tenantId ? "ارسال شد ✓" : "یادآوری شارژ"}</Button>
-              <Button variant="ghost" onClick={() => sms.gift(a.tenantId, 200, "هدیه‌ی تشویقی ادمین")}><Gift size={13} />هدیه ۲۰۰ پیامک</Button>
+        <Card className="space-y-3 p-5">
+          <CardHead title="اصلاح اعتبار یک سالن" hint="مثبت = افزایش، منفی = کسر؛ ثبت و در گزارش ممیزی نگه‌داری می‌شود" />
+          <Field label="شناسه‌ی سالن"><input dir="ltr" className={fieldCls} value={adj.tenantId} onChange={(e) => setAdj({ ...adj, tenantId: e.target.value })} /></Field>
+          <div className="grid grid-cols-2 gap-2"><Field label="مقدار (تومان)"><input dir="ltr" className={fieldCls} value={adj.delta} onChange={(e) => setAdj({ ...adj, delta: e.target.value })} /></Field><Field label="دلیل"><input className={fieldCls} value={adj.note} onChange={(e) => setAdj({ ...adj, note: e.target.value })} /></Field></div>
+          <Button disabled={!adj.tenantId || !Number(adj.delta) || !adj.note.trim()} onClick={() => run(() => crm.adminSmsAdjust({ tenantId: adj.tenantId.trim(), delta: Math.round(Number(adj.delta)), note: adj.note.trim() }), "اعتبار اصلاح شد.")}>اعمال</Button>
+        </Card>
+      </div>
+      <Card className="mt-5 p-5">
+        <CardHead title="بسته‌های شارژ" />
+        <ul className="divide-y divide-line text-sm">
+          {q.data.packages.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
+              <span className="min-w-0 flex-1"><b>{p.name}</b><span className="block text-xs text-ink3">{toman(p.price)} · {faNum(p.bonusPct)}٪ هدیه</span></span>
+              {!p.active && <Badge>غیرفعال</Badge>}
+              <Toggle on={p.active} label={`فعال بودن ${p.name}`} onChange={(v) => run(() => crm.adminSmsPackageUpdate(p.id, { active: v }), "بسته به‌روز شد.")} />
             </li>
           ))}
-          {!leads.length && <li className="px-5 py-8 text-center text-sm text-ink3">همه‌ی سالن‌ها اعتبار کافی دارند.</li>}
         </ul>
-      </Card>
-
-      <Card className="mt-5">
-        <CardHead title="قیمت‌گذاری" hint="تغییرات فوراً در صفحه‌ی شارژ سالن‌ها اعمال می‌شود" />
-        <div className="space-y-4 px-5 pb-5">
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Field label="قیمت فروش هر بخش (تومان)"><input type="number" min={1} value={pr.sell} onChange={(e) => { setPr({ ...pr, sell: +e.target.value || 0 }); setSaved(false); }} className={fieldCls} /></Field>
-            <Field label="هزینه‌ی خرید از اپراتور"><input type="number" min={1} value={pr.cost} onChange={(e) => { setPr({ ...pr, cost: +e.target.value || 0 }); setSaved(false); }} className={fieldCls} /></Field>
-            <Field label="اجاره‌ی پایه‌ی خط (سالانه)"><input type="number" min={0} step={100000} value={pr.lineBase} onChange={(e) => { setPr({ ...pr, lineBase: +e.target.value || 0 }); setSaved(false); }} className={fieldCls} /></Field>
-            <div className="grid grid-cols-2 gap-2">{Object.keys(pr.tierPrices).map((t) => <Field key={t} label={`افزوده‌ی ${t}`}><input type="number" min={0} step={100000} value={pr.tierPrices[t]} onChange={(e) => { setPr({ ...pr, tierPrices: { ...pr.tierPrices, [t]: +e.target.value || 0 } }); setSaved(false); }} className={fieldCls} /></Field>)}</div>
-          </div>
-          <ul className="space-y-2">
-            {pr.packages.map((p, i) => (
-              <li key={p.id} className="grid grid-cols-3 items-end gap-2 rounded-xl border border-line p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-                <Field label="تعداد"><input type="number" min={1} value={p.count} onChange={(e) => setP(i, { count: +e.target.value || 0 })} className={fieldCls} /></Field>
-                <Field label="قیمت (تومان)"><input type="number" min={0} step={1000} value={p.price} onChange={(e) => setP(i, { price: +e.target.value || 0 })} className={fieldCls} /></Field>
-                <Field label="هدیه (٪)"><input type="number" min={0} max={100} value={p.bonusPct} onChange={(e) => setP(i, { bonusPct: Math.min(100, +e.target.value || 0) })} className={fieldCls} /></Field>
-                <p className="col-span-3 text-xs text-ink2 sm:col-span-1">هر پیامک ≈ <b>{fa(perSms({ ...p }))}</b> · حاشیه {fa(Math.round(((p.price - packageCredits(p) * pr.cost) / p.price) * 100))}٪</p>
-              </li>
-            ))}
-          </ul>
-          <div className="flex items-center gap-3"><Button onClick={() => { sms.savePricing(pr); setSaved(true); }}>ذخیره‌ی قیمت‌ها</Button>{saved && <span role="status" className="text-xs font-bold text-sage">ذخیره شد ✓</span>}</div>
+        <div className="mt-4 grid gap-2 border-t border-line pt-4 sm:grid-cols-4">
+          <input className={fieldCls} placeholder="نام بسته" value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} />
+          <input dir="ltr" className={fieldCls} placeholder="قیمت (تومان)" value={np.price} onChange={(e) => setNp({ ...np, price: e.target.value })} />
+          <input dir="ltr" className={fieldCls} placeholder="درصد هدیه" value={np.bonus} onChange={(e) => setNp({ ...np, bonus: e.target.value })} />
+          <Button disabled={np.name.trim().length < 1 || n(np.price) < 10_000} onClick={() => run(async () => { await crm.adminSmsPackage({ name: np.name.trim(), price: n(np.price), bonusPct: Math.min(100, n(np.bonus)) }); setNp({ name: "", price: "", bonus: "0" }); }, "بسته اضافه شد.")}><Plus size={14} />افزودن</Button>
         </div>
-      </Card>
-
-      <Card className="mt-5">
-        <CardHead title="حساب پیامک همه‌ی سالن‌ها" />
-        <DataList rows={db.smsAccounts} id={(a) => a.tenantId} cols={[
-          { h: "سالن", title: true, cell: (a) => name(a.tenantId) },
-          { h: "اعتبار", cell: (a) => <b className={a.balance < 300 ? "text-danger" : ""}>{num(a.balance)}</b> },
-          { h: "مصرف ۳۰ روز", cell: (a) => num(a.sent30) },
-          { h: "خط", cell: (a) => <span><bdi dir="ltr" className="text-xs">{a.line.number}</bdi> <Badge tone={a.line.kind === "dedicated" ? (a.line.status === "فعال" ? "sage" : "amber") : "neutral"}>{a.line.kind === "dedicated" ? a.line.status : "مشترک"}</Badge></span> },
-          { h: "شارژ خودکار", cell: (a) => (a.autoRecharge.on ? <Badge tone="sage">فعال</Badge> : <span className="text-ink3">—</span>) },
-        ]} />
       </Card>
     </>
   );
 }
+
+export default function AdminSms() { return <AdminGate><Board /></AdminGate>; }

@@ -64,6 +64,16 @@ export const platformRoutes: Route[] = [
     handler: async (c) => { c.headers.append("set-cookie", clearedSessionCookie()); return { ok: true }; },
   },
   { method: "GET", path: "/auth/me", auth: "user", handler: async (c) => c.session },
+  {
+    method: "PATCH", path: "/auth/me", auth: "user",
+    handler: async (c) => {
+      const { name } = parse(z.object({ name: z.string().trim().min(2).max(60) }), await c.body());
+      const u = await prisma.user.update({ where: { id: c.session!.userId }, data: { name }, select: { id: true, name: true, role: true, tenantId: true } });
+      // The cookie carries the display name, so refresh it too.
+      c.headers.append("set-cookie", sessionCookie(await signSession({ userId: u.id, role: u.role, tenantId: u.tenantId, name: u.name })));
+      return u;
+    },
+  },
 
   // ── public catalog
   {
@@ -83,7 +93,7 @@ export const platformRoutes: Route[] = [
   {
     method: "PATCH", path: "/tenant", auth: TENANT_MANAGER,
     handler: async (c) => {
-      const b = parse(z.object({ name: z.string().trim().min(2).max(80), city: z.string().trim().max(60) }).partial().refine((x) => x.name !== undefined || x.city !== undefined, "چیزی برای تغییر ارسال نشده"), await c.body());
+      const b = parse(z.object({ name: z.string().trim().min(2).max(80), city: z.string().trim().max(60), brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "رنگ باید به شکل #RRGGBB باشد").transform((c) => c.toLowerCase()).nullable() }).partial().refine((x) => x.name !== undefined || x.city !== undefined || x.brandColor !== undefined, "چیزی برای تغییر ارسال نشده"), await c.body());
       const r = await updateTenantProfile(needTenant(c.tenantId), b);
       await audit(c.session, "tenant.update", "Tenant", c.tenantId!, b);
       return r;

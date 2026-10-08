@@ -15,7 +15,8 @@ function Board() {
   const [f, setF] = useState<string | undefined>("PAID");
   const q = useQuery(() => crm.adminStoreOrders(f), [f]);
   const [err, setErr] = useState("");
-  async function move(id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED") { setErr(""); try { await crm.adminStoreOrderStatus(id, status); await q.reload(); } catch (e) { setErr(errorText(e)); } }
+  const [track, setTrack] = useState<Record<string, string>>({});
+  async function move(id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED") { setErr(""); try { await crm.adminStoreOrderStatus(id, status, status === "SHIPPED" ? (track[id] ?? "").trim() || undefined : undefined); await q.reload(); } catch (e) { setErr(errorText(e)); } }
   return (
     <>
       <PageTitle title="سفارش‌های فروشگاه" sub="آماده‌سازی، ارسال، تحویل و مرجوعی؛ پورسانت سالن معرف ۷ روز پس از تحویل آزاد می‌شود" />
@@ -27,11 +28,12 @@ function Board() {
           <ul className="divide-y divide-line text-sm">
             {q.data.map((o) => (
               <li key={o.id} className="space-y-1.5 py-3">
-                <div className="flex flex-wrap items-center gap-2"><b>#{faNum(o.number)} · {o.customerName}</b><bdi dir="ltr" className="text-xs text-ink3">{o.phone}</bdi><Badge tone={ST[o.status].t}>{ST[o.status].l}</Badge><span className="mr-auto text-xs text-ink3">{faDate.short(o.createdAt.slice(0, 10))}</span><b>{toman(o.total)}</b></div>
+                <div className="flex flex-wrap items-center gap-2"><b>#{faNum(o.number)} · {o.customerName}</b><bdi dir="ltr" className="text-xs text-ink3">{o.phone}</bdi><Badge tone={ST[o.status].t}>{ST[o.status].l}</Badge><span className="mr-auto text-xs text-ink3">{faDate.short(o.createdAt.slice(0, 10))}</span><b>{toman(o.total)}</b>{o.shippingCost > 0 && <span className="text-[11px] text-ink3">(با ارسال {toman(o.shippingCost)})</span>}</div>
                 <p className="text-xs text-ink2">{o.lines.map((l) => `${l.name} ×${faNum(l.qty)}`).join("، ")} · {o.city}، {o.address}</p>
+                {o.trackingCode && <p className="text-xs text-ink3">کد رهگیری: <bdi dir="ltr">{o.trackingCode}</bdi></p>}
                 {o.salon && <p className="text-xs text-ink3">سالن معرف: {o.salon} · پورسانت {toman(o.commission)} ({CS[o.commissionStatus]})</p>}
                 <div className="flex gap-2">
-                  {o.status === "PAID" && <Button variant="soft" onClick={() => move(o.id, "SHIPPED")}>ارسال شد</Button>}
+                  {o.status === "PAID" && <><input dir="ltr" value={track[o.id] ?? ""} onChange={(e) => setTrack({ ...track, [o.id]: e.target.value })} placeholder="کد رهگیری پست" className="min-h-9 w-44 rounded-xl border border-line bg-surface px-3 text-xs" /><Button variant="soft" onClick={() => move(o.id, "SHIPPED")}>ارسال شد</Button></>}
                   {o.status === "SHIPPED" && <Button variant="soft" onClick={() => move(o.id, "DELIVERED")}>تحویل شد</Button>}
                   {o.status === "DELIVERED" && <Button variant="ghost" className="!text-danger" onClick={() => confirm("این سفارش مرجوع شود؟ موجودی برمی‌گردد و پورسانت لغو می‌شود.") && move(o.id, "RETURNED")}>مرجوعی</Button>}
                   {(o.status === "PAID" || o.status === "SHIPPED") && <Button variant="ghost" className="!text-danger" onClick={() => confirm("سفارش لغو شود؟") && move(o.id, "CANCELED")}>لغو</Button>}

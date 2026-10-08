@@ -2,6 +2,8 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 import { crm, type Entitlements, type ModuleEnt } from "./crmApi";
 import { useQuery } from "./useQuery";
+import { setLiveBrand } from "./liveBrand";
+import { useEffect } from "react";
 
 type Ctx = { loading: boolean; live: boolean; data: Entitlements | null; get: (id: string) => ModuleEnt | undefined; isActive: (id: string) => boolean; reload: () => Promise<void> };
 const C = createContext<Ctx>({ loading: false, live: false, data: null, get: () => undefined, isActive: () => true, reload: async () => {} });
@@ -12,6 +14,8 @@ const C = createContext<Ctx>({ loading: false, live: false, data: null, get: () 
  */
 export function EntitlementsProvider({ children }: { children: ReactNode }) {
   const q = useQuery(() => crm.entitlements().catch(() => null), []);
+  const tenant = useQuery(() => crm.tenant().catch(() => null), []);
+  useEffect(() => { setLiveBrand(tenant.data?.brandColor ?? null); }, [tenant.data?.brandColor]);
   const reload = useCallback(async () => { await q.reload(); }, [q.reload]); // eslint-disable-line react-hooks/exhaustive-deps
   const value = useMemo<Ctx>(() => {
     const data = q.data;

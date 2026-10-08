@@ -27,6 +27,15 @@ function Board({ withWallet }: { withWallet: boolean }) {
   const link = `${typeof window !== "undefined" ? window.location.origin : ""}/store?ref=${o.slug}`;
   const plan = plans.data?.find((p) => p.code === tenant.data?.subscription?.planCode);
   const price = (plan?.priceMonthly ?? 0) * months;
+  async function payPartial() {
+    if (!plan) return;
+    setMsg(null); setBusy(true);
+    try {
+      const r = await crm.shopPayPlanPartial(plan.code, months);
+      if (r.paid) { setMsg({ ok: true, t: "اشتراک کامل از کیف پول پرداخت شد." }); await Promise.all([wl.reload(), ov.reload(), tenant.reload()]); }
+      else if (r.paymentUrl) window.location.assign(r.paymentUrl);
+    } catch (e) { setMsg({ ok: false, t: errorText(e) }); } finally { setBusy(false); }
+  }
   async function pay() {
     if (!plan) return;
     setMsg(null); setBusy(true);
@@ -57,8 +66,10 @@ function Board({ withWallet }: { withWallet: boolean }) {
             <>
               <div className="mb-1 flex justify-between text-sm"><span>کیف پول <b>{faNum(Math.min(100, Math.round((wl.data.balance / price) * 100)))}٪</b> مبلغ را پوشش می‌دهد</span><span className="text-ink3">{toman(price)}</span></div>
               <div className="h-3 rounded-full bg-surface2"><div className="h-3 rounded-full bg-sage" style={{ width: `${Math.min(100, Math.round((wl.data.balance / price) * 100))}%` }} /></div>
-              <Button disabled={busy || wl.data.balance < price} onClick={pay}>{wl.data.balance < price ? "موجودی کافی نیست" : "پرداخت از کیف پول"}</Button>
-              <p className="text-xs text-ink3">پرداخت از کیف پول فقط وقتی انجام می‌شود که موجودی کل مبلغ را پوشش دهد؛ وگرنه از «تنظیمات ← اشتراک» آنلاین پرداخت کنید.</p>
+              <div className="flex flex-wrap gap-2">
+                {wl.data.balance >= price ? <Button disabled={busy} onClick={pay}>پرداخت کامل از کیف پول</Button> : <Button disabled={busy || wl.data.balance <= 0} onClick={payPartial}>{`کسر ${toman(wl.data.balance)} از کیف پول و پرداخت مابقی (${toman(price - wl.data.balance)}) آنلاین`}</Button>}
+              </div>
+              <p className="text-xs text-ink3">اگر پرداخت آنلاین لغو یا ناموفق شود، مبلغ کسرشده به کیف پول برمی‌گردد.</p>
             </>
           ) : <p className="text-sm text-ink3">پلن فعلی شما رایگان است.</p>}
           {msg && <p role="status" className={`rounded-xl p-2.5 text-sm ${msg.ok ? "bg-sagesoft text-sage" : "bg-dangersoft text-danger"}`}>{msg.t}</p>}

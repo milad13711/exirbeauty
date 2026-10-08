@@ -8,8 +8,10 @@ import { crm, type CalSettings, type TenantProfile } from "@/lib/crmApi";
 import { errorText } from "@/lib/api";
 import { DAY_NAMES, faDate, faNum, parseTime, timeValue, toman } from "@/lib/fmt";
 import { useQuery } from "@/lib/useQuery";
+import { DEFAULT_COLOR, isHex, presets } from "@/lib/theme";
+import { setLiveBrand } from "@/lib/liveBrand";
 
-const TABS = [["profile", "پروفایل سالن"], ["hours", "ساعت کاری"], ["online", "رزرو آنلاین"], ["users", "کاربران"], ["plan", "اشتراک و پلن"]] as const;
+const TABS = [["profile", "پروفایل سالن"], ["me", "پروفایل من"], ["brand", "برند و ظاهر"], ["hours", "ساعت کاری"], ["online", "رزرو آنلاین"], ["notify", "اعلان‌ها"], ["users", "کاربران"], ["plan", "اشتراک و پلن"]] as const;
 type Tab = (typeof TABS)[number][0];
 const STATUS: Record<string, { label: string; tone: Tone }> = { ACTIVE: { label: "فعال", tone: "sage" }, TRIAL: { label: "آزمایشی", tone: "sky" }, EXPIRED: { label: "منقضی", tone: "danger" }, CANCELED: { label: "لغوشده", tone: "danger" } };
 
@@ -90,6 +92,58 @@ function Online({ s, canEdit, onSaved }: { s: CalSettings; canEdit: boolean; onS
       <p className="text-xs text-ink3">پیام‌های خودکار (تأیید، یادآوری، تولد…) از بخش «پیامک» تنظیم می‌شوند.</p>
       {err && <ErrorNote message={err} />}
       {canEdit && <div className="flex items-center gap-3"><Button disabled={busy} onClick={save}>ذخیره</Button><Saved on={ok} /></div>}
+    </Card>
+  );
+}
+
+function MyProfile() {
+  const me = useMe();
+  const [name, setName] = useState(me.name); const [err, setErr] = useState(""); const [ok, setOk] = useState(false); const [busy, setBusy] = useState(false);
+  async function save() { setErr(""); setOk(false); setBusy(true); try { await crm.patchMe(name.trim()); setOk(true); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); } }
+  return (
+    <Card className="max-w-xl space-y-3 p-5">
+      <CardHead title="پروفایل من" hint="ورود با کد پیامکی به شماره‌ی موبایل شما انجام می‌شود" />
+      <Field label="نام و نام خانوادگی"><input className={fieldCls} value={name} onChange={(e) => { setName(e.target.value); setOk(false); }} /></Field>
+      {err && <ErrorNote message={err} />}
+      <div className="flex items-center gap-3"><Button disabled={busy || name.trim().length < 2} onClick={save}>ذخیره</Button><Saved on={ok} /></div>
+    </Card>
+  );
+}
+
+function Brand({ t, canEdit, onSaved }: { t: TenantProfile; canEdit: boolean; onSaved: () => void }) {
+  const [color, setColor] = useState(t.brandColor ?? DEFAULT_COLOR);
+  const [err, setErr] = useState(""); const [ok, setOk] = useState(false); const [busy, setBusy] = useState(false);
+  async function save(c: string | null) {
+    setErr(""); setOk(false); setBusy(true);
+    try { const r = await crm.patchTenant({ brandColor: c }); setLiveBrand(r.brandColor); setOk(true); onSaved(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
+  }
+  return (
+    <Card className="max-w-xl space-y-4 p-5">
+      <CardHead title="رنگ برند" hint="رنگ دکمه‌ها و تأکیدها در پنل شما؛ بلافاصله اعمال می‌شود" />
+      <div className="grid grid-cols-5 gap-2.5 sm:grid-cols-9">
+        {presets.map((p) => <button key={p.c} type="button" disabled={!canEdit} aria-label={p.n} title={p.n} onClick={() => { setColor(p.c); setOk(false); }} className="grid aspect-square cursor-pointer place-items-center rounded-2xl text-white shadow-[var(--shadow-card)]" style={{ background: p.c }}>{color.toLowerCase() === p.c && <Check size={18} />}</button>)}
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="color" disabled={!canEdit} value={isHex(color) ? color : DEFAULT_COLOR} onChange={(e) => { setColor(e.target.value); setOk(false); }} aria-label="رنگ دلخواه" className="size-11 cursor-pointer rounded-2xl border border-line" />
+        <input dir="ltr" disabled={!canEdit} value={color} maxLength={7} onChange={(e) => { setColor(e.target.value); setOk(false); }} aria-label="کد رنگ" className={`${fieldCls} max-w-36 text-left font-mono`} />
+      </div>
+      {err && <ErrorNote message={err} />}
+      {canEdit && <div className="flex flex-wrap items-center gap-3"><Button disabled={busy || !isHex(color)} onClick={() => save(color.toLowerCase())}>ذخیره</Button><Button variant="ghost" disabled={busy} onClick={() => { setColor(DEFAULT_COLOR); void save(null); }}>بازگشت به رنگ پیش‌فرض</Button><Saved on={ok} /></div>}
+    </Card>
+  );
+}
+
+function Notify({ canEdit }: { canEdit: boolean }) {
+  const q = useQuery(() => crm.smsScenarios().catch(() => null), []);
+  const [err, setErr] = useState("");
+  if (q.loading && !q.data) return <Spinner />;
+  if (!q.data) return <Card className="p-6 text-sm text-ink2">ماژول پیامک برای این سالن فعال نیست.</Card>;
+  async function flip(kind: string, enabled: boolean) { setErr(""); try { await crm.smsPutScenario(kind, { enabled }); await q.reload(); } catch (e) { setErr(errorText(e)); } }
+  return (
+    <Card className="max-w-3xl space-y-3 p-5">
+      <CardHead title="پیامک‌های خودکار" hint="متن هر پیام را از صفحه‌ی «پیامک» ویرایش کنید" />
+      {err && <ErrorNote message={err} />}
+      {q.data.map((s) => <div key={s.kind} className="flex items-center gap-3"><Toggle on={s.enabled} label={s.title} onChange={(v) => canEdit && flip(s.kind, v)} /><span className="text-sm">{s.title}</span></div>)}
     </Card>
   );
 }
@@ -198,6 +252,9 @@ function Hub() {
       {(tab === "hours" || tab === "online") && (cal.loading && !cal.data ? <Spinner /> : !cal.data
         ? <Card className="p-6 text-sm text-ink2">تقویم و نوبت‌دهی برای این سالن در دسترس نیست.</Card>
         : tab === "hours" ? <Hours s={cal.data} canEdit={canEdit} onSaved={cal.reload} /> : <Online s={cal.data} canEdit={canEdit} onSaved={cal.reload} />)}
+      {tab === "me" && <MyProfile />}
+      {tab === "brand" && <Brand key={t.data.brandColor ?? "-"} t={t.data} canEdit={canEdit} onSaved={t.reload} />}
+      {tab === "notify" && <Notify canEdit={canEdit} />}
       {tab === "users" && (canEdit ? <Users /> : <Card className="p-6 text-sm text-ink2">مدیریت کاربران فقط برای مالک سالن است.</Card>)}
       {tab === "plan" && <Plan t={t.data} canEdit={canEdit} />}
     </div>

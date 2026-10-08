@@ -79,3 +79,14 @@ describe("tenant profile", () => {
     expect((await call(null, "GET", "/tenant")).status).toBe(401);
   });
 });
+
+describe("brand colour & own name", () => {
+  it("lets the owner set a validated brand colour (and clear it)", async () => {
+    expect((await call(A, "PATCH", "/tenant", { brandColor: "#1F8A8A" })).body.data.brandColor).toBe("#1f8a8a");
+    expect((await call(A, "PATCH", "/tenant", { brandColor: "red" })).status).toBe(422);
+    expect((await call(A, "PATCH", "/tenant", { brandColor: "#12345" })).status).toBe(422);
+    expect((await call(AS, "PATCH", "/tenant", { brandColor: "#000000" })).status).toBe(403);
+    expect((await call(A, "PATCH", "/tenant", { brandColor: null })).body.data.brandColor).toBeNull();
+    expect((await call(B, "GET", "/tenant")).body.data.brandColor).toBeNull(); // another salon untouched
+  });
+});

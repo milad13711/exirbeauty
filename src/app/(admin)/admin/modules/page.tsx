@@ -1,52 +1,67 @@
 "use client";
 import { useState } from "react";
-import { Check } from "lucide-react";
-import { Badge, Card, CardHead, PageTitle, Stat, Toggle, fieldCls } from "@/components/ui";
-import { useDB } from "@/lib/db";
-import { MODULES, modulePrice, planLabel } from "@/lib/modules";
-import { moduleActions } from "@/lib/moduleActions";
-import { fa, short } from "@/lib/fa";
+import { Badge, Card, CardHead, PageTitle, Toggle, fieldCls } from "@/components/ui";
+import { AdminGate } from "@/components/live/AdminGate";
+import { ErrorNote, Modal, Spinner } from "@/components/live/ui";
+import { errorText } from "@/lib/api";
+import { crm } from "@/lib/crmApi";
+import { faDate, faNum } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-const plans = ["basic", "pro", "elite"] as const;
+function Versions({ id, name, onClose }: { id: string; name: string; onClose: () => void }) {
+  const q = useQuery(() => crm.adminModuleVersions(id), [id]);
+  return (
+    <Modal title={`تاریخچه‌ی نسخه‌ها — ${name}`} onClose={onClose}>
+      {q.loading && !q.data ? <Spinner /> : (
+        <ul className="divide-y divide-line text-sm">
+          {q.data?.map((v) => <li key={v.version} className="py-2"><b dir="ltr">{v.version}</b><span className="mr-2 text-xs text-ink3">{faDate.short(v.releasedAt.slice(0, 10))}</span><p className="text-ink2">{v.changelog}</p></li>)}
+        </ul>
+      )}
+    </Modal>
+  );
+}
 
-export default function AdminModules() {
-  const db = useDB();
-  const [saved, setSaved] = useState(false);
-  const tenantsWith = (id: string) => db.tenants.filter((t) => t.status === "فعال" && (db.planModules[t.plan] ?? []).includes(id)).length;
-  const addonRev = db.modules.addons.reduce((a, id) => a + modulePrice(db, id), 0);
-  const cats = [...new Set(MODULES.map((m) => m.cat))];
-
+function Board() {
+  const mods = useQuery(crm.adminModules, []);
+  const plans = useQuery(crm.plans, []);
+  const [err, setErr] = useState(""); const [ver, setVer] = useState<{ id: string; name: string } | null>(null);
+  async function run(fn: () => Promise<unknown>) { setErr(""); try { await fn(); await Promise.all([mods.reload(), plans.reload()]); } catch (e) { setErr(errorText(e)); } }
+  if ((mods.loading && !mods.data) || (plans.loading && !plans.data)) return <Spinner />;
+  if (!mods.data || !plans.data) return <ErrorNote message={errorText(mods.error ?? plans.error)} onRetry={() => { void mods.reload(); void plans.reload(); }} />;
+  const modules = mods.data, planList = plans.data;
+  const cats = [...new Set(modules.map((m) => m.category))];
   return (
     <>
-      <PageTitle title="کاتالوگ ماژول‌ها و پلن‌ها" sub="هر ماژول را در هر پلن روشن/خاموش کنید؛ سالن‌ها می‌توانند ماژول‌های خارج از پلن را به‌صورت ماهانه بخرند" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="ماژول‌ها" value={fa(MODULES.length)} tone="rose" />
-        {plans.map((p) => <Stat key={p} label={`ماژول‌های ${planLabel[p]}`} value={fa((db.planModules[p] ?? []).length)} tone={p === "elite" ? "gold" : p === "pro" ? "sage" : "sky"} />)}
-      </div>
-      {addonRev > 0 && <p className="mt-4 rounded-xl bg-goldsoft p-3 text-sm text-gold">درآمد ماژول‌های تکیِ سالن نمونه: {short(addonRev)} تومان در ماه</p>}
-      {saved && <p role="status" className="mt-4 text-sm font-bold text-sage">تغییرات فوراً اعمال شد ✓</p>}
-
+      <PageTitle title="ماژول‌ها و دسترسی پلن‌ها" sub="کدام ماژول در کدام پلن باشد، قیمت خرید تکی و کلید خاموش/روشن سراسری" />
+      {err && <ErrorNote message={err} />}
       {cats.map((cat) => (
-        <Card key={cat} className="mt-5">
+        <Card key={cat} className="mb-5 p-5">
           <CardHead title={cat} />
-          <ul className="divide-y divide-line">
-            {MODULES.filter((m) => m.cat === cat).map((m) => (
-              <li key={m.id} className="grid gap-3 px-5 py-3.5 md:grid-cols-[1fr_auto_auto] md:items-center">
-                <div className="min-w-0"><p className="text-sm font-bold">{m.name}</p><p className="text-xs text-ink3">{m.desc}{m.req?.length ? ` · نیازمند ${m.req.join("، ")}` : ""}</p><Badge className="mt-1.5">{fa(tenantsWith(m.id))} تننت فعال با دسترسی</Badge></div>
-                <div className="flex items-center gap-4">
-                  {plans.map((p) => (
-                    <label key={p} className="flex flex-col items-center gap-1 text-[11px] text-ink2">{planLabel[p]}<Toggle on={(db.planModules[p] ?? []).includes(m.id)} label={`${m.name} در پلن ${planLabel[p]}`} onChange={(v) => { moduleActions.setPlanModule(p, m.id, v); setSaved(true); }} /></label>
-                  ))}
-                </div>
-                <label className="flex items-center gap-2 text-xs text-ink2">خرید تکی (تومان/ماه)
-                  <input aria-label={`قیمت تکی ${m.name}`} type="number" min={0} step={10000} value={modulePrice(db, m.id)} onChange={(e) => { moduleActions.setModulePrice(m.id, +e.target.value || 0); setSaved(true); }} className={`${fieldCls} !w-28 !py-1.5`} />
-                </label>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-right text-xs text-ink3"><th className="pb-2">ماژول</th><th>نسخه</th>{planList.map((p) => <th key={p.code} className="px-2 text-center">{p.title}</th>)}<th className="px-2">قیمت تکی</th><th className="px-2">سراسری</th><th className="px-2">سالن‌ها</th></tr></thead>
+              <tbody className="divide-y divide-line">
+                {modules.filter((m) => m.category === cat).map((m) => (
+                  <tr key={m.id}>
+                    <td className="py-2"><b>{m.name}</b>{m.core && <Badge tone="sage" className="mr-2">هسته</Badge>}</td>
+                    <td><button onClick={() => setVer({ id: m.id, name: m.name })} className="cursor-pointer font-mono text-xs text-rose underline" dir="ltr">{m.version}</button></td>
+                    {planList.map((p) => {
+                      const on = m.planCodes.includes(p.code);
+                      return <td key={p.code} className="px-2 text-center"><input type="checkbox" aria-label={`${m.name} در ${p.title}`} checked={on} disabled={m.core} onChange={() => run(() => crm.adminSetPlanModules(p.code, on ? p.moduleIds.filter((x) => x !== m.id) : [...p.moduleIds, m.id]))} className="size-4 cursor-pointer accent-[#b4536f]" /></td>;
+                    })}
+                    <td className="px-2"><input type="number" min={0} step={10000} defaultValue={m.price} aria-label={`قیمت ${m.name}`} onBlur={(e) => { const v = Math.max(0, Math.round(+e.target.value || 0)); if (v !== m.price) void run(() => crm.adminEditModule(m.id, { price: v })); }} className={`${fieldCls} !min-h-9 !w-28 !py-1 text-center`} /></td>
+                    <td className="px-2"><Toggle on={m.enabled} label={`فعال بودن ${m.name}`} onChange={(v) => run(() => crm.adminEditModule(m.id, { enabled: v }))} /></td>
+                    <td className="px-2 text-center text-xs text-ink2">{faNum(m.tenantCount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       ))}
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-ink3"><Check size={13} />هسته (نوبت‌دهی، خدمات، متخصص، پروفایل مشتری) همیشه در همه‌ی پلن‌هاست و قابل خاموش شدن نیست.</p>
+      {ver && <Versions id={ver.id} name={ver.name} onClose={() => setVer(null)} />}
     </>
   );
 }
+
+export default function AdminModules() { return <AdminGate><Board /></AdminGate>; }

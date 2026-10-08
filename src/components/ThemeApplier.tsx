@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useDB } from "@/lib/db";
 import { useDark } from "@/lib/mode";
+import { useLiveBrand } from "@/lib/liveBrand";
 import { brandOf, colorFor, DEFAULT_COLOR, makeIcon, palette } from "@/lib/theme";
 
 type Scope = "app" | "portal" | "staff" | null;
@@ -38,7 +39,8 @@ export function ThemeApplier() {
   const scope = scopeOf(path);
   const dark = useDark();
   const b = brandOf(db.salon);
-  const color = scope ? colorFor(b, scope === "staff" ? "app" : scope) : DEFAULT_COLOR;
+  const live = useLiveBrand();
+  const color = scope ? (live && scope === "app" ? live : colorFor(b, scope === "staff" ? "app" : scope)) : DEFAULT_COLOR;
   const name = db.salon.name;
   const appName = (b.appName || name).trim();
 

@@ -69,8 +69,11 @@ Whole-toman money; every rule is checked twice — in code (`modules/cashier/mon
 ### Navigation & modules in the UI
 The sidebar, the "locked module" screen and `/modules` read the signed-in salon's real entitlements (`GET /tenant/modules`: plan ∪ add-ons, installed, dependencies) through `EntitlementsProvider`. Locked screens offer install, add-on purchase through Zarinpal, or plan upgrade; `/modules` shows real versions and installs/uninstalls through the API. Without a session the UI falls back to the prototype's local state, so the demo still works.
 
+### Scheduled work
+`scripts/cron.sh` calls the three scheduled endpoints (SMS reminders & birthdays, campaigns, store commissions/expiry) with `CRON_SECRET`; run it every ~10 minutes from any scheduler. Nothing runs on its own.
+
 ### Settings
-`/settings` (signed in) is live: salon name/city (`GET/PATCH /tenant`, owner-only edit), working hours and online-booking rules (the calendar's settings API), and subscription — current plan/expiry, renew or change plan through Zarinpal (`POST /tenant/payments`), recent payments. Still prototype-only: brand/appearance, "my profile", salon user management (admins create users via `/admin/users`), per-salon notification toggles (these live in the SMS scenarios).
+`/settings` (signed in) is live: salon name/city (`GET/PATCH /tenant`, owner-only edit), working hours and online-booking rules (the calendar's settings API), and subscription — current plan/expiry, renew or change plan through Zarinpal (`POST /tenant/payments`), recent payments. Also live: my profile (name), brand colour (applied across the app at once) and notification toggles (the SMS scenarios). Brand logo upload is not built (no file storage).
 
 ### Dashboard (reports module)
 `GET /reports/dashboard` (owner-level) rolls up today's sales vs the same weekday last week, appointments, how full the day is (bookable minutes minus breaks vs booked), new/returning customers, a 7-day revenue series, service share + margin (30 days), top staff and the day's opportunities (inactive customers, unconfirmed appointments, unpaid debt). The home page and the top-bar SMS credit chip now read real data. Excel export and period reports are still to come.
@@ -114,7 +117,8 @@ A posting calendar (draft / scheduled / published) plus salon context for the ca
 - **Commission**: an order placed through a salon's link (`?ref=<slug>`) earns that salon each product's commission %, only while the salon runs the shop module and never on its own people's orders. The platform team (`/admin/orders`, `/admin/products`, admin session) ships/delivers/returns orders; commission is credited to the salon's **wallet** once, 7 days after delivery (`POST /shop/cron/run`), and a return before payout voids it (after payout it is clawed back, never below zero). The wallet can pay a plan renewal when it covers the whole amount.
 - **Recommendations**: store products suited to the category of a customer's last service.
 - **Assistant (`/ai`)**: rule-based (no language model) answers about sales, capacity, customers to win back, margins, debts, stock and top staff, computed from the salon's own data.
-- Not built: shipping cost/tracking, partial wallet payments, the admin warehouse/purchase-order/referrer pages (still prototype).
+- Shipping is flat (free above 2,000,000 toman) and never earns commission; the admin enters a post tracking code when shipping; shoppers track by order number + phone at `/store/track`. A plan renewal can use part of the wallet and pay the rest online — the wallet part is refunded if that payment fails, is canceled or is abandoned for a day.
+- Not built: the admin warehouse/purchase-order/referrer/referral-marketing pages (still prototype).
 
 ### Finder listing → real salon
 

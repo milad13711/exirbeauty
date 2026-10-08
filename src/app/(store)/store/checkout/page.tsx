@@ -19,6 +19,7 @@ export default function Checkout() {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const items = (all.data ?? []).filter((p) => lines[p.id]);
   const sub = items.reduce((a, p) => a + p.price * lines[p.id], 0);
+  const ship = !sub || sub > 2_000_000 ? 0 : 60_000; // same rule as the server, which is the one that charges it
   
 
   async function submit(f: FormData) {
@@ -64,8 +65,8 @@ export default function Checkout() {
         <aside className="h-fit space-y-3 rounded-[22px] border border-line/80 bg-surface p-5 text-sm shadow-[var(--shadow-card)] lg:sticky lg:top-24">
           {refName && <p className="rounded-xl bg-rosesoft p-3 text-xs leading-6 text-rosedeep">🌸 این خرید از طریق <b>{refName}</b> معرفی شده است.</p>}
           <div className="flex justify-between"><span className="text-ink2">جمع کالاها</span><span>{toman(sub)}</span></div>
-          <p className="text-xs text-ink3">هزینه‌ی ارسال هنگام تحویل با پیک محاسبه می‌شود.</p>
-          <div className="flex justify-between border-t border-line pt-3 text-lg font-extrabold"><span>قابل پرداخت</span><span className="text-rosedeep">{toman(sub)}</span></div>
+          <div className="flex justify-between"><span className="text-ink2">هزینه ارسال</span><span>{ship ? toman(ship) : "رایگان"}</span></div>
+          <div className="flex justify-between border-t border-line pt-3 text-lg font-extrabold"><span>قابل پرداخت</span><span className="text-rosedeep">{toman(sub + ship)}</span></div>
           <button form="co" type="submit" disabled={busy} className="press min-h-12 w-full cursor-pointer rounded-[16px] bg-[image:var(--grad-rose)] text-sm font-extrabold text-white shadow-[0_10px_22px_-10px_rgba(156,53,88,.7)] disabled:opacity-60">{busy ? "در حال انتقال به درگاه…" : "پرداخت آنلاین"}</button>
         </aside>
       </div>
