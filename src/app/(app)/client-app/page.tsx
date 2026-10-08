@@ -1,37 +1,42 @@
 "use client";
 import Link from "next/link";
-import { ExternalLink, Palette, Smartphone } from "lucide-react";
+import { ExternalLink, Smartphone } from "lucide-react";
 import { Badge, Card, CardHead, LinkButton, PageTitle } from "@/components/ui";
+import { LiveGate } from "@/components/live/LiveGate";
+import { Spinner } from "@/components/live/ui";
 import { InstallPrompt } from "@/components/InstallPrompt";
-import { useDB } from "@/lib/db";
-import { moduleActive } from "@/lib/modules";
+import { crm } from "@/lib/crmApi";
+import { useEntitlements } from "@/lib/entitlements";
+import { useQuery } from "@/lib/useQuery";
 
-export default function ClientApp() {
-  const db = useDB();
-  const on = moduleActive(db, "portal");
+function Board() {
+  const ent = useEntitlements();
+  const t = useQuery(crm.tenant, []);
+  if (!t.data) return <Spinner />;
+  const on = ent.isActive("portal");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const link = `${origin}/me/login?salon=${t.data.slug}`;
   return (
     <>
-      <PageTitle title="اپ مشتریان" sub="همین پنل واقعی مشتری با رنگ و لوگوی سالن شما؛ مشتری آن را روی گوشی خودش نصب می‌کند" actions={<><LinkButton href="/settings" variant="ghost"><Palette size={15} />رنگ و لوگو</LinkButton><LinkButton href="/me" variant="soft"><ExternalLink size={15} />باز کردن در صفحه‌ی جدید</LinkButton></>} />
-      <div className="grid items-start gap-8 lg:grid-cols-[380px_1fr]">
-        <div className="mx-auto w-full max-w-[360px] rounded-[40px] border-[10px] border-plum bg-plum shadow-[var(--shadow-pop)]">
-          <iframe title="پیش‌نمایش زنده‌ی اپ مشتری" src="/me" className="block h-[640px] w-full rounded-[28px] border-0 bg-bg" />
-        </div>
-        <div className="space-y-5">
-          <Card>
-            <CardHead title="نصب برای مشتریان" hint="لینک را در پیامک، اینستاگرام یا با کد QR در سالن بدهید" action={<Badge tone={on ? "sage" : "amber"}>{on ? "فعال" : "ماژول غیرفعال"}</Badge>} />
-            <div className="px-5 pb-5"><InstallPrompt link={typeof window !== "undefined" ? `${window.location.origin}/me` : "/me"} /></div>
-          </Card>
-          <Card className="p-5">
-            <h3 className="flex items-center gap-2 font-bold"><Smartphone size={17} className="text-rose" />چه چیزی مشتری می‌بیند</h3>
-            <ul className="mt-3 space-y-2 text-sm leading-7 text-ink2">
-              <li>• آیکون و نام سالن شما روی صفحه‌ی اصلی گوشی (نه نام اکسیر)</li>
-              <li>• نوبت بعدی، امتیاز و سطح، کیف پول و کش‌بک، معرفی دوستان</li>
-              <li>• رنگ‌ها از <Link href="/settings" className="font-bold text-rose">تنظیمات ← برند و ظاهر</Link> تغییر می‌کنند</li>
-              <li>• ورود با شماره‌ی موبایل و کد تأیید؛ بدون رمز عبور</li>
-            </ul>
-          </Card>
-        </div>
+      <PageTitle title="اپ مشتریان" sub="پنل مشتری با ورود پیامکی؛ مشتری آن را روی گوشی خودش نصب می‌کند" actions={<LinkButton href={`/me/login?salon=${t.data.slug}`} variant="soft"><ExternalLink size={15} />باز کردن صفحه‌ی ورود مشتری</LinkButton>} />
+      <div className="grid max-w-3xl gap-5">
+        <Card>
+          <CardHead title="نصب برای مشتریان" hint="لینک را در پیامک، اینستاگرام یا با کد QR در سالن بدهید" action={<Badge tone={on ? "sage" : "amber"}>{on ? "فعال" : "ماژول غیرفعال"}</Badge>} />
+          <div className="px-5 pb-5"><InstallPrompt link={link} /></div>
+        </Card>
+        <Card className="p-5">
+          <h3 className="flex items-center gap-2 font-bold"><Smartphone size={17} className="text-rose" />چه چیزی مشتری می‌بیند</h3>
+          <ul className="mt-3 space-y-2 text-sm leading-7 text-ink2">
+            <li>• نوبت‌های پیش‌رو و سابقه، با امکان لغو در مهلت رایگان (تنظیمات ← رزرو آنلاین)</li>
+            <li>• امتیاز و سطح، جایزه‌های اعتباری، کیف پول و لینک معرفی دوستان (اگر ماژول‌هایش فعال باشد)</li>
+            <li>• ورود با شماره‌ی موبایل و کد پیامکی مخصوص همین سالن؛ بدون رمز عبور</li>
+            <li>• ثبت‌نام خودکار مشتری تازه با اولین ورود (و ثبت معرف از لینک دعوت)</li>
+          </ul>
+          <p className="mt-3 text-xs text-ink3">برای ظاهر رنگی و لوگوی سالن به <Link href="/settings" className="font-bold text-rose">تنظیمات</Link> مراجعه کنید (در حال حاضر نسخه‌ی نمایشی).</p>
+        </Card>
       </div>
     </>
   );
 }
+
+export default function ClientApp() { return <LiveGate><Board /></LiveGate>; }
