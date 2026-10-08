@@ -97,6 +97,9 @@ export type MembershipOverview = { activeMembers: number; mrr: number; sessionsL
 export type GiftCardRow = { id: string; last4: string; amount: number; balance: number; status: "ACTIVE" | "USED" | "VOID"; fromName: string; toName: string; toPhone: string; occasion: string; message: string; saleId: string | null; createdAt: string };
 export type GiftIssued = GiftCardRow & { code: string; saleNumber: number; smsSent: boolean };
 export type GiftOverview = { issued: number; sold: number; outstanding: number };
+export type MarketOverview = { listing: { id: string; name: string; city: string; status: "PENDING" | "PUBLISHED" | "REJECTED"; bio: string; cats: string[] } | null; staff: { active: number; listed: number }; rating: { avg: number; count: number }; leads: number };
+export type MarketLead = { id: string; name: string; phone: string; note: string; createdAt: string; customerId: string | null };
+export type MarketReview = { id: string; name: string; rating: number; text: string; createdAt: string };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -174,6 +177,12 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // marketplace (finder presence)
+  marketOverview: () => api<MarketOverview>("GET", "/marketplace/overview"),
+  marketLeads: () => api<MarketLead[]>("GET", "/marketplace/leads"),
+  convertLead: (id: string) => api<{ customerId: string }>("POST", `/marketplace/leads/${id}/convert`, {}),
+  marketReviews: () => api<MarketReview[]>("GET", "/marketplace/reviews"),
 
   // gift cards
   giftCards: (status?: string) => api<GiftCardRow[]>("GET", `/giftcards${qs({ status })}`),
