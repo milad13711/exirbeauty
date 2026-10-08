@@ -1113,3 +1113,35 @@ model Enrollment {
   @@unique([userId, courseId])
   @@index([tenantId])
 }
+
+// ───────── Module: content (captions, story cards and a posting calendar; publishing itself happens on the salon's own social accounts) ─────────
+
+enum PostKind {
+  BEFORE_AFTER
+  SERVICE
+  OFFER
+  BIRTHDAY
+  TIPS
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+}
+
+model ContentPost {
+  id           String     @id @default(cuid())
+  tenantId     String
+  kind         PostKind
+  caption      String
+  tags         String[]   @default([])
+  service      String?
+  status       PostStatus @default(DRAFT)
+  scheduledFor DateTime?  @db.Date
+  publishedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([tenantId, createdAt])
+}
