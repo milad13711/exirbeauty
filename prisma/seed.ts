@@ -44,6 +44,18 @@ async function main() {
     ] });
   }
 
+  // Starter store catalog (the platform team edits it in the admin panel); only when none exists.
+  if (!(await prisma.storeProduct.count())) {
+    await prisma.storeProduct.createMany({ data: [
+      { name: "شامپو ترمیم‌کننده بدون سولفات", brand: "Silk Lab", category: "مو", price: 650_000, oldPrice: 720_000, commissionPct: 12, stock: 40, description: "مخصوص موهای کراتینه و رنگ‌شده؛ ماندگاری نتیجه‌ی خدمات سالن را بیشتر می‌کند." },
+      { name: "ماسک مو ابریشم", brand: "Silk Lab", category: "مو", price: 780_000, commissionPct: 12, stock: 25, description: "ماسک عمیق برای ترمیم انتهای موی خشک و آسیب‌دیده." },
+      { name: "سرم ویتامین C", brand: "Derma Rose", category: "پوست", price: 1_150_000, commissionPct: 15, stock: 18, description: "روشن‌کننده و ضدلکه برای پوست ترکیبی و معمولی." },
+      { name: "ضدآفتاب SPF50 بی‌رنگ", brand: "Derma Rose", category: "پوست", price: 540_000, commissionPct: 15, stock: 60, description: "سبک، بدون سفیدی روی پوست، مناسب زیر آرایش." },
+      { name: "ست ژل و لاک خانگی", brand: "Nail Muse", category: "ناخن", price: 1_350_000, commissionPct: 14, stock: 12, description: "چراغ UV، ۶ رنگ پرطرفدار، پایه و تاپ‌کوت." },
+      { name: "ست مراقبت رنگ مو", brand: "Silk Lab", category: "ست هدیه", price: 1_900_000, oldPrice: 2_150_000, commissionPct: 18, stock: 15, description: "شامپو، ماسک و سرم در یک جعبه‌ی هدیه." },
+    ] });
+  }
+
   if (process.env.NODE_ENV !== "production" && !(await prisma.tenant.findUnique({ where: { slug: "demo-salon" } }))) {
     const t = await createTenant({ name: "سالن رُز (دمو)", slug: "demo-salon", city: "تهران", planCode: "salon" });
     console.log("demo tenant:", t.id);

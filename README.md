@@ -109,6 +109,13 @@ Courses are platform content managed by admins (`/admin/courses`, needs an admin
 ### Content
 A posting calendar (draft / scheduled / published) plus salon context for the caption generator. Captions and story cards are generated in the browser; publishing happens on the salon's own social accounts (the page only tracks it). Before/after photo posts are not supported (no photo storage yet).
 
+### Shop (store, commission, wallet) & assistant
+- **Storefront** (`/store`, public): the catalog and checkout run on the API. Placing an order *reserves stock* with a conditional UPDATE per product (the last unit goes to one buyer), prices come from the database, and the shopper is sent to Zarinpal; a verified callback marks it paid once, a failed/canceled/abandoned (30 min) checkout gives the stock back.
+- **Commission**: an order placed through a salon's link (`?ref=<slug>`) earns that salon each product's commission %, only while the salon runs the shop module and never on its own people's orders. The platform team (`/admin/orders`, `/admin/products`, admin session) ships/delivers/returns orders; commission is credited to the salon's **wallet** once, 7 days after delivery (`POST /shop/cron/run`), and a return before payout voids it (after payout it is clawed back, never below zero). The wallet can pay a plan renewal when it covers the whole amount.
+- **Recommendations**: store products suited to the category of a customer's last service.
+- **Assistant (`/ai`)**: rule-based (no language model) answers about sales, capacity, customers to win back, margins, debts, stock and top staff, computed from the salon's own data.
+- Not built: shipping cost/tracking, partial wallet payments, the admin warehouse/purchase-order/referrer pages (still prototype).
+
 ### Finder listing → real salon
 
 A published artist/salon listing can pay for its plan (`POST /finder/listings/:id/activate`, edit-code protected, Zarinpal). When the verified payment lands, `modules/finder/provision.ts` creates — in one transaction — the salon (tenant with the plan's modules and a paid-through date), an OWNER login on the listing's phone (OTP), and bookable staff (the listed people on the salon plan, otherwise the owner). Replays are no-ops; a phone that already has an account is refused *before* charging. From then on the dashboard is the source of truth: the map shows the salon's live staff with deep links to its booking page (`/s/<slug>?staff=<id>`, salon plan only — artist plan keeps request/lead forms), and finder edits no longer touch staff.

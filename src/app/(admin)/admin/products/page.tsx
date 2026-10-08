@@ -1,51 +1,70 @@
 "use client";
 import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, Toggle, fieldCls } from "@/components/ui";
-import { DataList } from "@/components/DataList";
-import { actions, stockState, useDB, type DBProduct } from "@/lib/db";
-import { catList, type SCat } from "@/lib/mock3";
-import { fa, toman } from "@/lib/fa";
+import { AdminGate } from "@/components/live/AdminGate";
+import { ErrorNote, Modal, Spinner } from "@/components/live/ui";
+import { errorText } from "@/lib/api";
+import { crm, type AdminStoreProduct } from "@/lib/crmApi";
+import { CATEGORIES } from "@/lib/storeApi";
+import { faNum, toman } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-const blank = (): DBProduct => ({ id: `n${Date.now()}`, name: "", brand: "", cat: "مو", price: 0, commission: 12, rating: 0, stock: 0, tint: ["#f7e4ea", "#f6ecd6"], desc: "", active: true, cost: 0, reorder: 10, reorderQty: 20 });
+type Draft = Omit<AdminStoreProduct, "id"> & { id: string | null };
+const blank = (): Draft => ({ id: null, name: "", brand: "", category: CATEGORIES[0], price: 0, oldPrice: null, stock: 0, description: "", commissionPct: 10, active: true });
 
-export default function Products() {
-  const db = useDB();
-  const [edit, setEdit] = useState<DBProduct | null>(null);
-  const isNew = edit && !db.products.some((r) => r.id === edit.id);
-  const set = <K extends keyof DBProduct>(k: K, v: DBProduct[K]) => setEdit(edit && { ...edit, [k]: v });
-  const save = () => { if (edit && edit.name.trim()) { actions.saveProduct(edit); setEdit(null); } };
+function Editor({ d: init, onClose, onSaved }: { d: Draft; onClose: () => void; onSaved: () => void }) {
+  const [d, setD] = useState(init); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
+  const n = (s: string) => Math.max(0, Math.round(Number(s) || 0));
+  async function save() {
+    setErr(""); setBusy(true);
+    try { const { id, ...b } = d; if (id) await crm.adminStoreUpdate(id, b); else await crm.adminStoreCreate(b); onSaved(); onClose(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
+  }
+  return (
+    <Modal title={d.id ? "ویرایش محصول" : "محصول جدید"} onClose={onClose} wide>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="نام"><input className={fieldCls} value={d.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+        <Field label="برند"><input className={fieldCls} value={d.brand} onChange={(e) => set({ brand: e.target.value })} /></Field>
+        <Field label="دسته"><select className={fieldCls} value={d.category} onChange={(e) => set({ category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
+        <Field label="موجودی"><input dir="ltr" inputMode="numeric" className={fieldCls} value={d.stock} onChange={(e) => set({ stock: n(e.target.value) })} /></Field>
+        <Field label="قیمت (تومان)"><input dir="ltr" inputMode="numeric" className={fieldCls} value={d.price} onChange={(e) => set({ price: n(e.target.value) })} /></Field>
+        <Field label="قیمت قبل از تخفیف (اختیاری)"><input dir="ltr" inputMode="numeric" className={fieldCls} value={d.oldPrice ?? ""} onChange={(e) => set({ oldPrice: e.target.value ? n(e.target.value) : null })} /></Field>
+        <Field label="پورسانت سالن معرف (٪)"><input dir="ltr" inputMode="numeric" className={fieldCls} value={d.commissionPct} onChange={(e) => set({ commissionPct: Math.min(50, n(e.target.value)) })} /></Field>
+        <div className="flex items-center gap-3 self-end"><Toggle on={d.active} onChange={(v) => set({ active: v })} label="نمایش در فروشگاه" /><span className="text-sm">{d.active ? "نمایش داده می‌شود" : "پنهان"}</span></div>
+        <div className="sm:col-span-2"><Field label="توضیح"><textarea rows={3} className={fieldCls} value={d.description} onChange={(e) => set({ description: e.target.value })} /></Field></div>
+      </div>
+      {err && <div className="mt-3"><ErrorNote message={err} /></div>}
+      <div className="mt-4 flex gap-2"><Button disabled={busy} onClick={save}>ذخیره</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>
+    </Modal>
+  );
+}
 
+function Board() {
+  const q = useQuery(crm.adminStoreProducts, []);
+  const [edit, setEdit] = useState<Draft | null>(null);
   return (
     <>
-      <PageTitle title="مدیریت محصولات فروشگاه" sub={`${fa(db.products.length)} محصول · تغییرات مستقیم در فروشگاه دیده می‌شود · موجودی در بخش انبار مدیریت می‌شود`} actions={<Button onClick={() => setEdit(blank())}><Plus size={14} />محصول جدید</Button>} />
-      {edit && (
-        <Card className="mb-5">
-          <CardHead title={isNew ? "محصول جدید" : "ویرایش محصول"} />
-          <form onSubmit={(e) => { e.preventDefault(); save(); }} className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
-            <Field label="نام محصول"><input required value={edit.name} onChange={(e) => set("name", e.target.value)} className={fieldCls} /></Field>
-            <Field label="برند"><input value={edit.brand} onChange={(e) => set("brand", e.target.value)} className={fieldCls} /></Field>
-            <Field label="دسته"><select value={edit.cat} onChange={(e) => set("cat", e.target.value as SCat)} className={fieldCls}>{catList.filter((c) => c !== "همه").map((c) => <option key={c}>{c}</option>)}</select></Field>
-            <Field label="قیمت فروش (تومان)"><input type="number" min={0} value={edit.price} onChange={(e) => set("price", +e.target.value || 0)} className={fieldCls} /></Field>
-            <Field label="پورسانت سالن معرف (٪)"><input type="number" min={0} max={50} value={edit.commission} onChange={(e) => set("commission", Math.min(50, +e.target.value || 0))} className={fieldCls} /></Field>
-            <Field label="قیمت قبل از تخفیف (اختیاری)"><input type="number" min={0} value={edit.old ?? 0} onChange={(e) => set("old", +e.target.value || undefined)} className={fieldCls} /></Field>
-            <div className="sm:col-span-2"><Field label="توضیح کوتاه"><textarea rows={2} value={edit.desc} onChange={(e) => set("desc", e.target.value)} className={fieldCls} /></Field></div>
-            <p className="text-xs text-ink2 sm:col-span-2">پورسانت هر فروش: <b>{toman(Math.round((edit.price * edit.commission) / 100))}</b></p>
-            <div className="flex gap-2 sm:col-span-2"><Button type="submit">ذخیره</Button><Button type="button" variant="ghost" onClick={() => setEdit(null)}>انصراف</Button></div>
-          </form>
-        </Card>
-      )}
-      <Card>
-        <DataList rows={db.products} id={(p) => p.id} cols={[
-          { h: "محصول", title: true, cell: (p) => <>{p.name} <span className="text-xs font-normal text-ink3">· {p.brand}</span></> },
-          { h: "دسته", cell: (p) => <Badge>{p.cat}</Badge> },
-          { h: "قیمت", cell: (p) => <b>{toman(p.price)}</b> },
-          { h: "پورسانت", cell: (p) => <Badge tone="gold">{fa(p.commission)}٪</Badge> },
-          { h: "موجودی", cell: (p) => <span className={stockState(p) === "کافی" ? "" : "font-bold text-danger"}>{fa(p.stock)}</span> },
-          { h: "فعال", cell: (p) => <Toggle on={p.active} label={`فعال بودن ${p.name}`} onChange={(v) => actions.saveProduct({ ...p, active: v })} /> },
-          { h: "", cell: (p) => <Button variant="ghost" onClick={() => setEdit(p)}><Pencil size={13} />ویرایش</Button> },
-        ]} />
+      <PageTitle title="محصولات فروشگاه" sub="کاتالوگ فروشگاه اکسیر؛ موجودی با هر سفارش کم و با لغو یا مرجوعی برمی‌گردد" actions={<Button onClick={() => setEdit(blank())}><Plus size={14} />محصول جدید</Button>} />
+      <Card className="p-5">
+        <CardHead title="محصولات" />
+        {q.loading && !q.data ? <Spinner /> : !q.data?.length ? <p className="text-sm text-ink3">محصولی ثبت نشده است.</p> : (
+          <ul className="divide-y divide-line text-sm">
+            {q.data.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3">
+                <span className="min-w-0 flex-1 basis-48"><b>{p.name}</b><span className="block text-xs text-ink3">{p.brand} · {p.category} · پورسانت {faNum(p.commissionPct)}٪</span></span>
+                <b>{toman(p.price)}</b>
+                <Badge tone={p.stock <= 0 ? "danger" : p.stock <= 5 ? "amber" : "sage"}>{faNum(p.stock)} عدد</Badge>
+                {!p.active && <Badge>پنهان</Badge>}
+                <Button variant="ghost" onClick={() => setEdit({ ...p })}>ویرایش</Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
+      {edit && <Editor d={edit} onClose={() => setEdit(null)} onSaved={() => void q.reload()} />}
     </>
   );
 }
+
+export default function AdminProducts() { return <AdminGate><Board /></AdminGate>; }

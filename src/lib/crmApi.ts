@@ -111,6 +111,11 @@ export type PostKind = "BEFORE_AFTER" | "SERVICE" | "OFFER" | "BIRTHDAY" | "TIPS
 export type ContentPostRow = { id: string; kind: PostKind; caption: string; tags: string[]; service: string | null; status: "DRAFT" | "SCHEDULED" | "PUBLISHED"; scheduledFor: string | null; publishedAt: string | null; createdAt: string };
 export type ContentContext = { salon: string; services: { id: string; name: string; price: number }[]; birthdaysThisMonth: number; month: number };
 export type AiAnswer = { topic: string; text: string; bullets?: string[]; actions?: { label: string; href: string }[] };
+export type ShopOverview = { slug: string; wallet: number; orders: number; sales: number; credited: number; pending: number; top: { name: string; qty: number; revenue: number }[]; recent: { id: string; number: number; customer: string; total: number; status: string; commission: number; commissionStatus: "NONE" | "WAITING" | "CREDITED" | "VOID"; createdAt: string; items: string[] }[] };
+export type ShopWallet = { balance: number; log: { id: string; kind: "COMMISSION" | "PLAN_PAYMENT" | "ADJUST"; delta: number; balanceAfter: number; note: string; createdAt: string }[] };
+export type ShopRecommend = { basedOn: string | null; products: { id: string; name: string; brand: string; category: string; price: number; commissionPct: number }[] };
+export type AdminStoreProduct = { id: string; name: string; brand: string; category: string; price: number; oldPrice: number | null; stock: number; description: string; commissionPct: number; active: boolean };
+export type AdminStoreOrder = { id: string; number: number; customerName: string; phone: string; city: string; address: string; total: number; status: "PENDING_PAYMENT" | "PAID" | "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED"; commission: number; commissionStatus: "NONE" | "WAITING" | "CREDITED" | "VOID"; salon: string | null; createdAt: string; lines: { name: string; qty: number; price: number }[] };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -188,6 +193,17 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // shop
+  shopOverview: () => api<ShopOverview>("GET", "/shop/overview"),
+  shopWallet: () => api<ShopWallet>("GET", "/shop/wallet"),
+  shopPayPlan: (planCode: string, months: number) => api<ShopWallet>("POST", "/shop/wallet/pay-plan", { planCode, months }),
+  shopRecommend: (customerId: string) => api<ShopRecommend>("GET", `/shop/recommend?customerId=${customerId}`),
+  adminStoreProducts: () => api<AdminStoreProduct[]>("GET", "/admin/store/products"),
+  adminStoreCreate: (b: Omit<AdminStoreProduct, "id">) => api<{ id: string }>("POST", "/admin/store/products", b),
+  adminStoreUpdate: (id: string, b: Partial<Omit<AdminStoreProduct, "id">>) => api<{ id: string }>("PATCH", `/admin/store/products/${id}`, b),
+  adminStoreOrders: (status?: string) => api<AdminStoreOrder[]>("GET", `/admin/store/orders${qs({ status })}`),
+  adminStoreOrderStatus: (id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED") => api<{ ok: true }>("POST", `/admin/store/orders/${id}/status`, { status }),
 
   // assistant
   aiSuggestions: () => api<string[]>("GET", "/ai/suggestions"),

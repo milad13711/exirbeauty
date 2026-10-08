@@ -1,40 +1,48 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
-import { Badge, Card, PageTitle } from "@/components/ui";
-import { DataList } from "@/components/DataList";
-import { useDB } from "@/lib/db";
-import { salons } from "@/lib/mock3";
-import { commTone, orderTone } from "@/lib/tones";
-import { fa, toman } from "@/lib/fa";
+import { Badge, Button, Card, CardHead, PageTitle, type Tone } from "@/components/ui";
+import { AdminGate } from "@/components/live/AdminGate";
+import { Chip, ErrorNote, Spinner } from "@/components/live/ui";
+import { errorText } from "@/lib/api";
+import { crm, type AdminStoreOrder } from "@/lib/crmApi";
+import { faDate, faNum, toman } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-const statuses = ["همه", "پرداخت‌شده", "ارسال‌شده", "تحویل‌شده", "مرجوعی"] as const;
+const ST: Record<AdminStoreOrder["status"], { l: string; t: Tone }> = { PENDING_PAYMENT: { l: "منتظر پرداخت", t: "neutral" }, PAID: { l: "پرداخت‌شده", t: "sky" }, SHIPPED: { l: "ارسال‌شده", t: "amber" }, DELIVERED: { l: "تحویل‌شده", t: "sage" }, RETURNED: { l: "مرجوعی", t: "danger" }, CANCELED: { l: "لغو شد", t: "neutral" } };
+const CS: Record<string, string> = { NONE: "—", WAITING: "در انتظار مهلت مرجوعی", CREDITED: "شارژ شد", VOID: "لغو شد" };
 
-export default function Orders() {
-  const db = useDB();
-  const [sid, setSid] = useState("all");
-  const [st, setSt] = useState<(typeof statuses)[number]>("همه");
-  const rows = db.orders.filter((o) => (sid === "all" || o.salon === sid) && (st === "همه" || o.status === st));
-  const name = (id: string | null) => (id ? salons.find((s) => s.id === id)?.name ?? id : "مستقیم (بدون معرف)");
+function Board() {
+  const [f, setF] = useState<string | undefined>("PAID");
+  const q = useQuery(() => crm.adminStoreOrders(f), [f]);
+  const [err, setErr] = useState("");
+  async function move(id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED") { setErr(""); try { await crm.adminStoreOrderStatus(id, status); await q.reload(); } catch (e) { setErr(errorText(e)); } }
   return (
     <>
-      <PageTitle title="سفارش‌ها" sub="روی هر سفارش بزنید تا وضعیت، ارسال، تحویل و مرجوعی را مدیریت کنید"
-        actions={<>
-          <select aria-label="وضعیت" value={st} onChange={(e) => setSt(e.target.value as typeof st)} className="cursor-pointer rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold">{statuses.map((x) => <option key={x}>{x}</option>)}</select>
-          <select aria-label="سالن معرف" value={sid} onChange={(e) => setSid(e.target.value)} className="cursor-pointer rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold"><option value="all">همه‌ی معرف‌ها</option>{salons.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-        </>} />
-      <Card>
-        <DataList rows={rows} id={(o) => o.id} cols={[
-          { h: "سفارش", title: true, cell: (o) => <Link href={`/admin/orders/${encodeURIComponent(o.id)}`} className="text-rosedeep hover:underline">#{o.id} <span className="text-xs font-normal text-ink3">· {o.date}</span></Link> },
-          { h: "مشتری", cell: (o) => <>{o.customer} <bdi dir="ltr" className="text-xs text-ink3">{o.phone}</bdi></> },
-          { h: "اقلام", cell: (o) => o.lines.map((l) => `${l.name}${l.qty > 1 ? ` ×${fa(l.qty)}` : ""}`).join("، ") },
-          { h: "مبلغ", cell: (o) => <b>{toman(o.total)}</b> },
-          { h: "معرف", cell: (o) => <span><b className="text-rosedeep">{name(o.salon)}</b><span className="block text-xs text-ink3">{o.via}</span></span> },
-          { h: "وضعیت", cell: (o) => <Badge tone={orderTone[o.status]}>{o.status}</Badge> },
-          { h: "پورسانت", cell: (o) => <span className="inline-flex flex-col items-end gap-1 md:items-start"><b>{toman(o.comm)}</b><Badge tone={commTone[o.cs]}>{o.cs}</Badge></span> },
-        ]} />
+      <PageTitle title="سفارش‌های فروشگاه" sub="آماده‌سازی، ارسال، تحویل و مرجوعی؛ پورسانت سالن معرف ۷ روز پس از تحویل آزاد می‌شود" />
+      <div className="mb-4 flex flex-wrap gap-2">{([[undefined, "همه"], ["PAID", "پرداخت‌شده"], ["SHIPPED", "ارسال‌شده"], ["DELIVERED", "تحویل‌شده"], ["RETURNED", "مرجوعی"], ["CANCELED", "لغوشده"]] as const).map(([k, l]) => <Chip key={l} active={f === k} onClick={() => setF(k)}>{l}</Chip>)}</div>
+      {err && <ErrorNote message={err} />}
+      <Card className="p-5">
+        <CardHead title="سفارش‌ها" />
+        {q.loading && !q.data ? <Spinner /> : !q.data?.length ? <p className="text-sm text-ink3">سفارشی نیست.</p> : (
+          <ul className="divide-y divide-line text-sm">
+            {q.data.map((o) => (
+              <li key={o.id} className="space-y-1.5 py-3">
+                <div className="flex flex-wrap items-center gap-2"><b>#{faNum(o.number)} · {o.customerName}</b><bdi dir="ltr" className="text-xs text-ink3">{o.phone}</bdi><Badge tone={ST[o.status].t}>{ST[o.status].l}</Badge><span className="mr-auto text-xs text-ink3">{faDate.short(o.createdAt.slice(0, 10))}</span><b>{toman(o.total)}</b></div>
+                <p className="text-xs text-ink2">{o.lines.map((l) => `${l.name} ×${faNum(l.qty)}`).join("، ")} · {o.city}، {o.address}</p>
+                {o.salon && <p className="text-xs text-ink3">سالن معرف: {o.salon} · پورسانت {toman(o.commission)} ({CS[o.commissionStatus]})</p>}
+                <div className="flex gap-2">
+                  {o.status === "PAID" && <Button variant="soft" onClick={() => move(o.id, "SHIPPED")}>ارسال شد</Button>}
+                  {o.status === "SHIPPED" && <Button variant="soft" onClick={() => move(o.id, "DELIVERED")}>تحویل شد</Button>}
+                  {o.status === "DELIVERED" && <Button variant="ghost" className="!text-danger" onClick={() => confirm("این سفارش مرجوع شود؟ موجودی برمی‌گردد و پورسانت لغو می‌شود.") && move(o.id, "RETURNED")}>مرجوعی</Button>}
+                  {(o.status === "PAID" || o.status === "SHIPPED") && <Button variant="ghost" className="!text-danger" onClick={() => confirm("سفارش لغو شود؟") && move(o.id, "CANCELED")}>لغو</Button>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
-      {!rows.length && <p className="py-10 text-center text-sm text-ink3">سفارشی با این فیلتر وجود ندارد.</p>}
     </>
   );
 }
+
+export default function AdminOrders() { return <AdminGate><Board /></AdminGate>; }

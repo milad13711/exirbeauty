@@ -25,7 +25,6 @@ async function payFor(orderRes: { body: { data: { orderId: string; paymentUrl: s
   const r = await call(null, "GET", `/payments/zarinpal/callback?Authority=${await authorityOf(orderRes.body.data.paymentUrl)}&Status=${status}`);
   return r;
 }
-const deliver = async (orderId: string) => { await call(ADMIN, "POST", `/admin/store/orders/${orderId}/status`, { status: "SHIPPED" }); await call(ADMIN, "POST", `/admin/store/orders/${orderId}/status`, { status: "DELIVERED" }); };
 const wallet = async (w: Who) => (await call(w, "GET", "/shop/wallet")).body.data.balance as number;
 
 beforeAll(async () => {
@@ -65,7 +64,9 @@ describe("catalog", () => {
     expect((await call(null, "GET", `/public/store/products/${P.hidden}`)).status).toBe(404);
     expect((await call(A, "POST", "/admin/store/products", { name: "تقلب", category: "مو", price: 1 })).status).toBe(403);
     expect((await call(ADMIN, "PATCH", `/admin/store/products/${P.shampoo}`, { price: 650_000 })).body.data).toMatchObject({ commissionPct: 12, stock: 5 });
-    expect((await call(null, "GET", "/public/store/products?category=پوست")).body.data).toHaveLength(1);
+    const skin = (await call(null, "GET", "/public/store/products?category=پوست")).body.data as { category: string; name: string }[];
+    expect(skin.every((p) => p.category === "پوست")).toBe(true);
+    expect(skin.some((p) => p.name === "سرم ویتامین C")).toBe(true);
   });
 });
 
