@@ -4,8 +4,8 @@ import { badRequest, forbidden } from "../../http/errors";
 import { clientIp, rateLimit } from "../../http/ratelimit";
 import { parse } from "../../http/validate";
 import { audit } from "../../platform/audit";
-import { startStoreOrderPayment } from "../../platform/payments/service";
-import { adminOrdersQuery, catalogQuery, orderBody, productBody, productPatch, recommendQuery, statusBody, walletPlanBody } from "./schemas";
+import { expireWalletPayments, startPlanWithWallet, startStoreOrderPayment } from "../../platform/payments/service";
+import { adminOrdersQuery, catalogQuery, orderBody, productBody, productPatch, recommendQuery, statusBody, trackBody, walletPlanBody } from "./schemas";
 import * as svc from "./service";
 
 const OWNER_UP = { roles: ["OWNER", "ADMIN", "SUPER_ADMIN"] } as const;
@@ -23,6 +23,7 @@ export const shopRoutes: Route[] = [
   // The public storefront: no login, throttled; salons are credited through `ref` (their slug).
   { method: "GET", path: "/public/store/products", auth: "public", module: false, handler: async (c) => svc.catalog(parse(catalogQuery, Object.fromEntries(c.query))) },
   { method: "GET", path: "/public/store/products/:id", auth: "public", module: false, handler: async (c) => svc.product(c.params.id) },
+  { method: "POST", path: "/public/store/track", auth: "public", module: false, handler: async (c) => { rateLimit(`track:${clientIp(c.req)}`, 20, 10 * 60_000); const b = parse(trackBody, await c.body()); return svc.track(b.number, b.phone); } },
   { method: "GET", path: "/public/store/ref/:slug", auth: "public", module: false, handler: async (c) => svc.referrer(c.params.slug) },
   { method: "POST", path: "/public/store/orders", auth: "public", module: false, handler: async (c) => {
       rateLimit(`store:${clientIp(c.req)}`, 10, 10 * 60_000);
@@ -36,7 +37,8 @@ export const shopRoutes: Route[] = [
   { method: "GET", path: "/shop/wallet", auth: OWNER_UP, handler: async (c) => svc.wallet(tid(c.tenantId)) },
   { method: "POST", path: "/shop/wallet/pay-plan", auth: OWNER_UP, handler: async (c) => {
       const b = parse(walletPlanBody, await c.body());
-      const r = await svc.payPlanFromWallet(tid(c.tenantId), b.planCode, b.months);
+      // partial: use whatever the wallet holds and pay the rest online (the wallet part is refunded if that payment fails)
+      const r = b.partial ? await startPlanWithWallet(tid(c.tenantId), c.session!.userId, b.planCode, b.months) : { ...(await svc.payPlanFromWallet(tid(c.tenantId), b.planCode, b.months)), paid: true as const };
       await audit(c.session, "shop.wallet.plan", "Tenant", c.tenantId!, b);
       return r;
     } },
@@ -48,8 +50,8 @@ export const shopRoutes: Route[] = [
   { method: "POST", path: "/admin/store/products", auth: ADMIN, module: false, handler: async (c) => { const r = await svc.adminCreateProduct(parse(productBody, await c.body())); await audit(c.session, "store.product.create", "StoreProduct", r.id); return r; } },
   { method: "PATCH", path: "/admin/store/products/:id", auth: ADMIN, module: false, handler: async (c) => { const r = await svc.adminUpdateProduct(c.params.id, parse(productPatch, await c.body())); await audit(c.session, "store.product.update", "StoreProduct", r.id); return r; } },
   { method: "GET", path: "/admin/store/orders", auth: ADMIN, module: false, handler: async (c) => svc.adminOrders(parse(adminOrdersQuery, Object.fromEntries(c.query)).status) },
-  { method: "POST", path: "/admin/store/orders/:id/status", auth: ADMIN, module: false, handler: async (c) => { const b = parse(statusBody, await c.body()); await svc.setStatus(c.params.id, b.status); await audit(c.session, "store.order.status", "StoreOrder", c.params.id, b); return { ok: true }; } },
+  { method: "POST", path: "/admin/store/orders/:id/status", auth: ADMIN, module: false, handler: async (c) => { const b = parse(statusBody, await c.body()); await svc.setStatus(c.params.id, b.status, b.trackingCode); await audit(c.session, "store.order.status", "StoreOrder", c.params.id, b); return { ok: true }; } },
 
   // Scheduler: release commissions past the return window, free stock held by abandoned checkouts.
-  { method: "POST", path: "/shop/cron/run", auth: "public", module: false, handler: async (c) => { cronAuth(c.req); return { credited: await svc.releaseCommissions(), expired: await svc.expireStale() }; } },
+  { method: "POST", path: "/shop/cron/run", auth: "public", module: false, handler: async (c) => { cronAuth(c.req); return { credited: await svc.releaseCommissions(), expired: await svc.expireStale(), refunded: await expireWalletPayments() }; } },
 ];

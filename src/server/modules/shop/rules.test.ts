@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMove, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, releasableAt } from "./rules";
+import { shippingFor, canMove, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, releasableAt } from "./rules";
 
 describe("store rules", () => {
   it("totals and per-line rounded commission", () => {
@@ -27,5 +27,8 @@ describe("store rules", () => {
   });
   it("recommends by service category", () => {
     expect(recommendCategories("مو")).toContain("مو"); expect(recommendCategories(null)).toEqual(["مو", "پوست"]);
+  });
+  it("charges flat shipping, free above the threshold", () => {
+    expect(shippingFor(500_000)).toBe(60_000); expect(shippingFor(2_000_000)).toBe(60_000); expect(shippingFor(2_000_001)).toBe(0); expect(shippingFor(0)).toBe(0);
   });
 });

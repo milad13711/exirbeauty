@@ -2,7 +2,7 @@ import { prisma } from "../../db";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
 import { provisionFromListing } from "../../modules/finder/provision";
 import { createEnrollment, quoteCourse } from "../../modules/academy/service";
-import { markPaid, orderForPayment, releaseOrder } from "../../modules/shop/service";
+import { creditBack, debitUpTo, markPaid, orderForPayment, releaseOrder } from "../../modules/shop/service";
 import { applyTopup, quoteTopup } from "../../modules/sms/service";
 import { assertModuleActive, changePlan, getTenantEntitlements, purchaseAddon } from "../modules/service";
 import { zarinpal } from "./zarinpal";
@@ -25,12 +25,12 @@ async function quote(tenantId: string, i: PayInput) {
   return { amount: m.price * i.months, description: `خرید ماژول ${m.name} — ${i.months} ماه`, moduleId: m.id };
 }
 
-type Begin = { tenantId: string | null; listingId?: string; userId?: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN" | "SMS_TOPUP" | "COURSE" | "STORE_ORDER"; planCode?: string | null; moduleId?: string | null; packageId?: string | null; months: number; amount: number; description: string };
+type Begin = { walletUsed?: number; tenantId: string | null; listingId?: string; userId?: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN" | "SMS_TOPUP" | "COURSE" | "STORE_ORDER"; planCode?: string | null; moduleId?: string | null; packageId?: string | null; months: number; amount: number; description: string };
 
 /** Records the payment, asks the gateway for an authority, and returns the URL the customer pays at. */
 async function begin(d: Begin) {
   const payment = await prisma.payment.create({
-    data: { tenantId: d.tenantId, listingId: d.listingId ?? null, userId: d.userId ?? null, kind: d.kind, planCode: d.planCode ?? null, moduleId: d.moduleId ?? null, packageId: d.packageId ?? null, months: d.months, amount: d.amount, description: d.description },
+    data: { tenantId: d.tenantId, listingId: d.listingId ?? null, userId: d.userId ?? null, kind: d.kind, planCode: d.planCode ?? null, moduleId: d.moduleId ?? null, packageId: d.packageId ?? null, walletUsed: d.walletUsed ?? 0, months: d.months, amount: d.amount, description: d.description },
   });
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   try {
@@ -54,6 +54,34 @@ export async function startSmsTopup(tenantId: string, userId: string | null, pac
   await assertModuleActive(tenantId, "sms");
   const pkg = await quoteTopup(packageId);
   return begin({ tenantId, userId, kind: "SMS_TOPUP", packageId: pkg.id, months: 1, amount: pkg.price, description: `شارژ پیامک — بسته ${pkg.name}` });
+}
+
+/**
+ * Renews a plan using whatever the salon wallet holds, then asks for the rest online. The wallet part is debited now and
+ * given back if the online payment fails, is canceled, or is never completed (see expireWalletPayments).
+ */
+export async function startPlanWithWallet(tenantId: string, userId: string | null, planCode: string, months: number) {
+  const plan = await prisma.plan.findUnique({ where: { code: planCode } });
+  if (!plan || !plan.active) throw notFound("پلن پیدا نشد");
+  if (plan.priceMonthly <= 0) throw badRequest("این پلن رایگان است و پرداخت ندارد");
+  const total = plan.priceMonthly * months;
+  const used = await prisma.$transaction((tx) => debitUpTo(tx, tenantId, total, `اشتراک ${plan.title} — ${months} ماه (بخشی از مبلغ)`));
+  if (used >= total) { await changePlan(tenantId, planCode, months); return { paid: true as const, walletUsed: used }; }
+  try {
+    const pay = await begin({ tenantId, userId, kind: "PLAN", planCode, months, amount: total - used, description: `اشتراک پلن ${plan.title} — ${months} ماه`, walletUsed: used });
+    return { paid: false as const, walletUsed: used, ...pay };
+  } catch (e) { await creditBack(tenantId, used, "بازگشت مبلغ (درگاه در دسترس نبود)"); throw e; }
+}
+
+/** Wallet money held against payments that were abandoned for over a day goes back to the salon. */
+export async function expireWalletPayments(now = new Date()) {
+  const stale = await prisma.payment.findMany({ where: { status: "PENDING", walletUsed: { gt: 0 }, createdAt: { lt: new Date(now.getTime() - 24 * 3_600_000) } }, take: 100 });
+  let n = 0;
+  for (const p of stale) {
+    const claimed = await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "FAILED", failReason: "EXPIRED" } });
+    if (claimed.count === 1 && p.tenantId) { await creditBack(p.tenantId, p.walletUsed, "بازگشت مبلغ (پرداخت آنلاین تکمیل نشد)"); n++; }
+  }
+  return n;
 }
 
 /** A shopper pays for a store order (public; the amount is the order's own total). */
@@ -90,8 +118,9 @@ export async function handleCallback(authority: string, status: string): Promise
   if (p.status !== "PENDING") return { paymentId: p.id, result: p.status === "CANCELED" ? "canceled" : "failed" };
 
   if (status !== "OK") {
-    await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "CANCELED" } });
+    const c = await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "CANCELED" } });
     if (p.kind === "STORE_ORDER" && p.packageId) await releaseOrder(p.packageId);
+    if (c.count === 1 && p.walletUsed > 0 && p.tenantId) await creditBack(p.tenantId, p.walletUsed, "بازگشت مبلغ (پرداخت آنلاین لغو شد)");
     return { paymentId: p.id, result: "canceled" };
   }
 
@@ -104,8 +133,9 @@ export async function handleCallback(authority: string, status: string): Promise
     return { paymentId: p.id, result: "failed" };
   }
   if (v.code !== 100 && v.code !== 101) {
-    await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "FAILED", failReason: `VERIFY_${v.code}` } });
+    const f = await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "FAILED", failReason: `VERIFY_${v.code}` } });
     if (p.kind === "STORE_ORDER" && p.packageId) await releaseOrder(p.packageId);
+    if (f.count === 1 && p.walletUsed > 0 && p.tenantId) await creditBack(p.tenantId, p.walletUsed, "بازگشت مبلغ (پرداخت آنلاین ناموفق بود)");
     return { paymentId: p.id, result: "failed" };
   }
 

@@ -19,7 +19,8 @@ const productFields = {
 };
 export const productBody = z.object({ ...productFields, brand: productFields.brand.default(""), oldPrice: productFields.oldPrice.default(null), commissionPct: productFields.commissionPct.default(10), stock: productFields.stock.default(0), description: productFields.description.default(""), active: productFields.active.default(true) });
 export const productPatch = z.object(productFields).partial();
-export const statusBody = z.object({ status: z.enum(["SHIPPED", "DELIVERED", "RETURNED", "CANCELED"]) });
+export const statusBody = z.object({ status: z.enum(["SHIPPED", "DELIVERED", "RETURNED", "CANCELED"]), trackingCode: text(40).optional() });
+export const trackBody = z.object({ number: z.number().int().min(1).max(100_000_000), phone });
 export const adminOrdersQuery = z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "SHIPPED", "DELIVERED", "RETURNED", "CANCELED"]).optional() });
-export const walletPlanBody = z.object({ planCode: z.string().min(1).max(40), months: z.number().int().min(1).max(12).default(1) });
+export const walletPlanBody = z.object({ planCode: z.string().min(1).max(40), months: z.number().int().min(1).max(12).default(1), partial: z.boolean().default(false) });
 export const recommendQuery = z.object({ customerId: z.string().min(1).max(40) });

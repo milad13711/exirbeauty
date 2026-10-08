@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { badRequest, conflict, notFound } from "../../http/errors";
 import { assertModuleActive, changePlan } from "../../platform/modules/service";
-import { PENDING_TTL_MS, canMove, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, type Status } from "./rules";
+import { PENDING_TTL_MS, canMove, shippingFor, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, type Status } from "./rules";
 
 // The store is the platform's own: products and orders are global. A salon sees only the orders that came through its link.
 
@@ -67,10 +67,11 @@ export async function createOrder(b: { items: { productId: string; qty: number }
     }
   }
   const commission = refTenantId ? commissionOf(lines) : 0;
+  const goodsTotal = orderTotal(lines), shippingCost = shippingFor(goodsTotal);
   return prisma.$transaction(async (tx) => {
     await reserve(tx, items);
     return tx.storeOrder.create({
-      data: { customerName: b.customerName, phone: b.phone, city: b.city, address: b.address, postalCode: b.postalCode, total: orderTotal(lines), refTenantId, refVia, commission, commissionStatus: refTenantId && commission > 0 ? "WAITING" : "NONE",
+      data: { customerName: b.customerName, phone: b.phone, city: b.city, address: b.address, postalCode: b.postalCode, goodsTotal, shippingCost, total: goodsTotal + shippingCost, refTenantId, refVia, commission, commissionStatus: refTenantId && commission > 0 ? "WAITING" : "NONE",
         lines: { create: lines.map(({ commissionPct, ...l }) => { void commissionPct; return l; }) } },
       include: { lines: true },
     });
@@ -109,16 +110,16 @@ export async function releaseOrder(orderId: string) {
 export async function adminOrders(status?: Status) {
   const rows = await prisma.storeOrder.findMany({ where: status ? { status } : {}, orderBy: { createdAt: "desc" }, take: 200, include: { lines: true } });
   const salons = new Map((await prisma.tenant.findMany({ where: { id: { in: rows.map((r) => r.refTenantId).filter((x): x is string => !!x) } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]));
-  return rows.map((o) => ({ id: o.id, number: o.number, customerName: o.customerName, phone: o.phone, city: o.city, address: o.address, total: o.total, status: o.status, commission: o.commission, commissionStatus: o.commissionStatus, salon: o.refTenantId ? salons.get(o.refTenantId) ?? null : null, createdAt: o.createdAt, lines: o.lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })) }));
+  return rows.map((o) => ({ id: o.id, number: o.number, customerName: o.customerName, phone: o.phone, city: o.city, address: o.address, total: o.total, shippingCost: o.shippingCost, trackingCode: o.trackingCode, status: o.status, commission: o.commission, commissionStatus: o.commissionStatus, salon: o.refTenantId ? salons.get(o.refTenantId) ?? null : null, createdAt: o.createdAt, lines: o.lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })) }));
 }
 
-export async function setStatus(orderId: string, to: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED") {
+export async function setStatus(orderId: string, to: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED", trackingCode?: string) {
   const o = await prisma.storeOrder.findUnique({ where: { id: orderId } });
   if (!o) throw notFound("سفارش پیدا نشد");
   if (!canMove(o.status, to)) throw conflict("این تغییر وضعیت مجاز نیست", "BAD_TRANSITION", { from: o.status, to });
   await prisma.$transaction(async (tx) => {
     // Claim the transition so two admins can't both apply it (and double-restock).
-    const claimed = await tx.storeOrder.updateMany({ where: { id: orderId, status: o.status }, data: { status: to, ...(to === "DELIVERED" ? { deliveredAt: new Date() } : {}) } });
+    const claimed = await tx.storeOrder.updateMany({ where: { id: orderId, status: o.status }, data: { status: to, ...(to === "DELIVERED" ? { deliveredAt: new Date() } : {}), ...(to === "SHIPPED" && trackingCode ? { trackingCode } : {}) } });
     if (claimed.count !== 1) throw conflict("وضعیت سفارش همین الان تغییر کرد", "STALE");
     if (to === "CANCELED" || to === "RETURNED") {
       await restock(tx, await tx.storeOrderLine.findMany({ where: { orderId }, select: { productId: true, qty: true } }));
@@ -126,6 +127,13 @@ export async function setStatus(orderId: string, to: "SHIPPED" | "DELIVERED" | "
       if (o.commissionStatus === "CREDITED" && o.refTenantId) await clawBack(tx, o.refTenantId, o.commission, orderId);
     }
   });
+}
+
+/** What a shopper may see about their own order (found by number + the phone it was placed with); no address or salon details. */
+export async function track(number: number, phone: string) {
+  const o = await prisma.storeOrder.findFirst({ where: { number, phone }, include: { lines: true } });
+  if (!o) throw notFound("سفارشی با این مشخصات پیدا نشد");
+  return { number: o.number, status: o.status, total: o.total, shippingCost: o.shippingCost, trackingCode: o.trackingCode, createdAt: o.createdAt, items: o.lines.map((l) => ({ name: l.name, qty: l.qty })) };
 }
 
 // ───────── commission & the salon wallet ─────────
@@ -166,6 +174,22 @@ export async function expireStale(now = new Date()) {
   const stale = await prisma.storeOrder.findMany({ where: { status: "PENDING_PAYMENT", createdAt: { lt: new Date(now.getTime() - PENDING_TTL_MS) } }, select: { id: true }, take: 200 });
   for (const s of stale) await releaseOrder(s.id);
   return stale.length;
+}
+
+/** Takes up to `amount` from the wallet (whatever is there), atomically; returns what was actually taken. */
+export async function debitUpTo(tx: Prisma.TransactionClient, tenantId: string, amount: number, note: string) {
+  const rows = await tx.$queryRaw<{ before: number; balance: number }[]>`
+    UPDATE "TenantWallet" w SET "balance" = w."balance" - LEAST(w."balance", ${amount}), "updatedAt" = now()
+    FROM (SELECT "balance" AS before FROM "TenantWallet" WHERE "tenantId" = ${tenantId} FOR UPDATE) o
+    WHERE w."tenantId" = ${tenantId} RETURNING o.before AS "before", w."balance" AS "balance"`;
+  if (!rows.length) return 0;
+  const taken = rows[0].before - rows[0].balance;
+  if (taken > 0) await tx.tenantWalletTx.create({ data: { tenantId, kind: "PLAN_PAYMENT", delta: -taken, balanceAfter: rows[0].balance, note } });
+  return taken;
+}
+/** Gives wallet money back (a payment it was set against failed). */
+export async function creditBack(tenantId: string, amount: number, note: string) {
+  if (amount > 0) await prisma.$transaction((tx) => credit(tx, tenantId, amount, "ADJUST", null, note));
 }
 
 export async function wallet(tenantId: string) {

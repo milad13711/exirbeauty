@@ -108,10 +108,11 @@ model PlanModule {
 // ───────── Tenants & access ─────────
 
 model Tenant {
-  id        String       @id @default(cuid())
-  name      String
-  slug      String       @unique
-  city      String       @default("")
+  id         String       @id @default(cuid())
+  name       String
+  slug       String       @unique
+  city       String       @default("")
+  brandColor String? // hex like #b5476b; null = the default palette
   status    TenantStatus @default(ACTIVE)
   createdAt DateTime     @default(now())
 
@@ -288,6 +289,7 @@ model Payment {
   planCode    String?
   moduleId    String?
   packageId   String? // SmsPackage id for SMS_TOPUP
+  walletUsed  Int           @default(0) // salon wallet money already debited toward this payment (refunded if it fails)
   months      Int           @default(1)
   amount      Int // toman, computed server-side from the plan / module price
   description String
@@ -1195,6 +1197,9 @@ model StoreOrder {
   city             String
   address          String
   postalCode       String           @default("")
+  goodsTotal       Int              @default(0)
+  shippingCost     Int              @default(0)
+  trackingCode     String?
   total            Int
   status           StoreOrderStatus @default(PENDING_PAYMENT)
   refTenantId      String? // the salon whose link the order came through

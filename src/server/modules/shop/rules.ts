@@ -24,3 +24,8 @@ const REC: Record<string, string[]> = { "مو": ["مو", "ست هدیه"], "پو
 export const recommendCategories = (serviceCategory: string | null) => (serviceCategory && REC[serviceCategory]) || ["مو", "پوست"];
 
 export const PENDING_TTL_MS = 30 * 60_000;
+
+export const FREE_SHIPPING_OVER = 2_000_000;
+export const FLAT_SHIPPING = 60_000;
+/** Flat shipping, free above a threshold. Commission is earned on the goods only, never on shipping. */
+export const shippingFor = (goods: number) => (goods <= 0 || goods > FREE_SHIPPING_OVER ? 0 : FLAT_SHIPPING);

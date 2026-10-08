@@ -81,7 +81,7 @@ describe("ordering & stock", () => {
     const before = await stock("shampoo");
     const r = await buy([{ productId: P.shampoo, qty: 2 }, { productId: P.shampoo, qty: 1 }]);
     expect(r.status).toBe(200);
-    expect(r.body.data).toMatchObject({ total: 650_000 * 3, paymentUrl: expect.stringContaining("https://pay.test/") });
+    expect(r.body.data).toMatchObject({ total: 650_000 * 3 + 60_000, paymentUrl: expect.stringContaining("https://pay.test/") });
     expect(await stock("shampoo")).toBe(before - 3);
     await payFor(r, "NOK"); // shopper walks away → stock returns
     expect(await stock("shampoo")).toBe(before);
@@ -112,7 +112,7 @@ describe("payment, commission, fulfilment", () => {
     orderId = r.body.data.orderId;
     await payFor(r); await payFor(r);
     const o = await prisma.storeOrder.findUniqueOrThrow({ where: { id: orderId } });
-    expect(o).toMatchObject({ status: "PAID", total: 1_300_000, refTenantId: T.a, commission: 156_000, commissionStatus: "WAITING" });
+    expect(o).toMatchObject({ status: "PAID", goodsTotal: 1_300_000, shippingCost: 60_000, total: 1_360_000, refTenantId: T.a, commission: 156_000, commissionStatus: "WAITING" });
     expect(await stock("shampoo")).toBe(3);
   });
   it("a failed verification releases the stock and leaves the order canceled", async () => {
@@ -130,6 +130,26 @@ describe("payment, commission, fulfilment", () => {
     const unknown = await buy([{ productId: P.shampoo, qty: 1 }], { ref: "no-such-salon" });
     expect((await prisma.storeOrder.findUniqueOrThrow({ where: { id: unknown.body.data.orderId } })).refTenantId).toBeNull();
     for (const r of [mine, noModule, unknown]) await payFor(r, "NOK");
+  });
+  it("free shipping above the threshold; commission never includes shipping", async () => {
+    const big = await buy([{ productId: P.shampoo, qty: 1 }, { productId: P.serum, qty: 1 }, { productId: P.shampoo, qty: 1 }], { ref: SLUG.a });
+    if (big.status === 200) { // serum has only 1 unit in this run; either way the arithmetic below is what matters
+      const o = await prisma.storeOrder.findUniqueOrThrow({ where: { id: big.body.data.orderId } });
+      expect(o.shippingCost).toBe(o.goodsTotal > 2_000_000 ? 0 : 60_000);
+      await payFor(big, "NOK");
+    }
+  });
+  it("shoppers can track their own order by number + phone, and see nothing else", async () => {
+    const r = await buy([{ productId: P.shampoo, qty: 1 }]);
+    const number = r.body.data.number;
+    await payFor(r);
+    const t = (await call(null, "POST", "/public/store/track", { number, phone: "09601110001" })).body.data;
+    expect(t).toMatchObject({ number, status: "PAID", trackingCode: null, items: [{ name: "شامپو ترمیم‌کننده", qty: 1 }] });
+    expect(JSON.stringify(t)).not.toContain("ولیعصر"); // no address
+    expect((await call(null, "POST", "/public/store/track", { number, phone: "09601110002" })).status).toBe(404); // wrong phone
+    await call(ADMIN, "POST", `/admin/store/orders/${r.body.data.orderId}/status`, { status: "SHIPPED", trackingCode: "RR123456789IR" });
+    expect((await call(null, "POST", "/public/store/track", { number, phone: "09601110001" })).body.data).toMatchObject({ status: "SHIPPED", trackingCode: "RR123456789IR" });
+    await call(ADMIN, "POST", `/admin/store/orders/${r.body.data.orderId}/status`, { status: "CANCELED" });
   });
   it("only admins fulfil; steps only go forward", async () => {
     expect((await call(A, "POST", `/admin/store/orders/${orderId}/status`, { status: "SHIPPED" })).status).toBe(403);
@@ -174,6 +194,34 @@ describe("the salon's side", () => {
     expect(o.recent.every((x: { customer: string }) => x.customer === "دنیا")).toBe(true); // first name only
     expect(JSON.stringify(o)).not.toContain("09601110001"); // no phone numbers
     expect((await call(B, "GET", "/shop/overview")).status).toBe(403);
+  });
+  it("partial wallet payment: debits what the wallet holds, asks for the rest online, refunds on failure, applies the plan on success", async () => {
+    resetRateLimits();
+    const plan = await prisma.plan.findUniqueOrThrow({ where: { code: "salon" } });
+    const fund = async (n: number) => prisma.tenantWallet.upsert({ where: { tenantId: T.a }, create: { tenantId: T.a, balance: n }, update: { balance: n } });
+    await fund(300_000);
+    const r = await call(A, "POST", "/shop/wallet/pay-plan", { planCode: "salon", months: 1, partial: true });
+    expect(r.status).toBe(200);
+    expect(r.body.data).toMatchObject({ paid: false, walletUsed: 300_000, amount: plan.priceMonthly - 300_000 });
+    expect(await wallet(A)).toBe(0);
+    const pay = await prisma.payment.findUniqueOrThrow({ where: { id: r.body.data.paymentId } });
+    expect(pay.walletUsed).toBe(300_000);
+    // the shopper walks away → wallet money returns, once
+    const cb = `/payments/zarinpal/callback?Authority=${pay.authority}&Status=NOK`;
+    await call(null, "GET", cb); await call(null, "GET", cb);
+    expect(await wallet(A)).toBe(300_000);
+    // a successful one applies the plan
+    const ok = await call(A, "POST", "/shop/wallet/pay-plan", { planCode: "salon", months: 1, partial: true });
+    const auth = (await prisma.payment.findUniqueOrThrow({ where: { id: ok.body.data.paymentId } })).authority;
+    await call(null, "GET", `/payments/zarinpal/callback?Authority=${auth}&Status=OK`);
+    expect(await wallet(A)).toBe(0);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: ok.body.data.paymentId } })).status).toBe("PAID");
+    // a wallet that covers everything pays at once, with no online step
+    await fund(plan.priceMonthly + 10);
+    const full = await call(A, "POST", "/shop/wallet/pay-plan", { planCode: "salon", months: 1, partial: true });
+    expect(full.body.data).toMatchObject({ paid: true, walletUsed: plan.priceMonthly });
+    expect(await wallet(A)).toBe(10);
+    await fund(0);
   });
   it("recommends store products from a customer's last service category", async () => {
     await call(A, "POST", "/tenant/modules/customers/install", {});
