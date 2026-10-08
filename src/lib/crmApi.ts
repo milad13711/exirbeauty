@@ -110,6 +110,7 @@ export type AdminCourse = { id: string; title: string; description: string; audi
 export type PostKind = "BEFORE_AFTER" | "SERVICE" | "OFFER" | "BIRTHDAY" | "TIPS";
 export type ContentPostRow = { id: string; kind: PostKind; caption: string; tags: string[]; service: string | null; status: "DRAFT" | "SCHEDULED" | "PUBLISHED"; scheduledFor: string | null; publishedAt: string | null; createdAt: string };
 export type ContentContext = { salon: string; services: { id: string; name: string; price: number }[]; birthdaysThisMonth: number; month: number };
+export type AiAnswer = { topic: string; text: string; bullets?: string[]; actions?: { label: string; href: string }[] };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -187,6 +188,10 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // assistant
+  aiSuggestions: () => api<string[]>("GET", "/ai/suggestions"),
+  aiAsk: (question: string) => api<AiAnswer>("POST", "/ai/ask", { question }),
 
   // content
   contentContext: () => api<ContentContext>("GET", "/content/context"),
