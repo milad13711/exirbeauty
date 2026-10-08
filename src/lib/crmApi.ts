@@ -100,6 +100,9 @@ export type GiftOverview = { issued: number; sold: number; outstanding: number }
 export type MarketOverview = { listing: { id: string; name: string; city: string; status: "PENDING" | "PUBLISHED" | "REJECTED"; bio: string; cats: string[] } | null; staff: { active: number; listed: number }; rating: { avg: number; count: number }; leads: number };
 export type MarketLead = { id: string; name: string; phone: string; note: string; createdAt: string; customerId: string | null };
 export type MarketReview = { id: string; name: string; rating: number; text: string; createdAt: string };
+export type NetworkCategory = { id: string; description: string };
+export type NetworkRequestRow = { id: string; category: string; note: string; status: "SUBMITTED" | "REVIEWING" | "ANSWERED"; response: string | null; createdAt: string; updatedAt: string };
+export type AdminNetworkRow = NetworkRequestRow & { tenantId: string; salon: string; city: string };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -177,6 +180,13 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // network
+  networkCategories: () => api<NetworkCategory[]>("GET", "/network/categories"),
+  networkRequests: () => api<NetworkRequestRow[]>("GET", "/network/requests"),
+  requestNetwork: (category: string, note: string) => api<NetworkRequestRow>("POST", "/network/requests", { category, note }),
+  adminNetwork: (status?: string) => api<AdminNetworkRow[]>("GET", `/admin/network/requests${qs({ status })}`),
+  adminNetworkUpdate: (id: string, b: { status: "REVIEWING" | "ANSWERED"; response?: string }) => api<NetworkRequestRow>("PATCH", `/admin/network/requests/${id}`, b),
 
   // marketplace (finder presence)
   marketOverview: () => api<MarketOverview>("GET", "/marketplace/overview"),

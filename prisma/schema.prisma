@@ -1050,3 +1050,25 @@ model GiftCardTx {
 
   @@index([cardId])
 }
+
+// ───────── Module: network (salons request services from the platform's partner network; the platform team follows up) ─────────
+
+enum NetworkStatus {
+  SUBMITTED
+  REVIEWING
+  ANSWERED
+}
+
+model NetworkRequest {
+  id        String        @id @default(cuid())
+  tenantId  String
+  category  String
+  note      String        @default("")
+  status    NetworkStatus @default(SUBMITTED)
+  response  String? // what the platform team told the salon
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+}

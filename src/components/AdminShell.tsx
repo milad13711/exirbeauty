@@ -7,13 +7,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { actions, useDB } from "@/lib/db";
 import { ThemeToggle } from "./ThemeToggle";
-import { BadgePercent, Bell, Blocks, MessageSquareText, Building2, Boxes, FileText, LifeBuoy, MapPin, ShieldCheck, LogOut, Coins, GraduationCap, LayoutDashboard, LayoutGrid, Package, Receipt, Store, Tags, Users, X } from "lucide-react";
+import { BadgePercent, Bell, Blocks, MessageSquareText, Building2, Boxes, FileText, LifeBuoy, MapPin, Network, ShieldCheck, LogOut, Coins, GraduationCap, LayoutDashboard, LayoutGrid, Package, Receipt, Store, Tags, Users, X } from "lucide-react";
 
 const groups = [
   { title: "", items: [{ href: "/admin", label: "نمای کلی", icon: LayoutDashboard }] },
   { title: "مشتریان پلتفرم", items: [
     { href: "/admin/tenants", label: "تننت‌ها (سالن‌ها)", icon: Building2 },
     { href: "/admin/finder-listings", label: "ثبت‌نام‌های اکسیریاب", icon: MapPin },
+    { href: "/admin/network", label: "درخواست‌های شبکه خدمات", icon: Network },
     { href: "/admin/plans", label: "تعرفه پلن‌ها", icon: Tags },
     { href: "/admin/modules", label: "ماژول‌ها و دسترسی پلن‌ها", icon: Blocks },
     { href: "/admin/sms", label: "پیامک و درآمد", icon: MessageSquareText },
