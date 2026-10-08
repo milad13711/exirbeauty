@@ -2,6 +2,7 @@ import { prisma } from "../../db";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
 import { provisionFromListing } from "../../modules/finder/provision";
 import { createEnrollment, quoteCourse } from "../../modules/academy/service";
+import { markPaid, orderForPayment, releaseOrder } from "../../modules/shop/service";
 import { applyTopup, quoteTopup } from "../../modules/sms/service";
 import { assertModuleActive, changePlan, getTenantEntitlements, purchaseAddon } from "../modules/service";
 import { zarinpal } from "./zarinpal";
@@ -24,7 +25,7 @@ async function quote(tenantId: string, i: PayInput) {
   return { amount: m.price * i.months, description: `خرید ماژول ${m.name} — ${i.months} ماه`, moduleId: m.id };
 }
 
-type Begin = { tenantId: string | null; listingId?: string; userId?: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN" | "SMS_TOPUP" | "COURSE"; planCode?: string | null; moduleId?: string | null; packageId?: string | null; months: number; amount: number; description: string };
+type Begin = { tenantId: string | null; listingId?: string; userId?: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN" | "SMS_TOPUP" | "COURSE" | "STORE_ORDER"; planCode?: string | null; moduleId?: string | null; packageId?: string | null; months: number; amount: number; description: string };
 
 /** Records the payment, asks the gateway for an authority, and returns the URL the customer pays at. */
 async function begin(d: Begin) {
@@ -55,6 +56,12 @@ export async function startSmsTopup(tenantId: string, userId: string | null, pac
   return begin({ tenantId, userId, kind: "SMS_TOPUP", packageId: pkg.id, months: 1, amount: pkg.price, description: `شارژ پیامک — بسته ${pkg.name}` });
 }
 
+/** A shopper pays for a store order (public; the amount is the order's own total). */
+export async function startStoreOrderPayment(order: { id: string; number: number; total: number }) {
+  const o = await orderForPayment(order.id);
+  return begin({ tenantId: null, userId: null, kind: "STORE_ORDER", packageId: o.id, months: 1, amount: o.total, description: `سفارش فروشگاه اکسیر شماره ${o.number}` });
+}
+
 /** Buying an academy course for one person (the price comes from the course row). */
 export async function startCoursePayment(who: { userId: string; role: string; tenantId: string }, courseId: string) {
   await assertModuleActive(who.tenantId, "academy");
@@ -66,10 +73,11 @@ export async function startCoursePayment(who: { userId: string; role: string; te
 export const startListingPayment = (listing: { id: string }, plan: { code: string; title: string; priceMonthly: number }, months: number) =>
   begin({ tenantId: null, listingId: listing.id, kind: "LISTING_PLAN", planCode: plan.code, months, amount: plan.priceMonthly * months, description: `فعال‌سازی پنل ${plan.title} — ${months} ماه` });
 
-async function applyEntitlement(p: { id: string; tenantId: string | null; listingId: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN" | "SMS_TOPUP" | "COURSE"; userId: string | null; planCode: string | null; moduleId: string | null; packageId: string | null; amount: number; months: number }) {
+async function applyEntitlement(p: { id: string; tenantId: string | null; listingId: string | null; kind: "PLAN" | "ADDON" | "LISTING_PLAN" | "SMS_TOPUP" | "COURSE" | "STORE_ORDER"; userId: string | null; planCode: string | null; moduleId: string | null; packageId: string | null; amount: number; months: number }) {
   if (p.kind === "PLAN" && p.planCode && p.tenantId) await changePlan(p.tenantId, p.planCode, p.months);
   else if (p.kind === "ADDON" && p.moduleId && p.tenantId) await purchaseAddon(p.tenantId, p.moduleId, p.months);
   else if (p.kind === "SMS_TOPUP" && p.packageId && p.tenantId) await applyTopup(p.tenantId, p.packageId, p.id);
+  else if (p.kind === "STORE_ORDER" && p.packageId) await markPaid(p.packageId);
   else if (p.kind === "COURSE" && p.packageId && p.tenantId && p.userId) await createEnrollment(p.tenantId, p.userId, p.packageId, p.amount);
   else if (p.kind === "LISTING_PLAN" && p.listingId) await provisionFromListing(p.listingId, p.months);
 }
@@ -83,6 +91,7 @@ export async function handleCallback(authority: string, status: string): Promise
 
   if (status !== "OK") {
     await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "CANCELED" } });
+    if (p.kind === "STORE_ORDER" && p.packageId) await releaseOrder(p.packageId);
     return { paymentId: p.id, result: "canceled" };
   }
 
@@ -96,6 +105,7 @@ export async function handleCallback(authority: string, status: string): Promise
   }
   if (v.code !== 100 && v.code !== 101) {
     await prisma.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "FAILED", failReason: `VERIFY_${v.code}` } });
+    if (p.kind === "STORE_ORDER" && p.packageId) await releaseOrder(p.packageId);
     return { paymentId: p.id, result: "failed" };
   }
 

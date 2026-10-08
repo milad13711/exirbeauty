@@ -269,6 +269,7 @@ enum PaymentKind {
   LISTING_PLAN // a finder listing paying for its plan; the salon (tenant) is created when it succeeds
   SMS_TOPUP // buying SMS credit (packageId = SmsPackage id)
   COURSE // buying an academy course (packageId = course id)
+  STORE_ORDER // a shopper paying for an Exir store order (packageId = order id; public, no tenant)
 }
 
 enum PaymentStatus {
@@ -1142,6 +1143,102 @@ model ContentPost {
   publishedAt  DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  @@index([tenantId, createdAt])
+}
+
+// ───────── Module: shop (the platform's online store; salons earn commission on orders placed through their link) ─────────
+
+enum StoreOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELED
+}
+
+enum CommissionStatus {
+  NONE // not referred, or not eligible
+  WAITING // referred; released after the return window
+  CREDITED // paid into the salon's wallet
+  VOID // order returned or canceled
+}
+
+enum WalletTxKind {
+  COMMISSION
+  PLAN_PAYMENT
+  ADJUST
+}
+
+model StoreProduct {
+  id            String   @id @default(cuid())
+  name          String
+  brand         String   @default("")
+  category      String
+  price         Int
+  oldPrice      Int?
+  commissionPct Int      @default(10)
+  stock         Int      @default(0)
+  description   String   @default("")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  lines StoreOrderLine[]
+}
+
+model StoreOrder {
+  id               String           @id @default(cuid())
+  number           Int              @unique @default(autoincrement())
+  customerName     String
+  phone            String
+  city             String
+  address          String
+  postalCode       String           @default("")
+  total            Int
+  status           StoreOrderStatus @default(PENDING_PAYMENT)
+  refTenantId      String? // the salon whose link the order came through
+  refVia           String           @default("")
+  commission       Int              @default(0)
+  commissionStatus CommissionStatus @default(NONE)
+  deliveredAt      DateTime?
+  createdAt        DateTime         @default(now())
+
+  lines StoreOrderLine[]
+
+  @@index([refTenantId, createdAt])
+  @@index([status, createdAt])
+}
+
+model StoreOrderLine {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  name      String
+  qty       Int
+  price     Int
+
+  order   StoreOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product StoreProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+model TenantWallet {
+  tenantId  String   @id
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model TenantWalletTx {
+  id           String       @id @default(cuid())
+  tenantId     String
+  kind         WalletTxKind
+  delta        Int
+  balanceAfter Int
+  ref          String? // store order id / payment note
+  note         String       @default("")
+  createdAt    DateTime     @default(now())
 
   @@index([tenantId, createdAt])
 }
