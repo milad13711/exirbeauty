@@ -91,6 +91,9 @@ After an invoice with a service line, if the salon switched on the "review reque
 ### Referral
 Each customer has a stable invite code. A friend who books through `/s/<slug>?ref=CODE` is attached to the referrer (public booking emits `referral.code`; only brand-new customers with no prior invoice, never self, never re-pointed). On the friend's first paid invoice the referrer earns loyalty points once (unique per friend, same transaction as the points) and the cashier offers the friend a first-invoice discount. Requires the loyalty module.
 
+### Memberships
+Plans have a price, a term in 30-day months, included sessions and an optional service discount. **Selling goes through the cashier** (a real invoice — it counts as revenue, unpaid parts become debt); renewing a still-valid membership of the same plan extends the term from its expiry and adds sessions. Using a session is a single conditional UPDATE (never below zero, never after expiry — also a DB CHECK). Validity is computed from dates, so nothing has to run at midnight. Voiding the invoice cancels the membership; archiving a plan keeps what was sold. The cashier offers the membership's discount on the member's invoices.
+
 ### Finder listing → real salon
 
 A published artist/salon listing can pay for its plan (`POST /finder/listings/:id/activate`, edit-code protected, Zarinpal). When the verified payment lands, `modules/finder/provision.ts` creates — in one transaction — the salon (tenant with the plan's modules and a paid-through date), an OWNER login on the listing's phone (OTP), and bookable staff (the listed people on the salon plan, otherwise the owner). Replays are no-ops; a phone that already has an account is refused *before* charging. From then on the dashboard is the source of truth: the map shows the salon's live staff with deep links to its booking page (`/s/<slug>?staff=<id>`, salon plan only — artist plan keeps request/lead forms), and finder edits no longer touch staff.

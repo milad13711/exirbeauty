@@ -91,6 +91,9 @@ export type PublicReview = { salon: string; serviceName: string; staffName: stri
 export type ReferralConfig = { enabled: boolean; referrerPts: number; friendOff: number };
 export type ReferralState = { customerId: string; code: string; enabled: boolean; friends: number; rewardedFriends: number; pointsEarned: number; referredBy: { id: string; name: string } | null; friendOffer: number };
 export type ReferralOverview = { referred: number; converted: number; top: { customerId: string; name: string; friends: number; rewarded: number }[]; rows: { friendId: string; friend: string; referrerId: string; referrer: string; rewarded: boolean; points: number; at: string }[] };
+export type MembershipPlan = { id: string; name: string; price: number; months: number; credits: number; creditLabel: string; discountPct: number; perks: string[]; active: boolean };
+export type MembershipRow = { id: string; customerId: string; customerName?: string; planName: string; discountPct: number; startDate: string; expiryDate: string; credits: number; creditsTotal: number; creditLabel: string; status: "ACTIVE" | "EXPIRED" | "CANCELED"; saleId: string | null };
+export type MembershipOverview = { activeMembers: number; mrr: number; sessionsLeft: number; plans: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -168,6 +171,18 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // memberships
+  membershipPlans: (activeOnly = false) => api<MembershipPlan[]>("GET", `/memberships/plans${activeOnly ? "?active=1" : ""}`),
+  createMembershipPlan: (b: Omit<MembershipPlan, "id">) => api<MembershipPlan>("POST", "/memberships/plans", b),
+  updateMembershipPlan: (id: string, b: Partial<Omit<MembershipPlan, "id">>) => api<MembershipPlan>("PATCH", `/memberships/plans/${id}`, b),
+  archiveMembershipPlan: (id: string) => api<{ ok: true }>("DELETE", `/memberships/plans/${id}`),
+  memberships: (q: { status?: string; customerId?: string } = {}) => api<MembershipRow[]>("GET", `/memberships${qs(q)}`),
+  membershipOverview: () => api<MembershipOverview>("GET", "/memberships/overview"),
+  membershipOf: (customerId: string) => api<{ membership: MembershipRow | null; discountPct: number }>("GET", `/memberships/customers/${customerId}`),
+  sellMembership: (b: { customerId: string; planId: string; payments: { method: PayMethod; amount: number }[] }) => api<{ membership: MembershipRow; renewed: boolean; saleNumber: number }>("POST", "/memberships/sell", b),
+  useMembership: (id: string, note = "") => api<MembershipRow>("POST", `/memberships/${id}/use`, { note }),
+  cancelMembership: (id: string) => api<{ ok: true }>("POST", `/memberships/${id}/cancel`, {}),
 
   // referral
   referralConfig: () => api<ReferralConfig>("GET", "/referral/config"),

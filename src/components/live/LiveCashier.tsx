@@ -32,6 +32,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
   // Club wallet (loyalty module): only offered when the chosen customer has a balance; a salon without the module just gets no option.
   const club = useQuery(() => (customer ? crm.loyaltyCustomer(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
   const invite = useQuery(() => (customer ? crm.referralCustomer(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
+  const mem = useQuery(() => (customer ? crm.membershipOf(customer.id).catch(() => null) : Promise.resolve(null)), [customer?.id]);
   const walletBal = club.data?.wallet ?? 0;
   const methods: PayMethod[] = walletBal > 0 ? [...REAL, "WALLET"] : REAL;
 
@@ -109,6 +110,7 @@ function NewSale({ services, staff, fromAppt, onClose, onDone }: { services: Ser
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="تخفیف (٪)">
             <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" dir="ltr" style={{ textAlign: "right" }} className={fieldCls} />
+            {mem.data && mem.data.discountPct > 0 && pct !== mem.data.discountPct && <button type="button" onClick={() => setDiscount(String(mem.data!.discountPct))} className="mt-1 block cursor-pointer text-xs font-bold text-rose">تخفیف عضویت {mem.data.membership?.planName} ({faNum(mem.data.discountPct)}٪)</button>}
             {invite.data && invite.data.friendOffer > 0 && pct !== invite.data.friendOffer && <button type="button" onClick={() => setDiscount(String(invite.data!.friendOffer))} className="mt-1 block cursor-pointer text-xs font-bold text-rose">تخفیف معرفی دوست — {invite.data.referredBy?.name} ({faNum(invite.data.friendOffer)}٪)</button>}
             {club.data && club.data.off > 0 && pct !== club.data.off && <button type="button" onClick={() => setDiscount(String(club.data!.off))} className="mt-1 cursor-pointer text-xs font-bold text-rose">اعمال تخفیف سطح {club.data.tier} ({faNum(club.data.off)}٪)</button>}
           </Field>
