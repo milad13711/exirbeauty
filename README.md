@@ -73,7 +73,7 @@ The sidebar, the "locked module" screen and `/modules` read the signed-in salon'
 `scripts/cron.sh` calls the three scheduled endpoints (SMS reminders & birthdays, campaigns, store commissions/expiry) with `CRON_SECRET`; run it every ~10 minutes from any scheduler. Nothing runs on its own.
 
 ### Settings
-`/settings` (signed in) is live: salon name/city (`GET/PATCH /tenant`, owner-only edit), working hours and online-booking rules (the calendar's settings API), and subscription — current plan/expiry, renew or change plan through Zarinpal (`POST /tenant/payments`), recent payments. Also live: my profile (name), brand colour (applied across the app at once) and notification toggles (the SMS scenarios). Brand logo upload is not built (no file storage).
+`/settings` (signed in) is live: salon name/city (`GET/PATCH /tenant`, owner-only edit), working hours and online-booking rules (the calendar's settings API), and subscription — current plan/expiry, renew or change plan through Zarinpal (`POST /tenant/payments`), recent payments. Also live: my profile (name), brand colour (applied across the app at once) and notification toggles (the SMS scenarios). Logo upload is live (see Images).
 
 ### Dashboard (reports module)
 `GET /reports/dashboard` (owner-level) rolls up today's sales vs the same weekday last week, appointments, how full the day is (bookable minutes minus breaks vs booked), new/returning customers, a 7-day revenue series, service share + margin (30 days), top staff and the day's opportunities (inactive customers, unconfirmed appointments, unpaid debt). The home page and the top-bar SMS credit chip now read real data. Excel export and period reports are still to come.
@@ -110,7 +110,10 @@ Customers sign in at `/me/login?salon=<slug>` with an SMS code **bound to that s
 Courses are platform content managed by admins (`/admin/courses`, needs an admin session): audience (all / owners / specialists), price, plans that get it free, lessons. For salons the catalog filters by role; **lesson text is returned only to enrolled people**. Free and plan-included courses enroll at once (idempotent); paid ones go through Zarinpal (`COURSE` payment, the amount from the course row, enrollment created once by the verified callback). Progress is per person (distinct lessons), completion issues a certificate number shown only to its owner.
 
 ### Content
-A posting calendar (draft / scheduled / published) plus salon context for the caption generator. Captions and story cards are generated in the browser; publishing happens on the salon's own social accounts (the page only tracks it). Before/after photo posts are not supported (no photo storage yet).
+A posting calendar (draft / scheduled / published) plus salon context for the caption generator. Captions and story cards are generated in the browser; publishing happens on the salon's own social accounts (the page only tracks it). Before/after photo posts need consent and both photos.
+
+### Images
+Logos and before/after photos are small images (≤ 700 KB, PNG/JPEG/WebP only — never SVG, and the bytes must match the claimed type) resized in the browser and stored in the database (`Media`), served at `/api/v1/media/:id` by an unguessable id with `nosniff` and a restrictive CSP. A salon may keep up to 200; logo and photo ids must belong to the salon.
 
 ### Shop (store, commission, wallet) & assistant
 - **Storefront** (`/store`, public): the catalog and checkout run on the API. Placing an order *reserves stock* with a conditional UPDATE per product (the last unit goes to one buyer), prices come from the database, and the shopper is sent to Zarinpal; a verified callback marks it paid once, a failed/canceled/abandoned (30 min) checkout gives the stock back.
@@ -118,7 +121,7 @@ A posting calendar (draft / scheduled / published) plus salon context for the ca
 - **Recommendations**: store products suited to the category of a customer's last service.
 - **Assistant (`/ai`)**: rule-based (no language model) answers about sales, capacity, customers to win back, margins, debts, stock and top staff, computed from the salon's own data.
 - Shipping is flat (free above 2,000,000 toman) and never earns commission; the admin enters a post tracking code when shipping; shoppers track by order number + phone at `/store/track`. A plan renewal can use part of the wallet and pay the rest online — the wallet part is refunded if that payment fails, is canceled or is abandoned for a day.
-- Not built: the admin warehouse/purchase-order/referrer/referral-marketing pages (still prototype).
+- Admin: warehouse view, supplier deliveries (`/admin/purchases`, stock rises in the same transaction, all lines or none), referring-salon report. Not built: the "referral marketing" admin page (still prototype — it has no defined rules yet).
 
 ### Finder listing → real salon
 

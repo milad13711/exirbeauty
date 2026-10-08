@@ -8,6 +8,7 @@ import { audit } from "./audit";
 import { DUMMY_HASH, verifyPassword } from "./auth/password";
 import { clearedSessionCookie, sessionCookie, signSession } from "./auth/session";
 import { adminEditModule, adminListModules, changePlan, moduleVersions, getTenantEntitlements, installModule, purchaseAddon, setPlanModules, uninstallModule } from "./modules/service";
+import { deleteMedia, ownsMedia, readMedia, saveMedia } from "./media";
 import { createTenant, tenantProfile, updateTenantProfile } from "./tenants";
 import { paymentRoutes } from "./payments/routes";
 import { requestOtp, verifyOtp } from "./auth/otp";
@@ -93,7 +94,8 @@ export const platformRoutes: Route[] = [
   {
     method: "PATCH", path: "/tenant", auth: TENANT_MANAGER,
     handler: async (c) => {
-      const b = parse(z.object({ name: z.string().trim().min(2).max(80), city: z.string().trim().max(60), brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "رنگ باید به شکل #RRGGBB باشد").transform((c) => c.toLowerCase()).nullable() }).partial().refine((x) => x.name !== undefined || x.city !== undefined || x.brandColor !== undefined, "چیزی برای تغییر ارسال نشده"), await c.body());
+      const b = parse(z.object({ name: z.string().trim().min(2).max(80), city: z.string().trim().max(60), brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "رنگ باید به شکل #RRGGBB باشد").transform((c) => c.toLowerCase()).nullable(), logoMediaId: z.string().min(1).max(40).nullable() }).partial().refine((x) => x.name !== undefined || x.city !== undefined || x.brandColor !== undefined || x.logoMediaId !== undefined, "چیزی برای تغییر ارسال نشده"), await c.body());
+      if (b.logoMediaId && !(await ownsMedia(needTenant(c.tenantId), b.logoMediaId))) throw badRequest("تصویر پیدا نشد");
       const r = await updateTenantProfile(needTenant(c.tenantId), b);
       await audit(c.session, "tenant.update", "Tenant", c.tenantId!, b);
       return r;
@@ -120,6 +122,24 @@ export const platformRoutes: Route[] = [
       return { id: u.id, active };
     },
   },
+
+  // ── uploaded images (logo, before/after photos)
+  {
+    method: "POST", path: "/media", auth: { roles: ["OWNER", "STAFF", "ADMIN", "SUPER_ADMIN"] },
+    handler: async (c) => {
+      rateLimit(`media:${c.session!.userId}`, 30, 10 * 60_000);
+      return saveMedia(needTenant(c.tenantId), parse(z.object({ dataUrl: z.string().min(30).max(1_000_000) }), await c.body()).dataUrl);
+    },
+  },
+  {
+    // Public, but the id is an unguessable cuid; only raster images are ever stored, and nosniff keeps them images.
+    method: "GET", path: "/media/:id",
+    handler: async (c) => {
+      const m = await readMedia(c.params.id);
+      return new Response(new Uint8Array(m.data), { headers: { "content-type": m.mime, "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'" } });
+    },
+  },
+  { method: "DELETE", path: "/media/:id", auth: TENANT_MANAGER, handler: async (c) => { await deleteMedia(needTenant(c.tenantId), c.params.id); return { ok: true }; } },
 
   // ── tenant entitlements
   { method: "GET", path: "/tenant/modules", auth: "user", handler: async (c) => getTenantEntitlements(needTenant(c.tenantId)) },

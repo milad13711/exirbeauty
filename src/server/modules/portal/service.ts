@@ -68,11 +68,11 @@ const on = async (tenantId: string, id: string) => assertModuleActive(tenantId, 
 
 export async function me(s: Session) {
   const c = await current(s);
-  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: c.tenantId }, select: { name: true, slug: true, city: true } });
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: c.tenantId }, select: { name: true, slug: true, city: true, logoMediaId: true } });
   const ent = await getTenantEntitlements(c.tenantId);
   const active = (id: string) => ent.modules.find((m) => m.id === id)?.active ?? false;
   return {
-    id: c.id, name: c.name, phone: c.phone, birthDate: c.birthDate ? ymd(c.birthDate) : null, salon: tenant,
+    id: c.id, name: c.name, phone: c.phone, birthDate: c.birthDate ? ymd(c.birthDate) : null, salon: { name: tenant.name, slug: tenant.slug, city: tenant.city, logoUrl: tenant.logoMediaId ? `/api/v1/media/${tenant.logoMediaId}` : null },
     features: { booking: active("calendar"), loyalty: active("loyalty"), referral: active("referral"), memberships: active("memberships"), giftcards: active("giftcards") },
   };
 }

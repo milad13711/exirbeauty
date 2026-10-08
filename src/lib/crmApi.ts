@@ -73,7 +73,7 @@ export type Dashboard = {
 };
 export type ModuleEnt = { id: string; name: string; category: string; scope: string; price: number; addonPurchasable: boolean; version: string; enabled: boolean; minPlan: string | null; available: boolean; source: "plan" | "addon" | null; installed: boolean; active: boolean; blockedBy: string[] };
 export type Entitlements = { tenantId: string; plan: { code: string; title: string } | null; subscriptionActive: boolean; modules: ModuleEnt[] };
-export type TenantProfile = { id: string; name: string; slug: string; city: string; brandColor: string | null; subscription: { planCode: string; planTitle: string; priceMonthly: number; status: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELED"; startedAt: string; expiresAt: string | null } | null };
+export type TenantProfile = { id: string; name: string; slug: string; city: string; brandColor: string | null; logoUrl: string | null; logoMediaId: string | null; subscription: { planCode: string; planTitle: string; priceMonthly: number; status: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELED"; startedAt: string; expiresAt: string | null } | null };
 export type PlanInfo = { code: string; title: string; tagline: string; priceMonthly: number; limits: Record<string, number | boolean>; moduleIds: string[] };
 export type PaymentRow = { id: string; kind: string; planCode: string | null; moduleId: string | null; months: number; amount: number; status: "PENDING" | "PAID" | "FAILED" | "CANCELED"; refId: string | null; description: string; createdAt: string; paidAt: string | null };
 export type SalonUser = { id: string; name: string; phone: string | null; role: Role; active: boolean; createdAt: string; staff: { id: string; name: string } | null };
@@ -108,7 +108,7 @@ export type CourseDetail = CourseCard & { done: number[]; lessons: { title: stri
 export type Certificate = { serial: string; name: string; salon: string; course: string; hours: number; completedAt: string };
 export type AdminCourse = { id: string; title: string; description: string; audience: "ALL" | "OWNER" | "STAFF"; hours: number; price: number; inPlans: string[]; published: boolean; lessons: { title: string; minutes: number; body: string }[]; enrollments: number };
 export type PostKind = "BEFORE_AFTER" | "SERVICE" | "OFFER" | "BIRTHDAY" | "TIPS";
-export type ContentPostRow = { id: string; kind: PostKind; caption: string; tags: string[]; service: string | null; status: "DRAFT" | "SCHEDULED" | "PUBLISHED"; scheduledFor: string | null; publishedAt: string | null; createdAt: string };
+export type ContentPostRow = { id: string; kind: PostKind; caption: string; tags: string[]; service: string | null; beforeUrl: string | null; afterUrl: string | null; status: "DRAFT" | "SCHEDULED" | "PUBLISHED"; scheduledFor: string | null; publishedAt: string | null; createdAt: string };
 export type ContentContext = { salon: string; services: { id: string; name: string; price: number }[]; birthdaysThisMonth: number; month: number };
 export type AiAnswer = { topic: string; text: string; bullets?: string[]; actions?: { label: string; href: string }[] };
 export type ShopOverview = { slug: string; wallet: number; orders: number; sales: number; credited: number; pending: number; top: { name: string; qty: number; revenue: number }[]; recent: { id: string; number: number; customer: string; total: number; status: string; commission: number; commissionStatus: "NONE" | "WAITING" | "CREDITED" | "VOID"; createdAt: string; items: string[] }[] };
@@ -119,6 +119,8 @@ export type AdminStoreOrder = { id: string; number: number; customerName: string
 export type AdminModule = { id: string; name: string; category: string; version: string; price: number; addonPurchasable: boolean; enabled: boolean; core: boolean; requires: string[]; planCodes: string[]; tenantCount: number };
 export type ModuleVersionRow = { version: string; changelog: string; releasedAt: string };
 export type AdminSmsPricing = { pricing: { sell: number }; packages: { id: string; name: string; price: number; bonusPct: number; active: boolean }[] };
+export type AdminPurchase = { id: string; supplier: string; note: string; total: number; createdAt: string; lines: { productId: string; name: string; qty: number; unitCost: number }[] };
+export type AdminReferrer = { tenantId: string; name: string; city: string; slug: string; wallet: number; orders: number; sales: number; credited: number; pending: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -189,7 +191,7 @@ export const crm = {
 
   // salon profile & subscription
   tenant: () => api<TenantProfile>("GET", "/tenant"),
-  patchTenant: (b: { name?: string; city?: string; brandColor?: string | null }) => api<TenantProfile>("PATCH", "/tenant", b),
+  patchTenant: (b: { name?: string; city?: string; brandColor?: string | null; logoMediaId?: string | null }) => api<TenantProfile>("PATCH", "/tenant", b),
   patchMe: (name: string) => api<{ id: string; name: string }>("PATCH", "/auth/me", { name }),
   plans: () => api<PlanInfo[]>("GET", "/platform/plans"),
   payPlan: (planCode: string, months: number) => api<{ paymentUrl: string }>("POST", "/tenant/payments", { kind: "plan", planCode, months }),
@@ -218,6 +220,9 @@ export const crm = {
   adminStoreProducts: () => api<AdminStoreProduct[]>("GET", "/admin/store/products"),
   adminStoreCreate: (b: Omit<AdminStoreProduct, "id">) => api<{ id: string }>("POST", "/admin/store/products", b),
   adminStoreUpdate: (id: string, b: Partial<Omit<AdminStoreProduct, "id">>) => api<{ id: string }>("PATCH", `/admin/store/products/${id}`, b),
+  adminPurchases: () => api<AdminPurchase[]>("GET", "/admin/store/purchases"),
+  adminReceive: (b: { supplier: string; note?: string; lines: { productId: string; qty: number; unitCost: number }[] }) => api<{ id: string }>("POST", "/admin/store/purchases", b),
+  adminReferrers: () => api<AdminReferrer[]>("GET", "/admin/store/referrers"),
   adminStoreOrders: (status?: string) => api<AdminStoreOrder[]>("GET", `/admin/store/orders${qs({ status })}`),
   adminStoreOrderStatus: (id: string, status: "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELED", trackingCode?: string) => api<{ ok: true }>("POST", `/admin/store/orders/${id}/status`, { status, ...(trackingCode ? { trackingCode } : {}) }),
 
@@ -228,7 +233,7 @@ export const crm = {
   // content
   contentContext: () => api<ContentContext>("GET", "/content/context"),
   contentPosts: () => api<{ posts: ContentPostRow[]; due: number }>("GET", "/content/posts"),
-  createPost: (b: { kind: PostKind; caption: string; tags: string[]; service?: string | null; status: ContentPostRow["status"]; scheduledFor?: string | null }) => api<ContentPostRow>("POST", "/content/posts", b),
+  createPost: (b: { kind: PostKind; caption: string; tags: string[]; service?: string | null; beforeMediaId?: string | null; afterMediaId?: string | null; status: ContentPostRow["status"]; scheduledFor?: string | null }) => api<ContentPostRow>("POST", "/content/posts", b),
   updatePost: (id: string, b: { caption?: string; tags?: string[]; service?: string | null; status?: ContentPostRow["status"]; scheduledFor?: string | null }) => api<ContentPostRow>("PATCH", `/content/posts/${id}`, b),
   deletePost: (id: string) => api<{ ok: true }>("DELETE", `/content/posts/${id}`),
 

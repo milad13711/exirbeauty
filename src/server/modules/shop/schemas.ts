@@ -24,3 +24,8 @@ export const trackBody = z.object({ number: z.number().int().min(1).max(100_000_
 export const adminOrdersQuery = z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "SHIPPED", "DELIVERED", "RETURNED", "CANCELED"]).optional() });
 export const walletPlanBody = z.object({ planCode: z.string().min(1).max(40), months: z.number().int().min(1).max(12).default(1), partial: z.boolean().default(false) });
 export const recommendQuery = z.object({ customerId: z.string().min(1).max(40) });
+
+export const purchaseBody = z.object({
+  supplier: text(80).min(2, "نام تأمین‌کننده را وارد کنید"), note: text(200).default(""),
+  lines: z.array(z.object({ productId: z.string().min(1).max(40), qty: z.number().int().min(1).max(100_000), unitCost: z.number().int().min(0).max(1_000_000_000) })).min(1, "حداقل یک ردیف لازم است").max(50),
+});

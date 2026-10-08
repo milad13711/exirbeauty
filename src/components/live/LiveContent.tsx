@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- uploaded salon images are small and already resized */
 import { useState } from "react";
-import { Download, RefreshCw, Trash2 } from "lucide-react";
+import { Camera, Download, RefreshCw, Trash2 } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, fieldCls, type Tone } from "@/components/ui";
 import { LiveGate } from "./LiveGate";
 import { Chip, ErrorNote, Spinner } from "./ui";
@@ -8,11 +9,12 @@ import { crm, type ContentPostRow, type PostKind } from "@/lib/crmApi";
 import { errorText } from "@/lib/api";
 import { caption, tipTopics } from "@/lib/caption";
 import { renderStory } from "@/lib/story";
+import { uploadImage } from "@/lib/media";
 import { addDays, faDate, faNum, todayLocal } from "@/lib/fmt";
 import { useQuery } from "@/lib/useQuery";
 
-const KINDS: { k: Exclude<PostKind, "BEFORE_AFTER">; l: string; gen: "service" | "offer" | "birthday" | "tips" }[] = [
-  { k: "SERVICE", l: "معرفی خدمت", gen: "service" }, { k: "OFFER", l: "پیشنهاد ویژه", gen: "offer" }, { k: "BIRTHDAY", l: "تولد مشتریان", gen: "birthday" }, { k: "TIPS", l: "نکته‌ی آموزشی", gen: "tips" },
+const KINDS: { k: PostKind; l: string; gen: "before-after" | "service" | "offer" | "birthday" | "tips" }[] = [
+  { k: "BEFORE_AFTER", l: "عکس قبل/بعد", gen: "before-after" }, { k: "SERVICE", l: "معرفی خدمت", gen: "service" }, { k: "OFFER", l: "پیشنهاد ویژه", gen: "offer" }, { k: "BIRTHDAY", l: "تولد مشتریان", gen: "birthday" }, { k: "TIPS", l: "نکته‌ی آموزشی", gen: "tips" },
 ];
 const STATUS: Record<ContentPostRow["status"], { l: string; t: Tone }> = { DRAFT: { l: "پیش‌نویس", t: "neutral" }, SCHEDULED: { l: "زمان‌بندی‌شده", t: "sky" }, PUBLISHED: { l: "منتشر شد", t: "sage" } };
 const monthName = () => new Intl.DateTimeFormat("fa-IR-u-ca-persian", { month: "long" }).format(new Date());
@@ -21,6 +23,7 @@ function Board() {
   const ctx = useQuery(crm.contentContext, []);
   const posts = useQuery(crm.contentPosts, []);
   const [kind, setKind] = useState<(typeof KINDS)[number]["k"]>("SERVICE");
+  const [photos, setPhotos] = useState<{ before?: { id: string; url: string }; after?: { id: string; url: string } }>({}); const [consent, setConsent] = useState(false);
   const [svcId, setSvcId] = useState(""); const [discount, setDiscount] = useState(10); const [until, setUntil] = useState(5);
   const [topic, setTopic] = useState(Object.keys(tipTopics)[0]); const [variant, setVariant] = useState(0);
   const [text, setText] = useState<string | null>(null); const [when, setWhen] = useState(1); const [editId, setEditId] = useState<string | null>(null);
@@ -32,19 +35,27 @@ function Board() {
   const k = KINDS.find((x) => x.k === kind)!;
   const gen = caption(k.gen, { service: svc?.name, discount, until: faDate.short(addDays(todayLocal(), until)), topic: kind === "BIRTHDAY" ? monthName() : topic, salon: c.salon, price: svc ? `${faNum((svc.price / 1000).toLocaleString("en-US"))} هزار` : undefined }, variant);
   const cap = text ?? gen.text;
-  const reset = () => { setText(null); setEditId(null); setVariant(0); };
+  const reset = () => { setText(null); setEditId(null); setVariant(0); setPhotos({}); setConsent(false); };
+  const needPhotos = kind === "BEFORE_AFTER";
+  async function pick(which: "before" | "after", f?: File) {
+    if (!f) return;
+    try { const m = await uploadImage(f); setPhotos((p) => ({ ...p, [which]: m })); setMsg(null); } catch (e) { setMsg({ ok: false, t: e instanceof Error && !(e as { code?: string }).code ? e.message : errorText(e) }); }
+  }
 
   async function save(status: ContentPostRow["status"], note: string) {
-    setMsg(null); setBusy(true);
+    setMsg(null);
+    if (needPhotos && (!photos.before || !photos.after)) return setMsg({ ok: false, t: "هر دو عکس قبل و بعد را انتخاب کنید." });
+    if (needPhotos && !consent) return setMsg({ ok: false, t: "برای انتشار عکس مشتری، تأیید رضایت او لازم است." });
+    setBusy(true);
     try {
       const scheduledFor = status === "SCHEDULED" ? addDays(todayLocal(), when) : null;
-      if (editId) await crm.updatePost(editId, { caption: cap, tags: gen.tags, status, scheduledFor }); else await crm.createPost({ kind, caption: cap, tags: gen.tags, service: kind === "SERVICE" || kind === "OFFER" ? svc?.name ?? null : null, status, scheduledFor });
+      if (editId) await crm.updatePost(editId, { caption: cap, tags: gen.tags, status, scheduledFor }); else await crm.createPost({ kind, caption: cap, tags: gen.tags, service: kind === "SERVICE" || kind === "OFFER" ? svc?.name ?? null : null, ...(needPhotos ? { beforeMediaId: photos.before!.id, afterMediaId: photos.after!.id } : {}), status, scheduledFor });
       setMsg({ ok: true, t: note }); reset(); await posts.reload();
     } catch (e) { setMsg({ ok: false, t: errorText(e) }); } finally { setBusy(false); }
   }
   async function download() {
     setBusy(true); setMsg(null);
-    try { const b = await renderStory({ salon: c.salon, caption: cap.replace(/\n/g, " "), tags: gen.tags, cta: "برای رزرو نوبت، لینک پروفایل", kind: k.gen }); const url = URL.createObjectURL(b); const a = document.createElement("a"); a.href = url; a.download = "story.png"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); setMsg({ ok: true, t: "کارت استوری دانلود شد." }); }
+    try { const b = await renderStory({ salon: c.salon, caption: cap.replace(/\n/g, " "), tags: gen.tags, ...(needPhotos ? { before: photos.before?.url, after: photos.after?.url } : {}), cta: "برای رزرو نوبت، لینک پروفایل", kind: k.gen }); const url = URL.createObjectURL(b); const a = document.createElement("a"); a.href = url; a.download = "story.png"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); setMsg({ ok: true, t: "کارت استوری دانلود شد." }); }
     catch { setMsg({ ok: false, t: "ساخت تصویر ممکن نشد." }); }
     setBusy(false);
   }
@@ -59,9 +70,22 @@ function Board() {
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
         <Card className="space-y-3 p-5">
           <CardHead title={editId ? "ویرایش پست" : "پست جدید"} />
-          {(kind === "SERVICE" || kind === "OFFER") && (c.services.length ? <Field label="خدمت"><select value={svc?.id} onChange={(e) => { setSvcId(e.target.value); setText(null); }} className={fieldCls}>{c.services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field> : <p className="rounded-xl bg-ambersoft p-3 text-sm text-amber">ابتدا در «منوی خدمات» خدمتی تعریف کنید.</p>)}
+          {(kind === "SERVICE" || kind === "OFFER" || needPhotos) && (c.services.length ? <Field label="خدمت"><select value={svc?.id} onChange={(e) => { setSvcId(e.target.value); setText(null); }} className={fieldCls}>{c.services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field> : <p className="rounded-xl bg-ambersoft p-3 text-sm text-amber">ابتدا در «منوی خدمات» خدمتی تعریف کنید.</p>)}
           {kind === "OFFER" && <div className="grid grid-cols-2 gap-3"><Field label="تخفیف (٪)"><input type="number" min={1} max={60} value={discount} onChange={(e) => { setDiscount(Math.min(60, Math.max(1, +e.target.value || 1))); setText(null); }} className={fieldCls} /></Field><Field label="اعتبار تا"><select value={until} onChange={(e) => { setUntil(+e.target.value); setText(null); }} className={fieldCls}>{[2, 3, 5, 7, 14].map((d) => <option key={d} value={d}>{faDate.weekday(addDays(todayLocal(), d))} {faDate.short(addDays(todayLocal(), d))}</option>)}</select></Field></div>}
           {kind === "TIPS" && <Field label="موضوع"><select value={topic} onChange={(e) => { setTopic(e.target.value); setText(null); }} className={fieldCls}>{Object.keys(tipTopics).map((t) => <option key={t}>{t}</option>)}</select></Field>}
+          {needPhotos && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                {(["before", "after"] as const).map((w) => (
+                  <label key={w} className="grid aspect-[4/5] cursor-pointer place-items-center overflow-hidden rounded-xl border border-dashed border-line bg-surface2 text-xs text-ink3">
+                    {photos[w] ? <img src={photos[w]!.url} alt={w === "before" ? "قبل" : "بعد"} className="size-full object-cover" /> : <span className="grid place-items-center gap-1"><Camera size={20} />{w === "before" ? "عکس قبل" : "عکس بعد"}</span>}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => void pick(w, e.target.files?.[0])} />
+                  </label>
+                ))}
+              </div>
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-line p-3 text-sm"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[#b4536f]" />رضایت مشتری برای انتشار این عکس‌ها گرفته شده است (نام مشتری نمایش داده نمی‌شود).</label>
+            </div>
+          )}
           {kind === "BIRTHDAY" && <p className="rounded-xl bg-surface2 p-3 text-sm text-ink2">{faNum(c.birthdaysThisMonth)} مشتری شما در این ماه ({monthName()}) تولد دارند. متن عمومی است و نام کسی ذکر نمی‌شود.</p>}
           <Field label="کپشن"><textarea rows={5} maxLength={2200} value={cap} onChange={(e) => setText(e.target.value)} className={`${fieldCls} leading-7`} /></Field>
           <p className="text-xs text-ink3">{gen.tags.join(" ")}</p>
@@ -82,6 +106,7 @@ function Board() {
           <CardHead title="پیش‌نمایش استوری" />
           <div className="relative mx-auto flex aspect-[9/16] max-w-[240px] flex-col overflow-hidden rounded-3xl p-4" style={{ background: "linear-gradient(150deg,#f7e4ea,#f6ecd6)" }}>
             <p className="text-[11px] font-extrabold text-rosedeep">{c.salon}</p>
+            {needPhotos && <div className="mt-2 grid grid-cols-2 gap-1.5">{(["before", "after"] as const).map((w) => photos[w] ? <img key={w} src={photos[w]!.url} alt="" className="aspect-[4/5] w-full rounded-lg object-cover" /> : <span key={w} className="aspect-[4/5] rounded-lg bg-white/50" />)}</div>}
             <p className="mt-6 line-clamp-[10] whitespace-pre-line text-[11px] leading-5 text-ink">{cap}</p>
             <p className="mt-auto rounded-full bg-plum py-1.5 text-center text-[10px] font-bold text-white">برای رزرو نوبت، لینک پروفایل</p>
           </div>

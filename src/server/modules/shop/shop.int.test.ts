@@ -185,6 +185,25 @@ describe("payment, commission, fulfilment", () => {
   });
 });
 
+describe("warehouse", () => {
+  it("receives a supplier delivery atomically (all lines or none) and admins only", async () => {
+    const before = await stock("shampoo");
+    expect((await call(A, "POST", "/admin/store/purchases", { supplier: "پخش الف", lines: [{ productId: P.shampoo, qty: 5, unitCost: 100_000 }] })).status).toBe(403);
+    expect((await call(ADMIN, "POST", "/admin/store/purchases", { supplier: "پخش الف", lines: [{ productId: P.shampoo, qty: 5, unitCost: 100_000 }, { productId: "ghost", qty: 1, unitCost: 1 }] })).status).toBe(400);
+    expect(await stock("shampoo")).toBe(before); // the bad line stopped the whole delivery
+    const r = await call(ADMIN, "POST", "/admin/store/purchases", { supplier: "پخش الف", lines: [{ productId: P.shampoo, qty: 5, unitCost: 100_000 }, { productId: P.shampoo, qty: 2, unitCost: 100_000 }] });
+    expect(r.body.data.total).toBe(700_000);
+    expect(await stock("shampoo")).toBe(before + 7);
+    expect((await call(ADMIN, "GET", "/admin/store/purchases")).body.data[0].supplier).toBe("پخش الف");
+    await prisma.storePurchase.deleteMany({ where: { supplier: "پخش الف" } });
+  });
+  it("lists referring salons with their totals", async () => {
+    const r = (await call(ADMIN, "GET", "/admin/store/referrers")).body.data as { name: string; orders: number }[];
+    expect(r.find((x) => x.name === "shp-a")).toMatchObject({ orders: expect.any(Number) });
+    expect((await call(A, "GET", "/admin/store/referrers")).status).toBe(403);
+  });
+});
+
 describe("the salon's side", () => {
   it("is gated and owner-only; the dashboard shows only its own orders", async () => {
     expect((await call(FREE, "GET", "/shop/overview")).status).toBe(403);

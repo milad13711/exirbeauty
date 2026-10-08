@@ -113,6 +113,7 @@ model Tenant {
   slug       String       @unique
   city       String       @default("")
   brandColor String? // hex like #b5476b; null = the default palette
+  logoMediaId String? // an uploaded image owned by this tenant
   status    TenantStatus @default(ACTIVE)
   createdAt DateTime     @default(now())
 
@@ -1140,6 +1141,8 @@ model ContentPost {
   caption      String
   tags         String[]   @default([])
   service      String?
+  beforeMediaId String?
+  afterMediaId  String?
   status       PostStatus @default(DRAFT)
   scheduledFor DateTime?  @db.Date
   publishedAt  DateTime?
@@ -1246,4 +1249,27 @@ model TenantWalletTx {
   createdAt    DateTime     @default(now())
 
   @@index([tenantId, createdAt])
+}
+
+// ───────── Uploaded images (logos, before/after photos): small, stored in the database, served by an unguessable id ─────────
+
+model Media {
+  id        String   @id @default(cuid())
+  tenantId  String
+  mime      String
+  data      Bytes
+  size      Int
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// A supplier delivery received into the store's warehouse: stock goes up in the same transaction.
+model StorePurchase {
+  id        String   @id @default(cuid())
+  supplier  String
+  note      String   @default("")
+  lines     Json // [{ productId, name, qty, unitCost }]
+  total     Int
+  createdAt DateTime @default(now())
 }

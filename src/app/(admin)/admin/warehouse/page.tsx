@@ -1,62 +1,38 @@
 "use client";
 import Link from "next/link";
-import { AlertTriangle, PackageX, Warehouse as WIcon } from "lucide-react";
-import { Badge, Button, Card, CardHead, PageTitle, Stat, fieldCls, type Tone } from "@/components/ui";
-import { DataList } from "@/components/DataList";
-import { actions, stockState, useDB, type StockState } from "@/lib/db";
-import { fa, short } from "@/lib/fa";
-import { useRouter } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
+import { Badge, Card, CardHead, PageTitle, Stat } from "@/components/ui";
+import { AdminGate } from "@/components/live/AdminGate";
+import { ErrorNote, Spinner } from "@/components/live/ui";
+import { errorText } from "@/lib/api";
+import { crm } from "@/lib/crmApi";
+import { faNum, shortToman } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-const tone: Record<StockState, Tone> = { "کافی": "sage", "زیر نقطه سفارش": "amber", "ناموجود": "danger" };
+const LOW = 5;
 
-export default function Warehouse() {
-  const db = useDB();
-  const router = useRouter();
-  const low = db.products.filter((p) => stockState(p) !== "کافی");
-  const value = db.products.reduce((a, p) => a + p.stock * p.cost, 0);
-  const name = (id: string) => db.products.find((p) => p.id === id)?.name ?? id;
-
-  const orderLow = () => {
-    const lines = low.map((p) => ({ productId: p.id, qty: Math.max(p.reorderQty, p.reorder * 2 - p.stock), unitCost: p.cost }));
-    const id = actions.createInvoice("پخش رز", lines, false);
-    router.push(`/admin/purchases?draft=${encodeURIComponent(id)}`);
-  };
-
+function Board() {
+  const q = useQuery(crm.adminStoreProducts, []);
+  if (q.loading && !q.data) return <Spinner />;
+  if (!q.data) return <ErrorNote message={errorText(q.error)} onRetry={q.reload} />;
+  const low = q.data.filter((p) => p.stock <= LOW);
+  const value = q.data.reduce((a, p) => a + p.stock * p.price, 0);
   return (
     <>
-      <PageTitle title="انبار" sub="موجودی هر کالا، نقطه سفارش و گردش ورود و خروج"
-        actions={<><Link href="/admin/purchases" className="inline-flex items-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink2 hover:bg-surface2">فاکتور خرید</Link><Button disabled={!low.length} onClick={orderLow}>سفارش کالاهای کم‌موجودی ({fa(low.length)})</Button></>} />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="تعداد اقلام" value={fa(db.products.length)} tone="rose" icon={<WIcon size={16} />} />
-        <Stat label="زیر نقطه سفارش" value={fa(low.filter((p) => p.stock > 0).length)} tone="amber" icon={<AlertTriangle size={16} />} />
-        <Stat label="ناموجود" value={fa(low.filter((p) => p.stock <= 0).length)} tone="danger" icon={<PackageX size={16} />} />
-        <Stat label="ارزش انبار (به قیمت خرید)" value={short(value)} tone="gold" />
+      <PageTitle title="انبار فروشگاه" sub="موجودی هر کالا؛ ورود کالا از «فاکتورهای خرید» ثبت می‌شود و فروش و مرجوعی خودکار موجودی را تغییر می‌دهند" />
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="اقلام" value={faNum(q.data.length)} tone="rose" />
+        <Stat label={`کم‌موجود (≤ ${faNum(LOW)})`} value={faNum(low.length)} tone="amber" icon={<AlertTriangle size={16} />} />
+        <Stat label="ارزش موجودی (قیمت فروش)" value={shortToman(value)} tone="gold" />
       </div>
-
-      <Card className="mt-5">
-        <CardHead title="موجودی کالاها" hint="نقطه سفارش و تعداد پیشنهادی را می‌توانید همین‌جا تغییر دهید" />
-        <DataList rows={db.products} id={(p) => p.id} cols={[
-          { h: "کالا", title: true, cell: (p) => <>{p.name} <span className="text-xs font-normal text-ink3">· {p.brand}</span></> },
-          { h: "موجودی", cell: (p) => <b className={p.stock <= 0 ? "text-danger" : ""}>{fa(p.stock)}</b> },
-          { h: "وضعیت", cell: (p) => <Badge tone={tone[stockState(p)]}>{stockState(p)}</Badge> },
-          { h: "نقطه سفارش", cell: (p) => <input aria-label={`نقطه سفارش ${p.name}`} type="number" min={0} value={p.reorder} onChange={(e) => actions.setReorder(p.id, Math.max(0, +e.target.value || 0), p.reorderQty)} className={`${fieldCls} !w-20 !py-1.5 text-center`} /> },
-          { h: "تعداد سفارش", cell: (p) => <input aria-label={`تعداد سفارش ${p.name}`} type="number" min={1} value={p.reorderQty} onChange={(e) => actions.setReorder(p.id, p.reorder, Math.max(1, +e.target.value || 1))} className={`${fieldCls} !w-20 !py-1.5 text-center`} /> },
-          { h: "آخرین قیمت خرید", cell: (p) => short(p.cost) },
-        ]} />
-      </Card>
-
-      <Card className="mt-5">
-        <CardHead title="گردش انبار (آخرین‌ها)" />
-        <ul className="divide-y divide-line">
-          {db.moves.slice(0, 8).map((m) => (
-            <li key={m.id} className="flex items-center gap-3 px-5 py-2.5 text-sm">
-              <span className="w-16 shrink-0 text-xs text-ink3">{m.date}</span>
-              <span className="min-w-0 flex-1"><b className="block truncate">{name(m.productId)}</b><span className="text-xs text-ink3">{m.note}</span></span>
-              <b className={m.delta > 0 ? "text-sage" : "text-danger"}>{m.delta > 0 ? "+" : "−"}{fa(Math.abs(m.delta))}</b>
-            </li>
-          ))}
+      <Card className="mt-5 p-5">
+        <CardHead title="موجودی" action={<Link href="/admin/purchases" className="text-[13px] font-semibold text-rose">ثبت ورود کالا ←</Link>} />
+        <ul className="divide-y divide-line text-sm">
+          {q.data.map((p) => <li key={p.id} className="flex flex-wrap items-center gap-3 py-3"><span className="min-w-0 flex-1"><b>{p.name}</b><span className="block text-xs text-ink3">{p.brand} · {p.category}</span></span><b className={p.stock <= LOW ? "text-danger" : ""}>{faNum(p.stock)}</b>{p.stock <= 0 ? <Badge tone="danger">ناموجود</Badge> : p.stock <= LOW ? <Badge tone="amber">سفارش بده</Badge> : <Badge tone="sage">کافی</Badge>}{!p.active && <Badge>پنهان</Badge>}</li>)}
         </ul>
       </Card>
     </>
   );
 }
+
+export default function AdminWarehouse() { return <AdminGate><Board /></AdminGate>; }

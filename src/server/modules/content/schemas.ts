@@ -7,6 +7,8 @@ export const postBody = z.object({
   caption: text(2200).min(5, "متن کپشن را بنویسید"),
   tags: z.array(text(40)).max(15).default([]),
   service: text(80).nullish(),
+  beforeMediaId: z.string().min(1).max(40).nullish(),
+  afterMediaId: z.string().min(1).max(40).nullish(),
   status: z.enum(["DRAFT", "SCHEDULED", "PUBLISHED"]).default("DRAFT"),
   scheduledFor: dateStr.nullish(),
 });

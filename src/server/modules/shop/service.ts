@@ -240,3 +240,34 @@ export async function recommend(tenantId: string, customerId: string) {
   const rows = await prisma.storeProduct.findMany({ where: { active: true, stock: { gt: 0 }, category: { in: cats } }, orderBy: { createdAt: "asc" }, take: 3 });
   return { basedOn: last?.service ?? null, products: rows.map((p) => ({ ...pub(p), commissionPct: p.commissionPct })) };
 }
+
+// ───────── warehouse: supplier deliveries and the salons that refer ─────────
+
+/** Receives a supplier delivery: every product's stock goes up together with the record, or nothing changes. */
+export async function receivePurchase(b: { supplier: string; note: string; lines: { productId: string; qty: number; unitCost: number }[] }) {
+  const merged = new Map<string, { qty: number; unitCost: number }>();
+  for (const l of b.lines) { const c = merged.get(l.productId); merged.set(l.productId, { qty: (c?.qty ?? 0) + l.qty, unitCost: l.unitCost }); }
+  const products = await prisma.storeProduct.findMany({ where: { id: { in: [...merged.keys()] } }, select: { id: true, name: true } });
+  if (products.length !== merged.size) throw badRequest("یکی از کالاها پیدا نشد");
+  const lines = products.map((p) => ({ productId: p.id, name: p.name, ...merged.get(p.id)! }));
+  return prisma.$transaction(async (tx) => {
+    for (const l of lines) await tx.$executeRaw`UPDATE "StoreProduct" SET "stock" = "stock" + ${l.qty} WHERE "id" = ${l.productId}`;
+    return tx.storePurchase.create({ data: { supplier: b.supplier, note: b.note, lines, total: lines.reduce((a, l) => a + l.qty * l.unitCost, 0) } });
+  });
+}
+export const purchases = () => prisma.storePurchase.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+
+/** The salons whose links brought orders, with what they have earned and what their wallet holds. */
+export async function referrers() {
+  const orders = await prisma.storeOrder.findMany({ where: { refTenantId: { not: null }, status: { notIn: ["PENDING_PAYMENT", "CANCELED"] } }, select: { refTenantId: true, total: true, status: true, commission: true, commissionStatus: true } });
+  const by = new Map<string, { orders: number; sales: number; credited: number; pending: number }>();
+  for (const o of orders) {
+    const c = by.get(o.refTenantId!) ?? { orders: 0, sales: 0, credited: 0, pending: 0 };
+    c.orders++; if (o.status !== "RETURNED") c.sales += o.total;
+    if (o.commissionStatus === "CREDITED") c.credited += o.commission; if (o.commissionStatus === "WAITING") c.pending += o.commission;
+    by.set(o.refTenantId!, c);
+  }
+  const ids = [...by.keys()];
+  const [tenants, wallets] = await Promise.all([prisma.tenant.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, slug: true } }), prisma.tenantWallet.findMany({ where: { tenantId: { in: ids } } })]);
+  return tenants.map((t) => ({ tenantId: t.id, name: t.name, city: t.city, slug: t.slug, wallet: wallets.find((w) => w.tenantId === t.id)?.balance ?? 0, ...by.get(t.id)! })).sort((a, b) => b.sales - a.sales);
+}

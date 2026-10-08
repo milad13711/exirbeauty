@@ -29,6 +29,7 @@ beforeAll(async () => {
 afterAll(async () => {
   const tenants = [T.a, T.b, T.free];
   await prisma.contentPost.deleteMany({ where: { tenantId: { in: tenants } } });
+  await prisma.media.deleteMany({ where: { tenantId: { in: tenants } } });
   await prisma.customer.deleteMany({ where: { tenantId: { in: tenants } } });
   await prisma.service.deleteMany({ where: { tenantId: { in: tenants } } });
   await prisma.staff.deleteMany({ where: { tenantId: { in: tenants } } });
@@ -77,5 +78,34 @@ describe("content calendar", () => {
     expect((await call(B, "DELETE", `/content/posts/${id}`)).status).toBe(404);
     expect((await call(A, "DELETE", `/content/posts/${id}`)).status).toBe(200);
     expect((await call(A, "DELETE", `/content/posts/${id}`)).status).toBe(404);
+  });
+});
+
+describe("photos & media", () => {
+  const png = "data:image/png;base64," + Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(40, 7)]).toString("base64");
+  it("uploads small images, serves them publicly with safe headers, and keeps them per salon", async () => {
+    const up = await call(AS, "POST", "/media", { dataUrl: png });
+    expect(up.status).toBe(200);
+    const raw = await dispatch(new Request(`http://localhost${up.body.data.url}`), up.body.data.url.replace("/api/v1/", "").split("/").filter(Boolean), routeTable);
+    expect(raw.status).toBe(200);
+    expect(raw.headers.get("content-type")).toBe("image/png");
+    expect(raw.headers.get("x-content-type-options")).toBe("nosniff");
+    expect((await call(AS, "POST", "/media", { dataUrl: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" })).status).toBe(400);
+    expect((await call(null, "POST", "/media", { dataUrl: png })).status).toBe(401);
+    expect((await call(B, "DELETE", `/media/${up.body.data.id}`)).status).toBe(404); // not B's image
+    expect((await call(A, "DELETE", `/media/${up.body.data.id}`)).status).toBe(200);
+  });
+  it("a before/after post needs both photos, and only the salon's own", async () => {
+    const a = (await call(AS, "POST", "/media", { dataUrl: png })).body.data.id, b = (await call(AS, "POST", "/media", { dataUrl: png })).body.data.id, other = (await call(B, "POST", "/media", { dataUrl: png })).body.data.id;
+    expect((await post({ kind: "BEFORE_AFTER", beforeMediaId: a })).status).toBe(400);
+    expect((await post({ kind: "BEFORE_AFTER", beforeMediaId: a, afterMediaId: other })).status).toBe(400); // another salon's photo
+    const ok = (await post({ kind: "BEFORE_AFTER", beforeMediaId: a, afterMediaId: b })).body.data;
+    expect(ok).toMatchObject({ beforeUrl: `/api/v1/media/${a}`, afterUrl: `/api/v1/media/${b}` });
+  });
+  it("the owner sets a logo that must be their own image", async () => {
+    const mine = (await call(A, "POST", "/media", { dataUrl: png })).body.data.id, theirs = (await call(B, "POST", "/media", { dataUrl: png })).body.data.id;
+    expect((await call(A, "PATCH", "/tenant", { logoMediaId: theirs })).status).toBe(400);
+    expect((await call(A, "PATCH", "/tenant", { logoMediaId: mine })).body.data.logoUrl).toBe(`/api/v1/media/${mine}`);
+    expect((await call(A, "PATCH", "/tenant", { logoMediaId: null })).body.data.logoUrl).toBeNull();
   });
 });

@@ -5,7 +5,7 @@ import { clientIp, rateLimit } from "../../http/ratelimit";
 import { parse } from "../../http/validate";
 import { audit } from "../../platform/audit";
 import { expireWalletPayments, startPlanWithWallet, startStoreOrderPayment } from "../../platform/payments/service";
-import { adminOrdersQuery, catalogQuery, orderBody, productBody, productPatch, recommendQuery, statusBody, trackBody, walletPlanBody } from "./schemas";
+import { adminOrdersQuery, catalogQuery, orderBody, productBody, productPatch, purchaseBody, recommendQuery, statusBody, trackBody, walletPlanBody } from "./schemas";
 import * as svc from "./service";
 
 const OWNER_UP = { roles: ["OWNER", "ADMIN", "SUPER_ADMIN"] } as const;
@@ -49,6 +49,9 @@ export const shopRoutes: Route[] = [
   { method: "GET", path: "/admin/store/products", auth: ADMIN, module: false, handler: async () => svc.adminProducts() },
   { method: "POST", path: "/admin/store/products", auth: ADMIN, module: false, handler: async (c) => { const r = await svc.adminCreateProduct(parse(productBody, await c.body())); await audit(c.session, "store.product.create", "StoreProduct", r.id); return r; } },
   { method: "PATCH", path: "/admin/store/products/:id", auth: ADMIN, module: false, handler: async (c) => { const r = await svc.adminUpdateProduct(c.params.id, parse(productPatch, await c.body())); await audit(c.session, "store.product.update", "StoreProduct", r.id); return r; } },
+  { method: "GET", path: "/admin/store/purchases", auth: ADMIN, module: false, handler: async () => svc.purchases() },
+  { method: "POST", path: "/admin/store/purchases", auth: ADMIN, module: false, handler: async (c) => { const r = await svc.receivePurchase(parse(purchaseBody, await c.body())); await audit(c.session, "store.purchase", "StorePurchase", r.id, { total: r.total }); return r; } },
+  { method: "GET", path: "/admin/store/referrers", auth: ADMIN, module: false, handler: async () => svc.referrers() },
   { method: "GET", path: "/admin/store/orders", auth: ADMIN, module: false, handler: async (c) => svc.adminOrders(parse(adminOrdersQuery, Object.fromEntries(c.query)).status) },
   { method: "POST", path: "/admin/store/orders/:id/status", auth: ADMIN, module: false, handler: async (c) => { const b = parse(statusBody, await c.body()); await svc.setStatus(c.params.id, b.status, b.trackingCode); await audit(c.session, "store.order.status", "StoreOrder", c.params.id, b); return { ok: true }; } },
 

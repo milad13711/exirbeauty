@@ -2,7 +2,7 @@
 import { api } from "./api";
 import type { LoyaltyTxKind } from "./crmApi";
 
-export type PortalMe = { id: string; name: string; phone: string; birthDate: string | null; salon: { name: string; slug: string; city: string }; features: { booking: boolean; loyalty: boolean; referral: boolean; memberships: boolean; giftcards: boolean } };
+export type PortalMe = { id: string; name: string; phone: string; birthDate: string | null; salon: { name: string; slug: string; city: string; logoUrl: string | null }; features: { booking: boolean; loyalty: boolean; referral: boolean; memberships: boolean; giftcards: boolean } };
 export type PortalAppt = { id: string; date: string; startMin: number; durationMin: number; status: "PENDING" | "CONFIRMED" | "IN_SERVICE" | "DONE" | "CANCELED" | "NO_SHOW"; serviceName: string; staffName: string; price: number; upcoming: boolean; canCancel: boolean };
 export type PortalRewards = { points: number; lifetime: number; wallet: number; tier: string; off: number; next: { left: number; label: string }; log: { id: string; kind: LoyaltyTxKind; points: number; wallet: number; note: string; createdAt: string }[]; tiers: { name: string; from: number; off: number; perks: string }[]; rewards: { id: string; name: string; cost: number; kind: "wallet" | "free" | "product"; value: number }[] };
 export type PortalWallet = { balance: number; log: PortalRewards["log"] };

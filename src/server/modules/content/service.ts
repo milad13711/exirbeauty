@@ -1,6 +1,7 @@
 import type { ContentPost } from "@prisma/client";
 import { prisma } from "../../db";
 import { badRequest, notFound } from "../../http/errors";
+import { ownsMedia } from "../../platform/media";
 import { tehranNow } from "../calendar/availability";
 import { jalaliMonth } from "../campaigns/audience";
 import { dueToday, normalize, type Status } from "./rules";
@@ -9,7 +10,7 @@ import { dueToday, normalize, type Status } from "./rules";
 
 const day = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
-const view = (p: ContentPost) => ({ id: p.id, kind: p.kind, caption: p.caption, tags: p.tags, service: p.service, status: p.status, scheduledFor: p.scheduledFor ? ymd(p.scheduledFor) : null, publishedAt: p.publishedAt, createdAt: p.createdAt });
+const view = (p: ContentPost) => ({ id: p.id, kind: p.kind, caption: p.caption, tags: p.tags, service: p.service, beforeUrl: p.beforeMediaId ? `/api/v1/media/${p.beforeMediaId}` : null, afterUrl: p.afterMediaId ? `/api/v1/media/${p.afterMediaId}` : null, status: p.status, scheduledFor: p.scheduledFor ? ymd(p.scheduledFor) : null, publishedAt: p.publishedAt, createdAt: p.createdAt });
 
 /** What the caption generator needs: salon name, services on offer, and who has a birthday this (Jalali) month. */
 export async function context(tenantId: string) {
@@ -29,10 +30,16 @@ export async function list(tenantId: string) {
   return { posts, due: dueToday(posts.map((p) => ({ status: p.status as Status, scheduledFor: p.scheduledFor })), today) };
 }
 
-export async function create(tenantId: string, b: { kind: ContentPost["kind"]; caption: string; tags: string[]; service?: string | null; status: Status; scheduledFor?: string | null }) {
+async function checkPhotos(tenantId: string, ids: (string | null | undefined)[]) {
+  for (const id of ids) if (id && !(await ownsMedia(tenantId, id))) throw badRequest("تصویر پیدا نشد");
+}
+
+export async function create(tenantId: string, b: { kind: ContentPost["kind"]; caption: string; tags: string[]; service?: string | null; beforeMediaId?: string | null; afterMediaId?: string | null; status: Status; scheduledFor?: string | null }) {
+  await checkPhotos(tenantId, [b.beforeMediaId, b.afterMediaId]);
+  if (b.kind === "BEFORE_AFTER" && (!b.beforeMediaId || !b.afterMediaId)) throw badRequest("برای پست قبل/بعد هر دو عکس لازم است");
   const n = normalize(b.status, b.scheduledFor, tehranNow().date);
   if (!n.ok) throw badRequest(n.error);
-  return view(await prisma.contentPost.create({ data: { tenantId, kind: b.kind, caption: b.caption, tags: b.tags, service: b.service ?? null, status: b.status, scheduledFor: n.scheduledFor ? day(n.scheduledFor) : null, publishedAt: b.status === "PUBLISHED" ? new Date() : null } }));
+  return view(await prisma.contentPost.create({ data: { tenantId, kind: b.kind, caption: b.caption, tags: b.tags, service: b.service ?? null, beforeMediaId: b.beforeMediaId ?? null, afterMediaId: b.afterMediaId ?? null, status: b.status, scheduledFor: n.scheduledFor ? day(n.scheduledFor) : null, publishedAt: b.status === "PUBLISHED" ? new Date() : null } }));
 }
 
 export async function update(tenantId: string, id: string, b: { caption?: string; tags?: string[]; service?: string | null; status?: Status; scheduledFor?: string | null }) {

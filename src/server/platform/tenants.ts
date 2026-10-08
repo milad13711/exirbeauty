@@ -30,12 +30,12 @@ export async function tenantProfile(tenantId: string) {
   if (!t) throw notFound("سالن پیدا نشد");
   const sub = t.subscription;
   return {
-    id: t.id, name: t.name, slug: t.slug, city: t.city, brandColor: t.brandColor,
+    id: t.id, name: t.name, slug: t.slug, city: t.city, brandColor: t.brandColor, logoUrl: t.logoMediaId ? `/api/v1/media/${t.logoMediaId}` : null, logoMediaId: t.logoMediaId,
     subscription: sub && { planCode: sub.plan.code, planTitle: sub.plan.title, priceMonthly: sub.plan.priceMonthly, status: sub.status, startedAt: sub.startedAt, expiresAt: sub.expiresAt },
   };
 }
 
-export async function updateTenantProfile(tenantId: string, p: { name?: string; city?: string; brandColor?: string | null }) {
-  await prisma.tenant.update({ where: { id: tenantId }, data: { ...(p.name !== undefined ? { name: p.name } : {}), ...(p.city !== undefined ? { city: p.city } : {}), ...(p.brandColor !== undefined ? { brandColor: p.brandColor } : {}) } });
+export async function updateTenantProfile(tenantId: string, p: { name?: string; city?: string; brandColor?: string | null; logoMediaId?: string | null }) {
+  await prisma.tenant.update({ where: { id: tenantId }, data: { ...(p.name !== undefined ? { name: p.name } : {}), ...(p.city !== undefined ? { city: p.city } : {}), ...(p.brandColor !== undefined ? { brandColor: p.brandColor } : {}), ...(p.logoMediaId !== undefined ? { logoMediaId: p.logoMediaId } : {}) } });
   return tenantProfile(tenantId);
 }

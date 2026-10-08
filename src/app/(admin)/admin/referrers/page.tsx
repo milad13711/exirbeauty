@@ -1,27 +1,29 @@
 "use client";
-import { Card, PageTitle } from "@/components/ui";
-import { useDB } from "@/lib/db";
-import { DataList } from "@/components/DataList";
-import { CRM_PLAN, salons } from "@/lib/mock3";
-import { fa, short, toman } from "@/lib/fa";
+import { Card, CardHead, PageTitle } from "@/components/ui";
+import { AdminGate } from "@/components/live/AdminGate";
+import { ErrorNote, Spinner } from "@/components/live/ui";
+import { errorText } from "@/lib/api";
+import { crm } from "@/lib/crmApi";
+import { faNum, toman } from "@/lib/fmt";
+import { useQuery } from "@/lib/useQuery";
 
-export default function Referrers() {
-  const db = useDB();
+function Board() {
+  const q = useQuery(crm.adminReferrers, []);
+  if (q.loading && !q.data) return <Spinner />;
+  if (!q.data) return <ErrorNote message={errorText(q.error)} onRetry={q.reload} />;
   return (
     <>
-      <PageTitle title="سالن‌های معرف" sub={`کیف پول هر سالن برای پرداخت اشتراک ${toman(CRM_PLAN.price)} در ماه استفاده می‌شود`} />
-      <Card>
-        <DataList rows={salons} id={(s) => s.id} cols={[
-          { h: "سالن", title: true, cell: (s) => <>{s.name} <span className="text-xs font-normal text-ink3">· {s.city}</span></> },
-          { h: "کد معرف", cell: (s) => <bdi dir="ltr" className="text-xs text-ink2">?ref={s.code}</bdi> },
-          { h: "مسئول", cell: (s) => s.owner },
-          { h: "سفارش‌ها", cell: (s) => fa(s.orders) },
-          { h: "فروش", cell: (s) => <b>{short(s.sales)}</b> },
-          { h: "پورسانت در انتظار", cell: (s) => short(s.pending) },
-          { h: "کیف پول", cell: (s) => <b className="text-sage">{toman(db.wallets[s.id] ?? 0)}</b> },
-          { h: "پوشش اشتراک", cell: (s) => { const c = Math.min(100, Math.round(((db.wallets[s.id] ?? 0) / CRM_PLAN.price) * 100)); return <span className="inline-flex items-center gap-2"><span className="h-2 w-16 rounded-full bg-surface2"><span className="block h-2 rounded-full bg-sage" style={{ width: `${c}%` }} /></span>{fa(c)}٪</span>; } },
-        ]} />
+      <PageTitle title="سالن‌های معرف" sub="سالن‌هایی که از لینک فروشگاهشان سفارش آمده؛ پورسانت و موجودی کیف پول هر سالن" />
+      <Card className="p-5">
+        <CardHead title="سالن‌ها" />
+        {!q.data.length ? <p className="text-sm text-ink3">هنوز سفارشی از لینک سالنی ثبت نشده است.</p> : (
+          <ul className="divide-y divide-line text-sm">
+            {q.data.map((s) => <li key={s.tenantId} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3"><span className="min-w-0 flex-1"><b>{s.name}</b><span className="block text-xs text-ink3">{s.city} · {faNum(s.orders)} سفارش · فروش {toman(s.sales)}</span></span><span className="text-xs text-ink2">شارژشده {toman(s.credited)}</span><span className="text-xs text-amber">در انتظار {toman(s.pending)}</span><b>کیف پول {toman(s.wallet)}</b></li>)}
+          </ul>
+        )}
       </Card>
     </>
   );
 }
+
+export default function AdminReferrers() { return <AdminGate><Board /></AdminGate>; }

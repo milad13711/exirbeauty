@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- uploaded salon images are small and already resized */
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { Badge, Button, Card, CardHead, Field, PageTitle, Toggle, fieldCls, type Tone } from "@/components/ui";
@@ -10,6 +11,7 @@ import { DAY_NAMES, faDate, faNum, parseTime, timeValue, toman } from "@/lib/fmt
 import { useQuery } from "@/lib/useQuery";
 import { DEFAULT_COLOR, isHex, presets } from "@/lib/theme";
 import { setLiveBrand } from "@/lib/liveBrand";
+import { uploadImage } from "@/lib/media";
 
 const TABS = [["profile", "پروفایل سالن"], ["me", "پروفایل من"], ["brand", "برند و ظاهر"], ["hours", "ساعت کاری"], ["online", "رزرو آنلاین"], ["notify", "اعلان‌ها"], ["users", "کاربران"], ["plan", "اشتراک و پلن"]] as const;
 type Tab = (typeof TABS)[number][0];
@@ -117,8 +119,19 @@ function Brand({ t, canEdit, onSaved }: { t: TenantProfile; canEdit: boolean; on
     setErr(""); setOk(false); setBusy(true);
     try { const r = await crm.patchTenant({ brandColor: c }); setLiveBrand(r.brandColor); setOk(true); onSaved(); } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   }
+  async function pickLogo(f?: File) {
+    if (!f) return;
+    setErr(""); setBusy(true);
+    try { const m = await uploadImage(f, 384); await crm.patchTenant({ logoMediaId: m.id }); onSaved(); setOk(true); } catch (e) { setErr(e instanceof Error && !(e as { code?: string }).code ? e.message : errorText(e)); } finally { setBusy(false); }
+  }
   return (
     <Card className="max-w-xl space-y-4 p-5">
+      <CardHead title="لوگو" hint="در پنل مشتری و صفحه‌ی رزرو سالن نمایش داده می‌شود" />
+      <div className="flex items-center gap-3">
+        {t.logoUrl ? <img src={t.logoUrl} alt="لوگوی سالن" className="size-16 rounded-2xl border border-line object-cover" /> : <span className="grid size-16 place-items-center rounded-2xl bg-surface2 text-xs text-ink3">بدون لوگو</span>}
+        {canEdit && <><label className="cursor-pointer rounded-xl border border-line bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink2 hover:bg-surface2">{t.logoUrl ? "تغییر لوگو" : "آپلود لوگو"}<input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(e) => void pickLogo(e.target.files?.[0])} /></label>
+          {t.logoUrl && <Button variant="ghost" disabled={busy} onClick={async () => { await crm.patchTenant({ logoMediaId: null }); onSaved(); }}>حذف</Button>}</>}
+      </div>
       <CardHead title="رنگ برند" hint="رنگ دکمه‌ها و تأکیدها در پنل شما؛ بلافاصله اعمال می‌شود" />
       <div className="grid grid-cols-5 gap-2.5 sm:grid-cols-9">
         {presets.map((p) => <button key={p.c} type="button" disabled={!canEdit} aria-label={p.n} title={p.n} onClick={() => { setColor(p.c); setOk(false); }} className="grid aspect-square cursor-pointer place-items-center rounded-2xl text-white shadow-[var(--shadow-card)]" style={{ background: p.c }}>{color.toLowerCase() === p.c && <Check size={18} />}</button>)}

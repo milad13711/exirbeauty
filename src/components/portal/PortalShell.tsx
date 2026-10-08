@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- uploaded salon images are small and already resized */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, type ReactNode } from "react";
@@ -41,7 +42,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
     <Ctx.Provider value={me}>
       <div className="mx-auto min-h-screen max-w-md bg-bg pb-[calc(6rem+var(--safe-b))]">
         <header className="glass sticky top-0 z-20 flex items-center gap-2.5 border-b border-line/70 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)]">
-          <BrandMark size={38} />
+          {me.salon.logoUrl ? <img src={me.salon.logoUrl} alt="" className="size-[38px] rounded-xl object-cover" /> : <BrandMark size={38} />}
           <div className="min-w-0 flex-1 leading-tight"><p className="truncate text-sm font-extrabold">{me.salon.name}</p><p className="truncate text-[11px] text-ink3">{me.name}</p></div>
           <Link href="/me/profile" aria-label="پروفایل من" className="press shrink-0"><Avatar name={me.name} size={36} /></Link>
           <button aria-label="خروج" onClick={async () => { await portal.logout().catch(() => {}); router.push(`/me/login?salon=${me.salon.slug}`); }} className="cursor-pointer rounded-lg p-2 text-ink3 hover:bg-surface2"><LogOut size={17} /></button>
