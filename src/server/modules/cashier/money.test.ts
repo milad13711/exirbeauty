@@ -58,3 +58,12 @@ describe("commissions", () => {
   });
   it("ignores lines without a staff member", () => expect(commissions([{ discountPct: 0, lines: [{ kind: "SERVICE", qty: 1, price: 100 }] }])).toEqual([]));
 });
+
+describe("gift cards in the summary", () => {
+  it("selling a card takes money in but books no revenue; spending one books revenue but no cash", () => {
+    const sold = { total: 1_000_000, paid: 1_000_000, discountPct: 0, discount: 0, lines: [{ kind: "GIFT" as const, qty: 1, price: 1_000_000 }], payments: [{ method: "CASH" as const, amount: 1_000_000 }] };
+    const spent = { total: 600_000, paid: 600_000, discountPct: 0, discount: 0, lines: [{ kind: "SERVICE" as const, qty: 1, price: 600_000 }], payments: [{ method: "GIFT" as const, amount: 600_000 }] };
+    const s = summarize([sold, spent], [], []);
+    expect(s).toMatchObject({ revenue: 600_000, giftSold: 1_000_000, giftSpent: 600_000, cash: 1_000_000, cashExpected: 1_000_000, services: 600_000, products: 0 });
+  });
+});

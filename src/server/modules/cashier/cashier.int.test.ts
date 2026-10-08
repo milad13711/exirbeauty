@@ -77,7 +77,7 @@ describe("invoices", () => {
     expect((await sale(A, { customerId: null, payments: [{ method: "CASH", amount: 500_000 }] })).body.error.code).toBe("DEBT_NEEDS_CUSTOMER");
     // Wallet payments need the loyalty module (covered in loyalty.int.test.ts); here the salon hasn't installed it.
     expect((await sale(A, { payments: [{ method: "WALLET", amount: 1000 }] })).status).toBe(403);
-    expect((await sale(A, { payments: [{ method: "GIFT", amount: 1000 }] })).status).toBe(422);
+    expect((await sale(A, { payments: [{ method: "GIFT", amount: 1000, ref: "AAAA-BBBB-CCCC" }] })).status).toBe(403); // gift cards need their module
     expect((await sale(A, { lines: [] })).status).toBe(400);
     expect((await sale(A, { lines: [svcLine({ qty: 0 })] })).status).toBe(422);
     expect((await sale(A, { discountPct: 101 })).status).toBe(422);

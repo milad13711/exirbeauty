@@ -6,13 +6,12 @@ const id = z.string().min(1).max(40);
 const money = z.number().int().min(0).max(1_000_000_000);
 export const dateStr = z.string().refine(isRealDate, "تاریخ باید یک روز معتبر به شکل YYYY-MM-DD باشد");
 
-// Debts, expenses and day closing only involve real money; invoices can also be paid from the club wallet (loyalty module).
-// Gift cards belong to a module that isn't on the backend yet.
+// Debts, expenses and day closing only involve real money; invoices can also be paid from the club wallet (loyalty) or a gift card.
 const method = z.enum(["CASH", "CARD", "ONLINE"]);
-const saleMethod = z.enum(["CASH", "CARD", "ONLINE", "WALLET", "GIFT"]).refine((m) => m !== "GIFT", "پرداخت با کارت هدیه هنوز فعال نیست");
+const saleMethod = z.enum(["CASH", "CARD", "ONLINE", "WALLET", "GIFT"]);
 
 export const line = z.object({
-  kind: z.enum(["SERVICE", "PRODUCT", "OTHER"]),
+  kind: z.enum(["SERVICE", "PRODUCT", "OTHER", "GIFT"]), // GIFT lines are created only by the gift-card module
   refId: id.nullish(),
   name: text(120).min(1),
   qty: z.number().int().min(1).max(999),

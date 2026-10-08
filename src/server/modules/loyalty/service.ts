@@ -73,11 +73,12 @@ export async function grantPoints(tx: Tx, tenantId: string, customerId: string, 
 export async function onSaleCreated(tenantId: string, p: Record<string, unknown>) {
   const sale = await prisma.sale.findFirst({ where: { id: String(p.id), tenantId }, include: { lines: true, payments: true } });
   if (!sale || !sale.customerId || sale.status === "VOID") return;
+  if (sale.lines.some((l) => l.kind === "GIFT")) return; // buying a gift card earns nothing
   const cfg = await getConfig(tenantId);
   const customerId = sale.customerId;
   const pts = earnFor(cfg.earn, sale.lines, sale.discountPct);
   if (pts > 0) await once(() => prisma.$transaction((tx) => apply(tx, cfg, { tenantId, customerId, kind: "EARN", points: pts, earned: true, ref: sale.id, note: `فاکتور F-${sale.number}` })));
-  const walletUsed = sale.payments.filter((x) => x.method === "WALLET").reduce((a, x) => a + x.amount, 0);
+  const walletUsed = sale.payments.filter((x) => x.method === "WALLET" || x.method === "GIFT").reduce((a, x) => a + x.amount, 0);
   const cb = cashbackFor(cfg.cashback, sale.paid - walletUsed);
   if (cb > 0) await once(() => prisma.$transaction((tx) => apply(tx, cfg, { tenantId, customerId, kind: "CASHBACK", wallet: cb, ref: sale.id, note: `بازگشت وجه فاکتور F-${sale.number}` })));
 }

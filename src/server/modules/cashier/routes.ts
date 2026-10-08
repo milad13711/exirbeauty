@@ -13,7 +13,11 @@ const tid = (t: string | null) => { if (!t) throw badRequest("سالن مشخص 
 const dayParam = (v: string) => parse(dateStr, v);
 
 export const cashierRoutes: Route[] = [
-  { method: "POST", path: "/cashier/sales", auth: STAFF_UP, handler: async (c) => svc.createSale(tid(c.tenantId), c.session!, parse(saleBody, await c.body())) },
+  { method: "POST", path: "/cashier/sales", auth: STAFF_UP, handler: async (c) => {
+      const b = parse(saleBody, await c.body());
+      if (b.lines.some((l) => l.kind === "GIFT")) throw badRequest("کارت هدیه فقط از بخش «کارت هدیه» فروخته می‌شود");
+      return svc.createSale(tid(c.tenantId), c.session!, b);
+    } },
   { method: "GET", path: "/cashier/sales", auth: STAFF_UP, handler: async (c) => svc.listSales(tid(c.tenantId), parse(salesQuery, Object.fromEntries(c.query))) },
   { method: "GET", path: "/cashier/sales/:id", auth: STAFF_UP, handler: async (c) => svc.getSale(tid(c.tenantId), c.params.id) },
   { method: "POST", path: "/cashier/sales/:id/void", auth: OWNER_UP, handler: async (c) => {

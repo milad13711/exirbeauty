@@ -44,7 +44,7 @@ export function nextGoal(c: Pick<Config, "tiers" | "rewards">, lifetime: number,
   return goals.sort((a, b) => a.left - b.left)[0] ?? { left: 0, label: "بالاترین سطح" };
 }
 
-type L = { kind: "SERVICE" | "PRODUCT" | "OTHER"; qty: number; price: number };
+type L = { kind: "SERVICE" | "PRODUCT" | "OTHER" | "GIFT"; qty: number; price: number };
 
 /** Points for an invoice: a visit bonus (if it has paid services) + points per spent amount, on values after the invoice discount. */
 export function earnFor(rules: EarnRules, lines: L[], discountPct: number): number {

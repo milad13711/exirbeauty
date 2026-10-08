@@ -333,6 +333,7 @@ model Customer {
   loyalty      LoyaltyAccount[]
   loyaltyTxs   LoyaltyTx[]
   memberships  Membership[]
+  giftBought   GiftCard[]
   debtPayments DebtPayment[]
 
   @@unique([tenantId, phone])
@@ -527,6 +528,7 @@ enum LineKind {
   SERVICE
   PRODUCT
   OTHER
+  GIFT // a gift card being sold: a liability, not revenue
 }
 
 enum PayMethod {
@@ -534,6 +536,7 @@ enum PayMethod {
   CARD
   ONLINE
   WALLET // paid from the customer's club wallet (loyalty module); not cash in the till
+  GIFT // paid with a gift card (giftcards module); not cash in the till
 }
 
 model Sale {
@@ -992,4 +995,57 @@ model MembershipUse {
   membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
 
   @@index([membershipId])
+}
+
+// ───────── Module: giftcards (prepaid value in whole toman; the code is a bearer secret, stored only as a hash) ─────────
+
+enum GiftStatus {
+  ACTIVE
+  USED
+  VOID
+}
+
+enum GiftTxKind {
+  ISSUE
+  SPEND
+  REFUND // an invoice paid with the card was voided
+  VOID
+}
+
+model GiftCard {
+  id        String     @id @default(cuid())
+  tenantId  String
+  codeHash  String     @unique
+  last4     String
+  amount    Int
+  balance   Int
+  status    GiftStatus @default(ACTIVE)
+  buyerId   String?
+  fromName  String
+  toName    String
+  toPhone   String
+  occasion  String     @default("")
+  message   String     @default("")
+  saleId    String?    @unique // the invoice that sold it
+  createdAt DateTime   @default(now())
+
+  buyer Customer?   @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  txs   GiftCardTx[]
+
+  @@index([tenantId, createdAt])
+}
+
+model GiftCardTx {
+  id           String     @id @default(cuid())
+  tenantId     String
+  cardId       String
+  kind         GiftTxKind
+  delta        Int
+  balanceAfter Int
+  ref          String? // sale id
+  createdAt    DateTime   @default(now())
+
+  card GiftCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
 }

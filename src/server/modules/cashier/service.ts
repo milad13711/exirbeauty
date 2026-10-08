@@ -2,11 +2,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { badRequest, conflict, notFound } from "../../http/errors";
 import type { Session } from "../../http/types";
+import { rateLimit } from "../../http/ratelimit";
 import { emit } from "../../platform/events";
 import { assertModuleActive } from "../../platform/modules/service";
 import { tehranNow } from "../calendar/availability";
 import { transition } from "../calendar/service";
 import { addVisit } from "../customers/service";
+import { refundGift, spendGift, voidIssuedBy } from "../giftcards/ledger";
+import { hashCode, normalizeCode } from "../giftcards/rules";
 import { refundWallet, spendWallet } from "../loyalty/service";
 import { allocateDebt, commissions, netOf, summarize, totals } from "./money";
 import type { SaleBody } from "./schemas";
@@ -81,7 +84,29 @@ export async function createSale(tenantId: string, actor: Session, b: SaleBody) 
     if (!customer) throw conflict("برای پرداخت از کیف پول باید مشتری انتخاب شود", "WALLET_NEEDS_CUSTOMER");
     await assertModuleActive(tenantId, "loyalty");
   }
+  // Gift cards: each code is looked up (by hash) and checked now; the spend itself happens atomically with the invoice below.
+  const giftPays = b.payments.filter((p) => p.method === "GIFT");
+  const giftSpend = new Map<string, { cardId: string; last4: string; amount: number }>(); // per card
+  const cardByCode = new Map<string, { cardId: string; last4: string }>();
+  if (giftPays.length) {
+    await assertModuleActive(tenantId, "giftcards");
+    rateLimit(`gift:${tenantId}`, 60, 10 * 60_000); // a thief guessing codes at the till gets throttled
+    for (const p of giftPays) {
+      const code = normalizeCode(p.ref);
+      const card = code.length >= 8 ? await prisma.giftCard.findFirst({ where: { tenantId, codeHash: hashCode(code) } }) : null;
+      if (!card || card.status === "VOID") throw conflict("کد کارت هدیه معتبر نیست", "GIFT_CARD_INVALID");
+      if (card.status !== "ACTIVE") throw conflict("این کارت هدیه کاملاً خرج شده است", "GIFT_CARD_USED");
+      const cur = giftSpend.get(card.id) ?? { cardId: card.id, last4: card.last4, amount: 0 };
+      cur.amount += p.amount;
+      if (cur.amount > card.balance) throw conflict(`موجودی کارت هدیه ${card.balance.toLocaleString("en-US")} تومان است`, "GIFT_CARD_INSUFFICIENT", { balance: card.balance });
+      giftSpend.set(card.id, cur);
+      cardByCode.set(hashCode(code), { cardId: card.id, last4: card.last4 });
+    }
+  }
   if (total === 0 && b.discountPct < 100 && lines.every((l) => l.price === 0)) throw badRequest("جمع فاکتور صفر است");
+
+  // The invoice keeps a reference to the card (id + last digits), never the secret code.
+  const giftRef = (code: string) => { const g = cardByCode.get(hashCode(code)); return g ? `gift:${g.cardId}:${g.last4}` : ""; };
 
   let sale: SaleFull;
   try {
@@ -92,12 +117,13 @@ export async function createSale(tenantId: string, actor: Session, b: SaleBody) 
           tenantId, number, date: day(date), customerId: customer?.id ?? null, customerName: customer?.name ?? b.customerName, apptId: appt?.id ?? null,
           subtotal, discountPct: b.discountPct, discount, total, paid, debt, status: debt > 0 ? "DEBT" : "PAID", note: b.note, createdById: actor.userId,
           lines: { create: lines.map((l) => ({ kind: l.kind, refId: l.refId ?? null, name: l.name, qty: l.qty, price: l.price, staffId: l.staffId ?? null, commissionPct: commissionOf(l) })) },
-          payments: { create: b.payments.map((p) => ({ method: p.method as "CASH" | "CARD" | "ONLINE" | "WALLET", amount: p.amount, ref: p.ref })) },
+          payments: { create: b.payments.map((p) => ({ method: p.method as "CASH" | "CARD" | "ONLINE" | "WALLET" | "GIFT", amount: p.amount, ref: p.method === "GIFT" ? giftRef(p.ref) : p.ref })) },
         },
         include: saleInclude,
       });
       // Same transaction as the invoice: if the wallet can't cover it, nothing is created.
       if (walletPaid > 0) await spendWallet(tx, tenantId, customer!.id, walletPaid, created.id, `F-${number}`);
+      for (const g of giftSpend.values()) await spendGift(tx, tenantId, g.cardId, g.amount, created.id);
       return created;
     });
   } catch (e) {
@@ -143,12 +169,17 @@ export async function voidSale(tenantId: string, id: string, reason: string) {
   await assertOpen(tenantId, ymd(s.date));
   // Debt payments already applied to this invoice would have to be refunded by hand — don't silently lose that money.
   if (s.paid + s.debt < s.total) throw conflict("برای این فاکتور بدهی دریافت شده؛ ابتدا باید مبلغ برگردانده شود", "HAS_DEBT_PAYMENTS");
-  const walletPaid = (await prisma.salePayment.findMany({ where: { saleId: id, method: "WALLET" } })).reduce((a, p) => a + p.amount, 0);
+  const pays = await prisma.salePayment.findMany({ where: { saleId: id, method: { in: ["WALLET", "GIFT"] } } });
+  const walletPaid = pays.filter((p) => p.method === "WALLET").reduce((a, p) => a + p.amount, 0);
+  const giftBack = new Map<string, number>(); // card id → amount to give back
+  for (const p of pays) if (p.method === "GIFT" && p.ref.startsWith("gift:")) { const cardId = p.ref.split(":")[1]; giftBack.set(cardId, (giftBack.get(cardId) ?? 0) + p.amount); }
   await prisma.$transaction(async (tx) => {
     const r = await tx.sale.updateMany({ where: { id, tenantId, status: { not: "VOID" } }, data: { status: "VOID", voidReason: reason, voidedAt: new Date(), debt: 0 } });
     if (r.count !== 1) throw conflict("این فاکتور همین الان باطل شد", "ALREADY_VOID");
     // Money paid from the wallet goes back to it in the same step, so a void can never lose it.
     if (walletPaid > 0 && s.customerId) await refundWallet(tx, tenantId, s.customerId, walletPaid, id, `F-${s.number}`);
+    for (const [cardId, amount] of giftBack) await refundGift(tx, tenantId, cardId, amount, id);
+    await voidIssuedBy(tx, tenantId, id); // an invoice that sold a gift card voids the card (only while untouched)
   });
   await emit("sale.voided", tenantId, { id });
   return getSale(tenantId, id);
