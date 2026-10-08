@@ -5,10 +5,10 @@ import { useCart } from "./CartProvider";
 import { fa } from "@/lib/fa";
 
 export function StoreHeader() {
-  const { count, refSalon } = useCart();
+  const { count, refName } = useCart();
   return (
     <header className="glass sticky top-0 z-30 border-b border-line/70 pt-[env(safe-area-inset-top,0px)]">
-      {refSalon && <p className="bg-[image:var(--grad-plum)] px-4 py-2 text-center text-[11.5px] leading-5 text-white/90">🌸 به توصیه‌ی <b className="text-[#e6c88e]">{refSalon.name}</b> برای شما باز شده است</p>}
+      {refName && <p className="bg-[image:var(--grad-plum)] px-4 py-2 text-center text-[11.5px] leading-5 text-white/90">🌸 به توصیه‌ی <b className="text-[#e6c88e]">{refName}</b> برای شما باز شده است</p>}
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 lg:px-8">
         <Link href="/store" className="flex items-center gap-2.5">
           <span className="grid size-10 place-items-center rounded-2xl bg-[image:var(--grad-rose)] text-white shadow-[0_8px_18px_-8px_rgba(156,53,88,.6)]"><Flower2 size={19} /></span>

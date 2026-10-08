@@ -2,29 +2,32 @@
 import Link from "next/link";
 import { useState } from "react";
 import clsx from "clsx";
-import { RotateCcw, Search, ShoppingBag, ShieldCheck, Star, Truck } from "lucide-react";
+import { RotateCcw, Search, ShoppingBag, ShieldCheck, Truck } from "lucide-react";
 import { ProductArt } from "@/components/store/parts";
 import { useCart } from "@/components/store/CartProvider";
 import { fieldCls } from "@/components/ui";
-import { useDB } from "@/lib/db";
-import { catList } from "@/lib/mock3";
+import { Spinner } from "@/components/live/ui";
+import { CATEGORIES, store, tintOf } from "@/lib/storeApi";
+import { useQuery } from "@/lib/useQuery";
 import { fa, short } from "@/lib/fa";
 
+const catList = ["همه", ...CATEGORIES] as const;
+
 const sorts = [
-  { k: "def", l: "پیشنهادی" }, { k: "asc", l: "ارزان‌ترین" }, { k: "desc", l: "گران‌ترین" }, { k: "rate", l: "بالاترین امتیاز" },
+  { k: "def", l: "پیشنهادی" }, { k: "asc", l: "ارزان‌ترین" }, { k: "desc", l: "گران‌ترین" },
 ] as const;
 const trust = [{ i: ShieldCheck, t: "اصالت کالا تضمین‌شده" }, { i: Truck, t: "ارسال به سراسر کشور" }, { i: RotateCcw, t: "مرجوعی تا ۷ روز" }];
 
 export default function Store() {
-  const db = useDB();
+  const all = useQuery(() => store.products(), []);
   const { add, lines, count: cartCount } = useCart();
-  const [cat, setCat] = useState<(typeof catList)[number]>("همه");
+  const [cat, setCat] = useState<string>("همه");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<(typeof sorts)[number]["k"]>("def");
 
-  const rows = db.products
-    .filter((p) => p.active && (cat === "همه" || p.cat === cat) && (`${p.name} ${p.brand}`.includes(q.trim())))
-    .sort((a, b) => (sort === "asc" ? a.price - b.price : sort === "desc" ? b.price - a.price : sort === "rate" ? b.rating - a.rating : 0));
+  const rows = [...(all.data ?? [])]
+    .filter((p) => (cat === "همه" || p.category === cat) && `${p.name} ${p.brand}`.includes(q.trim()))
+    .sort((a, b) => (sort === "asc" ? a.price - b.price : sort === "desc" ? b.price - a.price : 0));
 
   return (
     <>
@@ -64,11 +67,11 @@ export default function Store() {
         {rows.map((p) => {
           const out = p.stock <= 0;
           const inCart = lines[p.id] ?? 0;
-          const off = p.old ? Math.round((1 - p.price / p.old) * 100) : 0;
+          const off = p.oldPrice ? Math.round((1 - p.price / p.oldPrice) * 100) : 0;
           return (
             <article key={p.id} className="press group flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-line/80 bg-surface shadow-[var(--shadow-card)]">
               <Link href={`/store/p/${p.id}`} className="block">
-                <ProductArt cat={p.cat} tint={p.tint} className={clsx("aspect-square", out && "opacity-50")}>
+                <ProductArt cat={p.category} tint={tintOf(p.category)} className={clsx("aspect-square", out && "opacity-50")}>
                   {off > 0 && <span className="absolute right-2.5 top-2.5 rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">{fa(off)}٪ تخفیف</span>}
                   {out && <span className="absolute inset-x-0 bottom-3 mx-auto w-fit rounded-full bg-plum px-3 py-1 text-xs font-bold text-white">ناموجود</span>}
                   {!out && p.stock <= 5 && <span className="absolute bottom-2.5 left-2.5 rounded-full bg-amber px-2 py-0.5 text-[11px] font-bold text-white">فقط {fa(p.stock)} عدد</span>}
@@ -76,12 +79,11 @@ export default function Store() {
                 <div className="space-y-1 p-3.5">
                   <p className="text-[11px] text-ink3">{p.brand}</p>
                   <h2 className="line-clamp-2 min-h-[2.6em] text-sm font-bold leading-snug">{p.name}</h2>
-                  <p className="flex items-center gap-1 text-xs text-gold"><Star size={12} fill="currentColor" />{fa(p.rating)}</p>
-                </div>
+                                  </div>
               </Link>
               <div className="mt-auto flex items-center justify-between gap-2 px-3.5 pb-3.5">
-                <p className="font-num text-sm font-extrabold">{short(p.price)}<span className="text-[10px] font-medium text-ink3"> تومان</span>{p.old && <s className="block text-[11px] font-normal text-ink3">{short(p.old)}</s>}</p>
-                <button disabled={out || inCart >= p.stock} onClick={() => add(p.id)} aria-label={`افزودن ${p.name} به سبد`} className="press min-h-10 cursor-pointer rounded-[14px] bg-[image:var(--grad-rose)] px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-ink3">{out ? "ناموجود" : inCart ? `${fa(inCart)} ＋` : "افزودن"}</button>
+                <p className="font-num text-sm font-extrabold">{short(p.price)}<span className="text-[10px] font-medium text-ink3"> تومان</span>{p.oldPrice && <s className="block text-[11px] font-normal text-ink3">{short(p.oldPrice)}</s>}</p>
+                <button disabled={out || inCart >= p.stock} onClick={() => add(p.id, p.stock)} aria-label={`افزودن ${p.name} به سبد`} className="press min-h-10 cursor-pointer rounded-[14px] bg-[image:var(--grad-rose)] px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-ink3">{out ? "ناموجود" : inCart ? `${fa(inCart)} ＋` : "افزودن"}</button>
               </div>
             </article>
           );
@@ -93,7 +95,8 @@ export default function Store() {
           <span className="text-sm font-extrabold text-[#e6c88e]">مشاهده و پرداخت ←</span>
         </Link>
       )}
-      {!rows.length && <p className="py-16 text-center text-sm text-ink3">محصولی با این مشخصات پیدا نشد.</p>}
+      {all.loading && !all.data && <Spinner />}
+      {!all.loading && !rows.length && <p className="py-16 text-center text-sm text-ink3">محصولی با این مشخصات پیدا نشد.</p>}
     </>
   );
 }

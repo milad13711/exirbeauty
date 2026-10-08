@@ -23,6 +23,7 @@ export const shopRoutes: Route[] = [
   // The public storefront: no login, throttled; salons are credited through `ref` (their slug).
   { method: "GET", path: "/public/store/products", auth: "public", module: false, handler: async (c) => svc.catalog(parse(catalogQuery, Object.fromEntries(c.query))) },
   { method: "GET", path: "/public/store/products/:id", auth: "public", module: false, handler: async (c) => svc.product(c.params.id) },
+  { method: "GET", path: "/public/store/ref/:slug", auth: "public", module: false, handler: async (c) => svc.referrer(c.params.slug) },
   { method: "POST", path: "/public/store/orders", auth: "public", module: false, handler: async (c) => {
       rateLimit(`store:${clientIp(c.req)}`, 10, 10 * 60_000);
       const order = await svc.createOrder(parse(orderBody, await c.body()));

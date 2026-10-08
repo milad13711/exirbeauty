@@ -1,72 +1,45 @@
 "use client";
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { salons } from "@/lib/mock3";
-import { getDB } from "@/lib/db";
+import { store } from "@/lib/storeApi";
+import { useQuery } from "@/lib/useQuery";
 
 type Lines = Record<string, number>;
-type Ctx = {
-  lines: Lines;
-  add: (id: string) => void;
-  dec: (id: string) => void;
-  clear: () => void;
-  count: number;
-  refSalon: (typeof salons)[number] | null;
-};
+type Ctx = { lines: Lines; add: (id: string, max: number) => void; dec: (id: string) => void; clear: () => void; count: number; ref: string | null; refName: string | null };
 const C = createContext<Ctx | null>(null);
-export const useCart = () => {
-  const c = useContext(C);
-  if (!c) throw new Error("CartProvider missing");
-  return c;
-};
+export const useCart = () => { const c = useContext(C); if (!c) throw new Error("CartProvider missing"); return c; };
 
-// سبد در مرورگر پایدار می‌ماند تا با رفرش یا بازگشت مشتری از بین نرود
+// The cart survives refreshes in the browser; the real stock check happens on the server when the order is placed.
 const CART_KEY = "exir_cart";
 const EMPTY: Lines = {};
 let cart: Lines = EMPTY;
 let cartLoaded = false;
 const listeners = new Set<() => void>();
 const getCart = () => {
-  if (!cartLoaded && typeof window !== "undefined") {
-    cartLoaded = true;
-    try { const raw = localStorage.getItem(CART_KEY); if (raw) cart = JSON.parse(raw) as Lines; } catch {}
-  }
+  if (!cartLoaded && typeof window !== "undefined") { cartLoaded = true; try { const raw = localStorage.getItem(CART_KEY); if (raw) cart = JSON.parse(raw) as Lines; } catch {} }
   return cart;
 };
-const setCart = (next: Lines) => {
-  cart = next;
-  try { localStorage.setItem(CART_KEY, JSON.stringify(next)); } catch {}
-  listeners.forEach((l) => l());
-};
+const setCart = (next: Lines) => { cart = next; try { localStorage.setItem(CART_KEY, JSON.stringify(next)); } catch {} listeners.forEach((l) => l()); };
 const subscribeCart = (cb: () => void) => { listeners.add(cb); return () => { listeners.delete(cb); }; };
 
-// کد معرف از لینک (?ref=) خوانده و برای خریدهای بعدی همین مرورگر نگه داشته می‌شود
+// The salon's code from the link (?ref=) is remembered by this browser for later purchases.
 const REF_KEY = "exir_ref";
 const subscribeNone = () => () => {};
 function readRef(): string | null {
   const fromUrl = new URLSearchParams(window.location.search).get("ref");
-  try {
-    if (fromUrl) { localStorage.setItem(REF_KEY, fromUrl); return fromUrl; }
-    return localStorage.getItem(REF_KEY);
-  } catch {
-    return fromUrl;
-  }
+  try { if (fromUrl) { localStorage.setItem(REF_KEY, fromUrl); return fromUrl; } return localStorage.getItem(REF_KEY); } catch { return fromUrl; }
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const lines = useSyncExternalStore(subscribeCart, getCart, () => EMPTY);
-  const code = useSyncExternalStore(subscribeNone, readRef, () => null);
-
+  const ref = useSyncExternalStore(subscribeNone, readRef, () => null);
+  const salon = useQuery(() => (ref ? store.referrer(ref).catch(() => null) : Promise.resolve(null)), [ref]);
   const value = useMemo<Ctx>(() => ({
     lines,
-    add: (id) => {
-      const stock = getDB().products.find((p) => p.id === id)?.stock ?? 0;
-      const cur = getCart();
-      if ((cur[id] ?? 0) < stock) setCart({ ...cur, [id]: (cur[id] ?? 0) + 1 });
-    },
+    add: (id, max) => { const cur = getCart(); if ((cur[id] ?? 0) < max) setCart({ ...cur, [id]: (cur[id] ?? 0) + 1 }); },
     dec: (id) => { const n = { ...getCart(), [id]: (getCart()[id] ?? 0) - 1 }; if (n[id] <= 0) delete n[id]; setCart(n); },
     clear: () => setCart(EMPTY),
     count: Object.values(lines).reduce((a, b) => a + b, 0),
-    refSalon: salons.find((s) => s.code === code) ?? null,
-  }), [lines, code]);
+    ref, refName: salon.data?.name ?? null,
+  }), [lines, ref, salon.data]);
   return <C.Provider value={value}>{children}</C.Provider>;
 }

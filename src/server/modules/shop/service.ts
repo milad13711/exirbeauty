@@ -30,6 +30,13 @@ export async function adminUpdateProduct(id: string, b: Partial<Omit<P, "id">>) 
   return prisma.storeProduct.update({ where: { id }, data: b });
 }
 
+/** For the storefront banner: the salon behind a link, if it actually runs the shop. */
+export async function referrer(slug: string) {
+  const t = await prisma.tenant.findUnique({ where: { slug }, select: { id: true, name: true, status: true } });
+  if (!t || t.status !== "ACTIVE" || !(await assertModuleActive(t.id, "shop").then(() => true, () => false))) throw notFound("سالن پیدا نشد");
+  return { name: t.name };
+}
+
 // ───────── placing an order ─────────
 
 /** Reserves stock with a conditional UPDATE per product, all or nothing, so two shoppers can't buy the last unit. */
