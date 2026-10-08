@@ -66,7 +66,8 @@ export async function dispatch(req: Request, segments: string[], table: Compiled
       if (!session) throw unauthorized();
       // A deactivated user loses access immediately, even with a still-valid cookie.
       if ((await prisma.user.findUnique({ where: { id: session.userId }, select: { active: true } }))?.active === false) throw unauthorized("حساب شما غیرفعال شده است");
-      if (rule !== "user" && !rule.roles.includes(session.role)) throw forbidden();
+      // "any signed-in user" means staff-side users; customers (client portal) only reach routes that name their role.
+      if (rule === "user" ? session.role === "CUSTOMER" : !rule.roles.includes(session.role)) throw forbidden();
     }
 
     // Tenant context: a tenant user acts on their own tenant; admins name one explicitly.

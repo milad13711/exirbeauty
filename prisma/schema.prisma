@@ -15,6 +15,7 @@ enum Role {
   ADMIN
   OWNER
   STAFF
+  CUSTOMER // a salon customer signed in to the client portal (session only; never stored on User)
 }
 
 enum TenantStatus {
