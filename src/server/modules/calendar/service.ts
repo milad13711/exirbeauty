@@ -247,7 +247,7 @@ export async function publicAvailability(slug: string, q: { serviceId: string; d
   return { ...r, staff: r.staff.filter((s) => listed.has(s.staffId)) };
 }
 
-export async function publicBook(slug: string, b: { serviceId: string; staffId?: string; date: string; startMin: number; name: string; phone: string; note: string }) {
+export async function publicBook(slug: string, b: { serviceId: string; staffId?: string; date: string; startMin: number; name: string; phone: string; note: string; ref?: string }) {
   const { tenant, settings } = await publicTenant(slug);
   const horizon = addDays(tehranNow().date, 120);
   if (b.date > horizon) throw badRequest("رزرو بیش از ۱۲۰ روز آینده ممکن نیست");
@@ -267,6 +267,8 @@ export async function publicBook(slug: string, b: { serviceId: string; staffId?:
   if (open >= 3) throw tooMany("حداکثر ۳ نوبت فعال آنلاین برای هر شماره مجاز است");
 
   const appt = await insertAppointment(tenant.id, { customerId: customer.id, staffId: pick.staffId, serviceId: b.serviceId, date: b.date, startMin: b.startMin, note: b.note, status: settings.autoConfirm ? "CONFIRMED" : "PENDING", source: "ONLINE" }, { grid: true, leadMin: settings.leadHours * 60 });
+  // A friend-referral link (?ref=CODE) is handed to whoever handles referrals; calendar neither knows nor cares who.
+  if (b.ref) await emit("referral.code", tenant.id, { customerId: customer.id, code: b.ref });
   // The public caller gets a receipt, not the salon's internal record.
   return { id: appt.id, status: appt.status, date: appt.date, startMin: appt.startMin, serviceName: appt.serviceName, staffName: pick.name };
 }

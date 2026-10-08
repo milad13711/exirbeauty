@@ -56,7 +56,7 @@ export type SmsTxRow = { id: string; delta: number; balanceAfter: number; kind: 
 export type SmsStats = { days: number; sent: number; failed: number; blocked: number; parts: number; spend: number; byKind: Record<string, number> };
 import type { Config as LoyaltyConfig } from "@/server/modules/loyalty/rules";
 export type { LoyaltyConfig };
-export type LoyaltyTxKind = "EARN" | "EARN_REVERSE" | "REDEEM" | "ADJUST" | "CASHBACK" | "CASHBACK_REVERSE" | "REWARD_CREDIT" | "WALLET_SPEND" | "WALLET_REFUND" | "WALLET_ADJUST";
+export type LoyaltyTxKind = "EARN" | "EARN_REVERSE" | "REDEEM" | "ADJUST" | "CASHBACK" | "CASHBACK_REVERSE" | "REWARD_CREDIT" | "WALLET_SPEND" | "WALLET_REFUND" | "WALLET_ADJUST" | "REFERRAL";
 export type LoyaltyState = { customerId: string; name: string; points: number; lifetime: number; wallet: number; tier: string; off: number; next: { left: number; label: string }; log: { id: string; kind: LoyaltyTxKind; points: number; wallet: number; note: string; createdAt: string }[] };
 export type LoyaltyMember = { customerId: string; name: string; phone?: string; tier: string; points: number; lifetime: number; wallet: number };
 export type LoyaltyOverview = { members: number; points: number; walletTotal: number; tiers: Record<string, number>; top: LoyaltyMember[] };
@@ -225,6 +225,6 @@ export const crm = {
   // public booking (no login)
   publicSalon: (slug: string) => api<PublicSalon>("GET", `/public/salons/${encodeURIComponent(slug)}`),
   publicAvailability: (slug: string, q: { serviceId: string; date: string; staffId?: string }) => api<Availability>("GET", `/public/salons/${encodeURIComponent(slug)}/availability${qs(q)}`),
-  publicBook: (slug: string, b: { serviceId: string; staffId?: string; date: string; startMin: number; name: string; phone: string; note?: string }) => api<Receipt>("POST", `/public/salons/${encodeURIComponent(slug)}/appointments`, b),
+  publicBook: (slug: string, b: { serviceId: string; staffId?: string; date: string; startMin: number; name: string; phone: string; note?: string; ref?: string }) => api<Receipt>("POST", `/public/salons/${encodeURIComponent(slug)}/appointments`, b),
   publicWait: (slug: string, w: { name: string; phone: string; serviceId: string; staffId?: string | null; fromDate: string; toDate: string; note?: string }) => api<{ id: string }>("POST", `/public/salons/${encodeURIComponent(slug)}/waitlist`, w),
 };

@@ -9,7 +9,7 @@ import { errorText } from "@/lib/api";
 import { faDate, faNum, toman } from "@/lib/fmt";
 import { useQuery } from "@/lib/useQuery";
 
-const KIND: Record<string, string> = { EARN: "امتیاز فاکتور", EARN_REVERSE: "ابطال فاکتور", REDEEM: "استفاده از جایزه", ADJUST: "اصلاح دستی امتیاز", CASHBACK: "بازگشت وجه", CASHBACK_REVERSE: "ابطال بازگشت وجه", REWARD_CREDIT: "اعتبار جایزه", WALLET_SPEND: "پرداخت از کیف پول", WALLET_REFUND: "بازگشت به کیف پول", WALLET_ADJUST: "اصلاح دستی کیف پول" };
+const KIND: Record<string, string> = { EARN: "امتیاز فاکتور", EARN_REVERSE: "ابطال فاکتور", REDEEM: "استفاده از جایزه", ADJUST: "اصلاح دستی امتیاز", CASHBACK: "بازگشت وجه", CASHBACK_REVERSE: "ابطال بازگشت وجه", REWARD_CREDIT: "اعتبار جایزه", WALLET_SPEND: "پرداخت از کیف پول", WALLET_REFUND: "بازگشت به کیف پول", WALLET_ADJUST: "اصلاح دستی کیف پول", REFERRAL: "پاداش معرفی دوست" };
 const num = (s: string) => Math.max(0, Math.round(Number(s.replace(/[^\d.]/g, "")) || 0));
 const REWARD_KIND = { wallet: "اعتبار کیف پول", free: "خدمت رایگان", product: "محصول" } as const;
 

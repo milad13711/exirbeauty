@@ -5,8 +5,8 @@ import { onSaleCreated, onSaleVoided } from "./service";
 /** باشگاه مشتریان — tiers, points earned on invoices, rewards, cashback and a wallet usable as a cashier payment method. Tenant-scoped. */
 export const loyaltyModule = defineModule({
   id: "loyalty",
-  version: "1.1.0",
-  changelog: "بک‌اند کامل: سطح‌ها، امتیاز فاکتور، جایزه، بازگشت وجه و کیف پول (پرداخت در صندوق)، دفتر تراکنش و گزارش باشگاه",
+  version: "1.1.1",
+  changelog: "امتیاز پاداش معرفی (REFERRAL) برای ماژول معرفی دوستان",
   name: "باشگاه مشتریان",
   description: "سطح، امتیاز و جایزه",
   category: "وفاداری",

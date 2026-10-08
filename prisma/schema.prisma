@@ -749,6 +749,7 @@ enum LoyaltyTxKind {
   WALLET_SPEND // wallet used as a payment method
   WALLET_REFUND // invoice voided
   WALLET_ADJUST
+  REFERRAL // points for bringing in a friend
 }
 
 model LoyaltyConfig {
@@ -901,4 +902,34 @@ model Review {
 model ReviewConfig {
   tenantId  String @id
   threshold Int    @default(4) // ratings at or above this are invited to be public
+}
+
+// ───────── Module: referral (customers invite friends; the referrer earns loyalty points on the friend's first invoice) ─────────
+
+model ReferralConfig {
+  tenantId    String  @id
+  enabled     Boolean @default(false)
+  referrerPts Int     @default(100)
+  friendOff   Int     @default(10) // % discount offered on the friend's first invoice
+}
+
+model ReferralLink {
+  tenantId   String
+  customerId String
+  code       String @unique
+
+  @@id([tenantId, customerId])
+}
+
+model ReferralReward {
+  id         String   @id @default(cuid())
+  tenantId   String
+  referrerId String
+  friendId   String
+  saleId     String
+  points     Int
+  createdAt  DateTime @default(now())
+
+  @@unique([tenantId, friendId]) // a friend rewards their referrer once, ever
+  @@index([tenantId, referrerId])
 }

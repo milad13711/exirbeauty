@@ -15,7 +15,9 @@ const STEPS = ["خدمت", "متخصص", "زمان", "اطلاعات"] as const;
 const ANY = "any";
 
 function Wizard({ slug }: { slug: string }) {
-  const preStaff = useSearchParams().get("staff"); // deep link from the map: a specific person
+  const params = useSearchParams();
+  const preStaff = params.get("staff"); // deep link from the map: a specific person
+  const ref = params.get("ref") ?? undefined; // friend-referral code from an invite link
   const salon = useQuery(() => crm.publicSalon(slug), [slug]);
   const [step, setStep] = useState(0);
   const [serviceId, setServiceId] = useState("");
@@ -46,7 +48,7 @@ function Wizard({ slug }: { slug: string }) {
     if (!isPhone(phone)) return setErr("شماره موبایل معتبر نیست.");
     if (time === null) return;
     setBusy(true); setErr("");
-    try { setDone(await crm.publicBook(slug, { serviceId, staffId: who === ANY ? undefined : who, date, startMin: time, name: name.trim(), phone: digits(phone).replace(/[\s-]/g, ""), note: note.trim() })); }
+    try { setDone(await crm.publicBook(slug, { serviceId, staffId: who === ANY ? undefined : who, date, startMin: time, name: name.trim(), phone: digits(phone).replace(/[\s-]/g, ""), note: note.trim(), ref })); }
     catch (e) {
       setErr(errorText(e));
       if (e instanceof ApiError && e.code === "SLOT_TAKEN") { setTime(null); setStep(2); void avail.reload(); }

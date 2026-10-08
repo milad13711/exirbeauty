@@ -36,4 +36,4 @@ export const waitBody = z.object({ name: text(80).min(2), phone, serviceId: id, 
   .refine((w) => w.fromDate <= w.toDate, "تاریخ پایان باید بعد از شروع باشد");
 export const waitBook = z.object({ staffId: id, date, startMin: minute });
 
-export const publicBook = z.object({ serviceId: id, staffId: id.optional(), date, startMin: minute, name: text(80).min(2), phone, note: text(300).default("") });
+export const publicBook = z.object({ serviceId: id, staffId: id.optional(), date, startMin: minute, name: text(80).min(2), phone, note: text(300).default(""), ref: text(20).optional() });

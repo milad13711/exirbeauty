@@ -63,6 +63,11 @@ export async function refundWallet(tx: Tx, tenantId: string, customerId: string,
   return apply(tx, cfg, { tenantId, customerId, kind: "WALLET_REFUND", wallet: amount, ref: saleId, note: `ابطال فاکتور ${code}` });
 }
 
+/** Points from another module (e.g. a referral bonus), counted toward the tier like any earned points. */
+export async function grantPoints(tx: Tx, tenantId: string, customerId: string, points: number, note: string) {
+  return apply(tx, await getConfig(tenantId), { tenantId, customerId, kind: "REFERRAL", points, earned: true, note });
+}
+
 // ───────── reactions to cashier events ─────────
 
 export async function onSaleCreated(tenantId: string, p: Record<string, unknown>) {
