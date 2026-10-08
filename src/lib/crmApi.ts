@@ -85,6 +85,9 @@ export type InventoryOverview = { items: number; low: number; value: number; sup
 export type CampaignSegment = { inactiveDays?: number; tiers?: string[]; birthdayMonth?: boolean; minSpend?: number; service?: string };
 export type CampaignPreview = { count: number; tooMany: boolean; sample: string[]; cost: number; balance: number; enough: boolean; text: string };
 export type CampaignRow = { id: string; name: string; message: string; segment: CampaignSegment; status: "SCHEDULED" | "SENDING" | "SENT" | "CANCELED"; scheduledFor: string | null; sentAt: string | null; audienceCount: number; sentCount: number; failedCount: number; skippedCount: number; createdAt: string; revenue?: number; buyers?: number };
+export type ReviewRow = { id: string; rating: number | null; comment: string; route: "PUBLIC" | "PRIVATE" | null; resolved: boolean; reply: string | null; repliedAt: string | null; serviceName: string; staffId: string | null; staffName: string | null; customerName: string | null; createdAt: string; answeredAt: string | null };
+export type ReviewOverview = { answered: number; avg: number; dist: number[]; publicCount: number; openPrivate: number; pending: number; byStaff: { staffId: string; name: string; n: number; avg: number }[] };
+export type PublicReview = { salon: string; serviceName: string; staffName: string | null; answered: boolean; rating: number | null; threshold: number };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -162,6 +165,16 @@ export const crm = {
 
   tenantUsers: () => api<SalonUser[]>("GET", "/tenant/users"),
   setUserActive: (id: string, active: boolean) => api<{ id: string; active: boolean }>("PATCH", `/tenant/users/${id}`, { active }),
+
+  // reviews
+  reviews: (q: { route?: "PUBLIC" | "PRIVATE"; status?: "answered" | "pending" } = {}) => api<ReviewRow[]>("GET", `/reviews${qs(q)}`),
+  reviewOverview: () => api<ReviewOverview>("GET", "/reviews/overview"),
+  reviewConfig: () => api<{ threshold: number }>("GET", "/reviews/config"),
+  putReviewConfig: (threshold: number) => api<{ threshold: number }>("PUT", "/reviews/config", { threshold }),
+  replyReview: (id: string, text: string) => api<ReviewRow>("POST", `/reviews/${id}/reply`, { text }),
+  resolveReview: (id: string, resolved: boolean) => api<ReviewRow>("POST", `/reviews/${id}/${resolved ? "resolve" : "reopen"}`, {}),
+  publicReview: (token: string) => api<PublicReview>("GET", `/public/reviews/${encodeURIComponent(token)}`),
+  answerReview: (token: string, b: { rating: number; comment: string }) => api<{ route: "PUBLIC" | "PRIVATE"; thanks: string }>("POST", `/public/reviews/${encodeURIComponent(token)}`, b),
 
   // campaigns
   campaigns: () => api<CampaignRow[]>("GET", "/campaigns"),
