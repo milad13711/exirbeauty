@@ -85,6 +85,12 @@ The sidebar, the "locked module" screen and `/modules` read the signed-in salon'
 - Sending goes through the SMS module (per-message charge/refund, once per campaign+customer). A customer receives at most **2 campaign messages per rolling 30 days**; the rest are counted as skipped. Campaigns can be **scheduled** (salon-local date+time, up to 60 days ahead) and canceled until they start; a scheduler calls `POST /api/v1/campaigns/cron/run` with `x-cron-secret` (claim-then-send, so overlapping runs never double-send).
 - History shows sent/failed/skipped and the **sales those recipients made in the 5 days after** the send. Not built: opt-out lists, A/B tests, a background queue for very large audiences.
 
+### Reviews
+After an invoice with a service line, if the salon switched on the "review request" SMS scenario (off by default), the customer gets a personal link `/r/<secret>` (only a hash of the secret is stored). One answer per link (atomic claim); ratings at or above the salon's threshold (default 4) are invited to be public, lower ones reach the owner privately as complaints that can be replied to and resolved. Per-staff averages and a rating distribution are shown. Links die if the salon uninstalls the module.
+
+### Referral
+Each customer has a stable invite code. A friend who books through `/s/<slug>?ref=CODE` is attached to the referrer (public booking emits `referral.code`; only brand-new customers with no prior invoice, never self, never re-pointed). On the friend's first paid invoice the referrer earns loyalty points once (unique per friend, same transaction as the points) and the cashier offers the friend a first-invoice discount. Requires the loyalty module.
+
 ### Finder listing → real salon
 
 A published artist/salon listing can pay for its plan (`POST /finder/listings/:id/activate`, edit-code protected, Zarinpal). When the verified payment lands, `modules/finder/provision.ts` creates — in one transaction — the salon (tenant with the plan's modules and a paid-through date), an OWNER login on the listing's phone (OTP), and bookable staff (the listed people on the salon plan, otherwise the owner). Replays are no-ops; a phone that already has an account is refused *before* charging. From then on the dashboard is the source of truth: the map shows the salon's live staff with deep links to its booking page (`/s/<slug>?staff=<id>`, salon plan only — artist plan keeps request/lead forms), and finder edits no longer touch staff.
