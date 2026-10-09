@@ -12,9 +12,9 @@ const NEXT: Record<Status, Status[]> = { PENDING_PAYMENT: ["CANCELED"], PAID: ["
 export const canMove = (from: Status, to: Status) => NEXT[from].includes(to);
 
 /** Money earned on an order is released only after the return window has passed since delivery. */
-export const releasableAt = (deliveredAt: Date) => new Date(deliveredAt.getTime() + RETURN_DAYS * DAY);
-export const isReleasable = (o: { status: Status; commissionStatus: string; deliveredAt: Date | null }, now: Date) =>
-  o.status === "DELIVERED" && o.commissionStatus === "WAITING" && !!o.deliveredAt && releasableAt(o.deliveredAt) <= now;
+export const releasableAt = (deliveredAt: Date, days = RETURN_DAYS) => new Date(deliveredAt.getTime() + days * DAY);
+export const isReleasable = (o: { status: Status; commissionStatus: string; deliveredAt: Date | null }, now: Date, days = RETURN_DAYS) =>
+  o.status === "DELIVERED" && o.commissionStatus === "WAITING" && !!o.deliveredAt && releasableAt(o.deliveredAt, days) <= now;
 
 /** A salon doesn't earn commission on its own people's purchases. */
 export const earnsCommission = (orderPhone: string, tenantPhones: string[]) => !tenantPhones.includes(orderPhone);
@@ -29,3 +29,10 @@ export const FREE_SHIPPING_OVER = 2_000_000;
 export const FLAT_SHIPPING = 60_000;
 /** Flat shipping, free above a threshold. Commission is earned on the goods only, never on shipping. */
 export const shippingFor = (goods: number) => (goods <= 0 || goods > FREE_SHIPPING_OVER ? 0 : FLAT_SHIPPING);
+
+export type Boost = { extraPct: number; category: string | null; startsOn: string; endsOn: string; active: boolean };
+/** Extra commission points for a product category on a given salon-local day: every matching running boost adds up, capped. */
+export function boostFor(boosts: Boost[], category: string, today: string) {
+  return boosts.filter((b) => b.active && b.startsOn <= today && today <= b.endsOn && (b.category === null || b.category === category)).reduce((a, b) => a + b.extraPct, 0);
+}
+export const effectivePct = (base: number, extra: number) => Math.min(50, base + extra);

@@ -121,6 +121,7 @@ export type ModuleVersionRow = { version: string; changelog: string; releasedAt:
 export type AdminSmsPricing = { pricing: { sell: number }; packages: { id: string; name: string; price: number; bonusPct: number; active: boolean }[] };
 export type AdminPurchase = { id: string; supplier: string; note: string; total: number; createdAt: string; lines: { productId: string; name: string; qty: number; unitCost: number }[] };
 export type AdminReferrer = { tenantId: string; name: string; city: string; slug: string; wallet: number; orders: number; sales: number; credited: number; pending: number };
+export type AdminBoost = { id: string; name: string; extraPct: number; category: string | null; startsOn: string; endsOn: string; active: boolean };
 export type DayStatus = { date: string; closed: boolean; closing: { expectedCash: number; countedCash: number; difference: number; note: string; closedAt: string } | null; expectedCash: number; summary: Summary };
 
 const qs = (o: Record<string, string | number | undefined>) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])).toString(); return p ? `?${p}` : ""; };
@@ -220,6 +221,11 @@ export const crm = {
   adminStoreProducts: () => api<AdminStoreProduct[]>("GET", "/admin/store/products"),
   adminStoreCreate: (b: Omit<AdminStoreProduct, "id">) => api<{ id: string }>("POST", "/admin/store/products", b),
   adminStoreUpdate: (id: string, b: Partial<Omit<AdminStoreProduct, "id">>) => api<{ id: string }>("PATCH", `/admin/store/products/${id}`, b),
+  adminStoreRules: () => api<{ returnDays: number }>("GET", "/admin/store/rules"),
+  adminStoreRulesPut: (returnDays: number) => api<{ returnDays: number }>("PUT", "/admin/store/rules", { returnDays }),
+  adminBoosts: () => api<AdminBoost[]>("GET", "/admin/store/boosts"),
+  adminBoostCreate: (b: { name: string; extraPct: number; category?: string | null; startsOn: string; endsOn: string }) => api<AdminBoost>("POST", "/admin/store/boosts", b),
+  adminBoostActive: (id: string, active: boolean) => api<AdminBoost>("PATCH", `/admin/store/boosts/${id}`, { active }),
   adminPurchases: () => api<AdminPurchase[]>("GET", "/admin/store/purchases"),
   adminReceive: (b: { supplier: string; note?: string; lines: { productId: string; qty: number; unitCost: number }[] }) => api<{ id: string }>("POST", "/admin/store/purchases", b),
   adminReferrers: () => api<AdminReferrer[]>("GET", "/admin/store/referrers"),

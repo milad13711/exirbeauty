@@ -185,6 +185,35 @@ describe("payment, commission, fulfilment", () => {
   });
 });
 
+describe("platform rules & boosts", () => {
+  it("only admins set rules and campaigns; the return window changes when commission is released", async () => {
+    expect((await call(A, "PUT", "/admin/store/rules", { returnDays: 1 })).status).toBe(403);
+    expect((await call(ADMIN, "PUT", "/admin/store/rules", { returnDays: 99 })).status).toBe(422);
+    expect((await call(ADMIN, "PUT", "/admin/store/rules", { returnDays: 2 })).body.data.returnDays).toBe(2);
+    const r = await buy([{ productId: P.shampoo, qty: 1 }], { ref: SLUG.a }); await payFor(r);
+    await call(ADMIN, "POST", `/admin/store/orders/${r.body.data.orderId}/status`, { status: "SHIPPED" });
+    await call(ADMIN, "POST", `/admin/store/orders/${r.body.data.orderId}/status`, { status: "DELIVERED" });
+    await prisma.storeOrder.update({ where: { id: r.body.data.orderId }, data: { deliveredAt: new Date(Date.now() - 3 * 86_400_000) } }); // 3 days: past a 2-day window, inside the default 7
+    const before = await wallet(A);
+    expect(await releaseCommissions()).toBeGreaterThanOrEqual(1);
+    expect(await wallet(A)).toBe(before + 78_000);
+    await call(ADMIN, "PUT", "/admin/store/rules", { returnDays: 7 });
+  });
+  it("a running boost raises the commission snapshotted on new orders, only for its category and dates", async () => {
+    const today = new Date().toISOString().slice(0, 10), later = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    expect((await call(ADMIN, "POST", "/admin/store/boosts", { name: "کمپین پاییز", extraPct: 5, category: "مو", startsOn: later, endsOn: today })).status).toBe(400);
+    const b = (await call(ADMIN, "POST", "/admin/store/boosts", { name: "کمپین پاییز", extraPct: 5, category: "مو", startsOn: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), endsOn: later })).body.data;
+    const r = await buy([{ productId: P.shampoo, qty: 1 }], { ref: SLUG.a });
+    expect((await prisma.storeOrder.findUniqueOrThrow({ where: { id: r.body.data.orderId } })).commission).toBe(Math.round(650_000 * 0.17)); // 12% + 5%
+    await payFor(r, "NOK");
+    expect((await call(ADMIN, "PATCH", `/admin/store/boosts/${b.id}`, { active: false })).body.data.active).toBe(false);
+    const r2 = await buy([{ productId: P.shampoo, qty: 1 }], { ref: SLUG.a });
+    expect((await prisma.storeOrder.findUniqueOrThrow({ where: { id: r2.body.data.orderId } })).commission).toBe(Math.round(650_000 * 0.12));
+    await payFor(r2, "NOK");
+    await prisma.commissionBoost.deleteMany({ where: { id: b.id } });
+  });
+});
+
 describe("warehouse", () => {
   it("receives a supplier delivery atomically (all lines or none) and admins only", async () => {
     const before = await stock("shampoo");

@@ -29,3 +29,7 @@ export const purchaseBody = z.object({
   supplier: text(80).min(2, "نام تأمین‌کننده را وارد کنید"), note: text(200).default(""),
   lines: z.array(z.object({ productId: z.string().min(1).max(40), qty: z.number().int().min(1).max(100_000), unitCost: z.number().int().min(0).max(1_000_000_000) })).min(1, "حداقل یک ردیف لازم است").max(50),
 });
+
+export const rulesBody = z.object({ returnDays: z.number().int().min(0).max(30) });
+export const boostBody = z.object({ name: text(80).min(3), extraPct: z.number().int().min(1).max(30), category: text(40).nullish(), startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) });
+export const boostPatch = z.object({ active: z.boolean() });

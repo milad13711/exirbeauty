@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shippingFor, canMove, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, releasableAt } from "./rules";
+import { boostFor, effectivePct, shippingFor, canMove, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, releasableAt } from "./rules";
 
 describe("store rules", () => {
   it("totals and per-line rounded commission", () => {
@@ -30,5 +30,16 @@ describe("store rules", () => {
   });
   it("charges flat shipping, free above the threshold", () => {
     expect(shippingFor(500_000)).toBe(60_000); expect(shippingFor(2_000_000)).toBe(60_000); expect(shippingFor(2_000_001)).toBe(0); expect(shippingFor(0)).toBe(0);
+  });
+  it("running boosts add extra commission by category, within their dates, capped", () => {
+    const b = [{ extraPct: 3, category: "مو", startsOn: "2026-10-01", endsOn: "2026-10-31", active: true }, { extraPct: 2, category: null, startsOn: "2026-10-10", endsOn: "2026-10-20", active: true }, { extraPct: 9, category: "مو", startsOn: "2026-10-01", endsOn: "2026-10-31", active: false }];
+    expect(boostFor(b, "مو", "2026-10-15")).toBe(5);
+    expect(boostFor(b, "پوست", "2026-10-15")).toBe(2);
+    expect(boostFor(b, "مو", "2026-10-25")).toBe(3);
+    expect(boostFor(b, "مو", "2026-11-01")).toBe(0);
+    expect(effectivePct(48, 5)).toBe(50);
+  });
+  it("the return window is configurable", () => {
+    expect(releasableAt(new Date("2026-10-01T00:00:00Z"), 3).toISOString()).toBe("2026-10-04T00:00:00.000Z");
   });
 });

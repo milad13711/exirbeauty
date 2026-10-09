@@ -121,7 +121,7 @@ Logos and before/after photos are small images (≤ 700 KB, PNG/JPEG/WebP only �
 - **Recommendations**: store products suited to the category of a customer's last service.
 - **Assistant (`/ai`)**: rule-based (no language model) answers about sales, capacity, customers to win back, margins, debts, stock and top staff, computed from the salon's own data.
 - Shipping is flat (free above 2,000,000 toman) and never earns commission; the admin enters a post tracking code when shipping; shoppers track by order number + phone at `/store/track`. A plan renewal can use part of the wallet and pay the rest online — the wallet part is refunded if that payment fails, is canceled or is abandoned for a day.
-- Admin: warehouse view, supplier deliveries (`/admin/purchases`, stock rises in the same transaction, all lines or none), referring-salon report. Not built: the "referral marketing" admin page (still prototype — it has no defined rules yet).
+- Admin: warehouse view, supplier deliveries (`/admin/purchases`, stock rises in the same transaction, all lines or none), referring-salon report. `/admin/referral-marketing` sets the return window (0–30 days, used when releasing commission) and temporary commission **boosts** (extra % for all products or one category, between two dates; snapshotted on each order when it is placed, capped at 50% total). The prototype's "referral programmes" list and promo-kit downloads were dropped (no defined rules / no file assets).
 
 ### Finder listing → real salon
 

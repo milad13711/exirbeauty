@@ -2,11 +2,37 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { badRequest, conflict, notFound } from "../../http/errors";
 import { assertModuleActive, changePlan } from "../../platform/modules/service";
-import { PENDING_TTL_MS, canMove, shippingFor, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, type Status } from "./rules";
+import { tehranNow } from "../calendar/availability";
+import { PENDING_TTL_MS, RETURN_DAYS, boostFor, canMove, effectivePct, shippingFor, commissionOf, earnsCommission, isReleasable, orderTotal, recommendCategories, type Status } from "./rules";
 
 // The store is the platform's own: products and orders are global. A salon sees only the orders that came through its link.
 
 const isDup = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+
+// ───────── platform rules & campaigns (admin) ─────────
+
+const RULES_KEY = "store.rules";
+export async function getRules() {
+  const v = ((await prisma.platformSetting.findUnique({ where: { key: RULES_KEY } }))?.value ?? {}) as { returnDays?: number };
+  return { returnDays: typeof v.returnDays === "number" && v.returnDays >= 0 && v.returnDays <= 30 ? v.returnDays : RETURN_DAYS };
+}
+export async function putRules(r: { returnDays: number }) {
+  await prisma.platformSetting.upsert({ where: { key: RULES_KEY }, create: { key: RULES_KEY, value: r }, update: { value: r } });
+  return getRules();
+}
+
+const day = (d: string) => new Date(`${d}T00:00:00.000Z`);
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const boostView = (b: { id: string; name: string; extraPct: number; category: string | null; startsOn: Date; endsOn: Date; active: boolean }) => ({ id: b.id, name: b.name, extraPct: b.extraPct, category: b.category, startsOn: ymd(b.startsOn), endsOn: ymd(b.endsOn), active: b.active });
+export const boosts = async () => (await prisma.commissionBoost.findMany({ orderBy: { startsOn: "desc" }, take: 100 })).map(boostView);
+export async function createBoost(b: { name: string; extraPct: number; category?: string | null; startsOn: string; endsOn: string }) {
+  if (b.endsOn < b.startsOn) throw badRequest("تاریخ پایان باید بعد از شروع باشد");
+  return boostView(await prisma.commissionBoost.create({ data: { name: b.name, extraPct: b.extraPct, category: b.category ?? null, startsOn: day(b.startsOn), endsOn: day(b.endsOn) } }));
+}
+export async function updateBoost(id: string, b: { active?: boolean }) {
+  if (!(await prisma.commissionBoost.count({ where: { id } }))) throw notFound("کمپین پیدا نشد");
+  return boostView(await prisma.commissionBoost.update({ where: { id }, data: b }));
+}
 
 // ───────── catalog ─────────
 
@@ -55,7 +81,9 @@ export async function createOrder(b: { items: { productId: string; qty: number }
   const items = [...merged].map(([productId, qty]) => ({ productId, qty }));
   const products = await prisma.storeProduct.findMany({ where: { id: { in: items.map((i) => i.productId) }, active: true } });
   if (products.length !== items.length) throw badRequest("یکی از کالاهای سبد دیگر موجود نیست");
-  const lines = items.map((i) => { const p = products.find((x) => x.id === i.productId)!; return { productId: p.id, name: p.name, qty: i.qty, price: p.price, commissionPct: p.commissionPct }; });
+  const running = (await prisma.commissionBoost.findMany({ where: { active: true } })).map((b) => ({ extraPct: b.extraPct, category: b.category, startsOn: ymd(b.startsOn), endsOn: ymd(b.endsOn), active: b.active }));
+  const today = tehranNow().date;
+  const lines = items.map((i) => { const p = products.find((x) => x.id === i.productId)!; return { productId: p.id, name: p.name, qty: i.qty, price: p.price, commissionPct: effectivePct(p.commissionPct, boostFor(running, p.category, today)) }; });
 
   // The salon behind the link earns commission only while it runs the shop module, and never on its own people's orders.
   let refTenantId: string | null = null, refVia = "";
@@ -153,10 +181,11 @@ async function clawBack(tx: Prisma.TransactionClient, tenantId: string, amount: 
 
 /** Pays commissions whose return window has passed; each order is claimed first, so it is credited exactly once. */
 export async function releaseCommissions(now = new Date()) {
-  const due = await prisma.storeOrder.findMany({ where: { status: "DELIVERED", commissionStatus: "WAITING", deliveredAt: { lte: new Date(now.getTime() - 7 * 86_400_000) }, refTenantId: { not: null } }, take: 200 });
+  const { returnDays } = await getRules();
+  const due = await prisma.storeOrder.findMany({ where: { status: "DELIVERED", commissionStatus: "WAITING", deliveredAt: { lte: new Date(now.getTime() - returnDays * 86_400_000) }, refTenantId: { not: null } }, take: 200 });
   let credited = 0;
   for (const o of due) {
-    if (!isReleasable(o, now)) continue;
+    if (!isReleasable(o, now, returnDays)) continue;
     try {
       await prisma.$transaction(async (tx) => {
         const claimed = await tx.storeOrder.updateMany({ where: { id: o.id, commissionStatus: "WAITING", status: "DELIVERED" }, data: { commissionStatus: "CREDITED" } });

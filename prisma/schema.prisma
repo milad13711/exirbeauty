@@ -1273,3 +1273,16 @@ model StorePurchase {
   total     Int
   createdAt DateTime @default(now())
 }
+
+// A temporary extra commission on store orders (e.g. "autumn campaign +3% on hair care"), applied when the order is placed.
+model CommissionBoost {
+  id       String   @id @default(cuid())
+  name     String
+  extraPct Int
+  category String? // null = every product
+  startsOn DateTime @db.Date
+  endsOn   DateTime @db.Date
+  active   Boolean  @default(true)
+
+  @@index([active, startsOn, endsOn])
+}
